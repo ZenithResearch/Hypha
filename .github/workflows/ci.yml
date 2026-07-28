@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          lfs: true
+          fetch-depth: 0
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.4.app/Contents/Developer
+      - name: Verify patched SDK artifact
+        run: |
+          expected=ca8796d0f065ade3787de2f18693afd940914ce2e35f807ccf479d2f14c5c565
+          actual=$(shasum -a 256 Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip | cut -d ' ' -f 1)
+          test "$actual" = "$expected"
+          grep -q '67d27c766ee61eca55707ddad232e57769344e5f' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q '4bd5e819302ac5fd0cce86e2ec602a7540247dd5' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q '3932fd4e8bcdb55738920de53e6dd6dad75c07a9' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q '238e8745a9103cf0ee071771d7e93e007939cd20' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q 'f53e2ac81' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q 'c73782cbb' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q '5f028b9e0' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q 'f2f814679' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q '97fa91b0c756604ef0b03ab9479fc704d1362c55' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q 'f4889ec898e77d8b8c9013adadd77f3d0901fc2d' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q '533973cb7d918108fa111214575382bfbe30f765' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q '2ee2199867bb28b723d80b1c6f80315301058c57' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q '94f7106f93016e212fe69e9cc6f6d098f6dc71b6' Vendor/MatrixRustSDK/PROVENANCE.md
+      - name: Install pinned Gitleaks
+        run: |
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_arm64.tar.gz -o /tmp/gitleaks.tar.gz
+          printf '%s  %s\n' b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5 /tmp/gitleaks.tar.gz | shasum -a 256 -c -
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+      - name: Scan committed history and candidate tree
+        run: |
+          /tmp/gitleaks git . --log-opts='--all' --redact --no-banner
+          /tmp/gitleaks dir . --max-archive-depth=2 --max-target-megabytes=300 --redact --no-banner
+      - name: Verify public-release metadata
+        run: |
+          python3 scripts/verify_public_release.py
+          python3 scripts/test_public_release_verifier.py
+      - name: Test
+        run: swift test
+      - name: Build
+        run: swift build
+      - name: Package and audit
+        run: HYPHA_SIGNING_MODE=adhoc ./build-app.sh
+      - name: Verify signed bundle
+        run: codesign --verify --deep --strict --verbose=2 Hypha.app

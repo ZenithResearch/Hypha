@@ -1,0 +1,4066 @@
+{
+  "cargo_about_version": "0.9.1",
+  "matrix_sdk_ffi_version": "0.18.0",
+  "matrix_sdk_source_commit": "f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+  "package_count": 507,
+  "packages": [
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/addr2line/0.25.1/download",
+      "name": "addr2line",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.25.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/adler2/2.0.1/download",
+      "name": "adler2",
+      "normalized_spdx": "0BSD OR MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jonas Schievink <jonasschievink@gmail.com>; oyvindln <oyvindln@users.noreply.github.com>",
+      "raw_cargo_license": "0BSD OR MIT OR Apache-2.0",
+      "version": "2.0.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/aead/0.5.2/download",
+      "name": "aead",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.5.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/aes/0.8.4/download",
+      "name": "aes",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.8.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/aho-corasick/1.1.3/download",
+      "name": "aho-corasick",
+      "normalized_spdx": "Unlicense OR MIT",
+      "package_metadata_attribution": "Andrew Gallant <jamslam@gmail.com>",
+      "raw_cargo_license": "Unlicense OR MIT",
+      "version": "1.1.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/allocator-api2/0.2.18/download",
+      "name": "allocator-api2",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Zakarum <zaq.dev@icloud.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.18"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/anyhow/1.0.103/download",
+      "name": "anyhow",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.103"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/anymap2/0.13.0/download",
+      "name": "anymap2",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Chris Morgan <me@chrismorgan.info>; Azriel Hoh <azriel91@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.13.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/aquamarine/0.6.0/download",
+      "name": "aquamarine",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Mike Lubinets <git@mkl.dev>; Frank Rehberger <frehberg@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.6.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/arc-swap/1.7.1/download",
+      "name": "arc-swap",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Michal 'vorner' Vaner <vorner@vorner.cz>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.7.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/archery/1.2.1/download",
+      "name": "archery",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Diogo Sousa <diogogsousa@gmail.com>",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "1.2.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/arrayref/0.3.8/download",
+      "name": "arrayref",
+      "normalized_spdx": "BSD-2-Clause",
+      "package_metadata_attribution": "David Roundy <roundyd@physics.oregonstate.edu>",
+      "raw_cargo_license": "BSD-2-Clause",
+      "version": "0.3.8"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/arrayvec/0.7.6/download",
+      "name": "arrayvec",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "bluss",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.7.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/as_variant/1.3.0/download",
+      "name": "as_variant",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "1.3.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/askama/0.14.0/download",
+      "name": "askama",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.14.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/askama_derive/0.14.0/download",
+      "name": "askama_derive",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.14.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/askama_parser/0.14.0/download",
+      "name": "askama_parser",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.14.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/asn1-rs/0.7.2/download",
+      "name": "asn1-rs",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Pierre Chifflier <chifflier@wzdftpd.net>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.7.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/asn1-rs-derive/0.6.0/download",
+      "name": "asn1-rs-derive",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Pierre Chifflier <chifflier@wzdftpd.net>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.6.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/asn1-rs-impl/0.2.0/download",
+      "name": "asn1-rs-impl",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Pierre Chifflier <chifflier@wzdftpd.net>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/assert-json-diff/2.0.2/download",
+      "name": "assert-json-diff",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "David Pedersen <david.pdrsn@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "2.0.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/assert_matches/1.5.0/download",
+      "name": "assert_matches",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Murarth <murarth@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/assert_matches2/0.1.2/download",
+      "name": "assert_matches2",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.1.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/assign/1.1.1/download",
+      "name": "assign",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Alan Darmasaputra <kelerchian@gmail.com>; Jonas Platte <jplatte@posteo.de>",
+      "raw_cargo_license": "MIT",
+      "version": "1.1.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/async-channel/2.5.0/download",
+      "name": "async-channel",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Stjepan Glavina <stjepang@gmail.com>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "2.5.0"
+    },
+    {
+      "immutable_source": "https://github.com/element-hq/async-compat/commit/5a27c8b290f1f1dcfc0c4ec22c464e38528aa591",
+      "name": "async-compat",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Stjepan Glavina <stjepang@gmail.com>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.2.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/async-compression/0.4.12/download",
+      "name": "async-compression",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Wim Looman <wim@nemo157.com>; Allen Bui <fairingrey@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.4.12"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/async-rx/0.2.0/download",
+      "name": "async-rx",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/async-stream/0.3.6/download",
+      "name": "async-stream",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Carl Lerche <me@carllerche.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.3.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/async-stream-impl/0.3.6/download",
+      "name": "async-stream-impl",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Carl Lerche <me@carllerche.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.3.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/async-trait/0.1.89/download",
+      "name": "async-trait",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.89"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/async_cell/0.2.3/download",
+      "name": "async_cell",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Sam Sartor <me@samsartor.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.2.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/atomic-waker/1.1.2/download",
+      "name": "atomic-waker",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Stjepan Glavina <stjepang@gmail.com>; Contributors to futures-rs",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "1.1.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/autocfg/1.3.0/download",
+      "name": "autocfg",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Josh Stone <cuviper@gmail.com>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "1.3.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/aws-lc-rs/1.16.2/download",
+      "name": "aws-lc-rs",
+      "normalized_spdx": "ISC AND (Apache-2.0 OR ISC)",
+      "package_metadata_attribution": "AWS-LibCrypto",
+      "raw_cargo_license": "ISC AND (Apache-2.0 OR ISC)",
+      "version": "1.16.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/aws-lc-sys/0.39.0/download",
+      "name": "aws-lc-sys",
+      "normalized_spdx": "ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)",
+      "package_metadata_attribution": "AWS-LC",
+      "raw_cargo_license": "ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)",
+      "version": "0.39.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/backon/1.6.0/download",
+      "name": "backon",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "1.6.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/backtrace/0.3.76/download",
+      "name": "backtrace",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.76"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/base64/0.22.1/download",
+      "name": "base64",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Marshall Pierce <marshall@mpierce.org>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.22.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/base64ct/1.8.3/download",
+      "name": "base64ct",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "1.8.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/basic-toml/0.1.9/download",
+      "name": "basic-toml",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alex Crichton <alex@alexcrichton.com>; David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.9"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/bit-set/0.8.0/download",
+      "name": "bit-set",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Alexis Beingessner <a.beingessner@gmail.com>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.8.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/bit-vec/0.8.0/download",
+      "name": "bit-vec",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Alexis Beingessner <a.beingessner@gmail.com>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.8.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/bitflags/2.10.0/download",
+      "name": "bitflags",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.10.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/bitmaps/3.2.1/download",
+      "name": "bitmaps",
+      "normalized_spdx": "MPL-2.0-or-later",
+      "package_metadata_attribution": "Bodil Stokke <bodil@bodil.org>",
+      "raw_cargo_license": "MPL-2.0+",
+      "version": "3.2.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/bitpacking/0.9.3/download",
+      "name": "bitpacking",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Paul Masurel <paul.masurel@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.9.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/blake3/1.8.2/download",
+      "name": "blake3",
+      "normalized_spdx": "CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception",
+      "package_metadata_attribution": "Jack O'Connor <oconnor663@gmail.com>; Samuel Neves",
+      "raw_cargo_license": "CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception",
+      "version": "1.8.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/block-buffer/0.10.4/download",
+      "name": "block-buffer",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.10.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/block-padding/0.3.3/download",
+      "name": "block-padding",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/bon/3.6.5/download",
+      "name": "bon",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "3.6.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/bon-macros/3.6.5/download",
+      "name": "bon-macros",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "3.6.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/bs58/0.5.1/download",
+      "name": "bs58",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.5.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/bumpalo/3.16.0/download",
+      "name": "bumpalo",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Nick Fitzgerald <fitzgen@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "3.16.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/byteorder/1.5.0/download",
+      "name": "byteorder",
+      "normalized_spdx": "Unlicense OR MIT",
+      "package_metadata_attribution": "Andrew Gallant <jamslam@gmail.com>",
+      "raw_cargo_license": "Unlicense OR MIT",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/bytes/1.11.1/download",
+      "name": "bytes",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Carl Lerche <me@carllerche.com>; Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT",
+      "version": "1.11.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/bytesize/2.3.0/download",
+      "name": "bytesize",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Hyunsik Choi <hyunsik.choi@gmail.com>; MrCroxx <mrcroxx@outlook.com>; Rob Ede <robjtede@icloud.com>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "2.3.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/camino/1.2.2/download",
+      "name": "camino",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Without Boats <saoirse@without.boats>; Ashley Williams <ashley666ashley@gmail.com>; Steve Klabnik <steve@steveklabnik.com>; Rain <rain@sunshowers.io>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.2.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/cargo-platform/0.1.9/download",
+      "name": "cargo-platform",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.9"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/cargo_metadata/0.19.2/download",
+      "name": "cargo_metadata",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Oliver Schneider <git-spam-no-reply9815368754983@oli-obk.de>",
+      "raw_cargo_license": "MIT",
+      "version": "0.19.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/cast/0.3.0/download",
+      "name": "cast",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jorge Aparicio <jorge@japaric.io>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/cbc/0.1.2/download",
+      "name": "cbc",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/cc/1.2.52/download",
+      "name": "cc",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alex Crichton <alex@alexcrichton.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.2.52"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/census/0.4.2/download",
+      "name": "census",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Paul Masurel <paul.masurel@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.4.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/cfg-if/1.0.4/download",
+      "name": "cfg-if",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alex Crichton <alex@alexcrichton.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/chacha20/0.10.0/download",
+      "name": "chacha20",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.10.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/chacha20/0.9.1/download",
+      "name": "chacha20",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.9.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/chacha20poly1305/0.10.1/download",
+      "name": "chacha20poly1305",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.10.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/chrono/0.4.42/download",
+      "name": "chrono",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.4.42"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/cipher/0.4.4/download",
+      "name": "cipher",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.4.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/cmake/0.1.57/download",
+      "name": "cmake",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alex Crichton <alex@alexcrichton.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.57"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/concurrent-queue/2.5.0/download",
+      "name": "concurrent-queue",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Stjepan Glavina <stjepang@gmail.com>; Taiki Endo <te316e89@gmail.com>; John Nunley <dev@notgull.net>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "2.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/console/0.15.8/download",
+      "name": "console",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Armin Ronacher <armin.ronacher@active-4.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.15.8"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/const-oid/0.9.6/download",
+      "name": "const-oid",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.9.6"
+    },
+    {
+      "immutable_source": "https://github.com/jplatte/const_panic/commit/e0b317a9a7bde2d48a7d15b6a60d70e4a41d3b5f",
+      "name": "const_panic",
+      "normalized_spdx": "Zlib",
+      "package_metadata_attribution": "rodrimati1992 <rodrimatt1985@gmail.com>",
+      "raw_cargo_license": "Zlib",
+      "version": "0.2.15"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/constant_time_eq/0.3.1/download",
+      "name": "constant_time_eq",
+      "normalized_spdx": "CC0-1.0 OR MIT-0 OR Apache-2.0",
+      "package_metadata_attribution": "Cesar Eduardo Barros <cesarb@cesarb.eti.br>",
+      "raw_cargo_license": "CC0-1.0 OR MIT-0 OR Apache-2.0",
+      "version": "0.3.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/core-foundation/0.10.1/download",
+      "name": "core-foundation",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Servo Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.10.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/core-foundation-sys/0.8.6/download",
+      "name": "core-foundation-sys",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Servo Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.8.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/cpufeatures/0.2.12/download",
+      "name": "cpufeatures",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.12"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/crc32fast/1.4.2/download",
+      "name": "crc32fast",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Sam Rijs <srijs@airpost.net>; Alex Crichton <alex@alexcrichton.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.4.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/crossbeam-channel/0.5.15/download",
+      "name": "crossbeam-channel",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.5.15"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/crossbeam-deque/0.8.5/download",
+      "name": "crossbeam-deque",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.8.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/crossbeam-epoch/0.9.20/download",
+      "name": "crossbeam-epoch",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.9.20"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/crossbeam-utils/0.8.20/download",
+      "name": "crossbeam-utils",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.8.20"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/crunchy/0.2.2/download",
+      "name": "crunchy",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Vurich <jackefransham@hotmail.co.uk>",
+      "raw_cargo_license": "MIT",
+      "version": "0.2.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/crypto-common/0.1.6/download",
+      "name": "crypto-common",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ctor/0.2.9/download",
+      "name": "ctor",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Matt Mastracci <matthew@mastracci.com>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.2.9"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ctr/0.9.2/download",
+      "name": "ctr",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.9.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/curve25519-dalek/4.1.3/download",
+      "name": "curve25519-dalek",
+      "normalized_spdx": "BSD-3-Clause",
+      "package_metadata_attribution": "Isis Lovecruft <isis@patternsinthevoid.net>; Henry de Valence <hdevalence@hdevalence.ca>",
+      "raw_cargo_license": "BSD-3-Clause",
+      "version": "4.1.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/darling/0.20.10/download",
+      "name": "darling",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Ted Driggs <ted.driggs@outlook.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.20.10"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/darling/0.21.1/download",
+      "name": "darling",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Ted Driggs <ted.driggs@outlook.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.21.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/darling_core/0.20.10/download",
+      "name": "darling_core",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Ted Driggs <ted.driggs@outlook.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.20.10"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/darling_core/0.21.1/download",
+      "name": "darling_core",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Ted Driggs <ted.driggs@outlook.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.21.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/darling_macro/0.20.10/download",
+      "name": "darling_macro",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Ted Driggs <ted.driggs@outlook.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.20.10"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/darling_macro/0.21.1/download",
+      "name": "darling_macro",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Ted Driggs <ted.driggs@outlook.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.21.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/data-encoding/2.11.0/download",
+      "name": "data-encoding",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Julien Cretin <git@ia0.eu>",
+      "raw_cargo_license": "MIT",
+      "version": "2.11.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/datasketches/0.2.0/download",
+      "name": "datasketches",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/date_header/1.0.5/download",
+      "name": "date_header",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jayshua Nelson <me@jayshuanelson.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/deadpool/0.12.3/download",
+      "name": "deadpool",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Michael P. Jung <michael.jung@terreon.de>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.12.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/deadpool/0.13.0/download",
+      "name": "deadpool",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Michael P. Jung <michael.jung@terreon.de>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.13.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/deadpool-runtime/0.1.4/download",
+      "name": "deadpool-runtime",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Michael P. Jung <michael.jung@terreon.de>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/deadpool-runtime/0.3.1/download",
+      "name": "deadpool-runtime",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Michael P. Jung <michael.jung@terreon.de>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/deadpool-sync/0.2.0/download",
+      "name": "deadpool-sync",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Michael P. Jung <michael.jung@terreon.de>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/decancer/3.3.3/download",
+      "name": "decancer",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "null (https://github.com/null8626)",
+      "raw_cargo_license": "MIT",
+      "version": "3.3.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/der/0.7.9/download",
+      "name": "der",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.7.9"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/der-parser/10.0.0/download",
+      "name": "der-parser",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Pierre Chifflier <chifflier@wzdftpd.net>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "10.0.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/deranged/0.5.3/download",
+      "name": "deranged",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jacob Pratt <jacob@jhpratt.dev>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.5.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/derive_builder/0.20.2/download",
+      "name": "derive_builder",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Colin Kiegel <kiegel@gmx.de>; Pascal Hertleif <killercup@gmail.com>; Jan-Erik Rediger <janerik@fnordig.de>; Ted Driggs <ted.driggs@outlook.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.20.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/derive_builder_core/0.20.2/download",
+      "name": "derive_builder_core",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Colin Kiegel <kiegel@gmx.de>; Pascal Hertleif <killercup@gmail.com>; Jan-Erik Rediger <janerik@fnordig.de>; Ted Driggs <ted.driggs@outlook.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.20.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/derive_builder_macro/0.20.2/download",
+      "name": "derive_builder_macro",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Colin Kiegel <kiegel@gmx.de>; Pascal Hertleif <killercup@gmail.com>; Jan-Erik Rediger <janerik@fnordig.de>; Ted Driggs <ted.driggs@outlook.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.20.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/digest/0.10.7/download",
+      "name": "digest",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.10.7"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/dirs/6.0.0/download",
+      "name": "dirs",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Simon Ochsenreither <simon@ochsenreither.de>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "6.0.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/dirs-sys/0.5.0/download",
+      "name": "dirs-sys",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Simon Ochsenreither <simon@ochsenreither.de>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/displaydoc/0.2.5/download",
+      "name": "displaydoc",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jane Lusby <jlusby@yaah.dev>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/downcast-rs/2.0.1/download",
+      "name": "downcast-rs",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.0.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/dunce/1.0.5/download",
+      "name": "dunce",
+      "normalized_spdx": "CC0-1.0 OR MIT-0 OR Apache-2.0",
+      "package_metadata_attribution": "Kornel <kornel@geekhood.net>",
+      "raw_cargo_license": "CC0-1.0 OR MIT-0 OR Apache-2.0",
+      "version": "1.0.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ed25519/2.2.3/download",
+      "name": "ed25519",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "2.2.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ed25519-dalek/2.1.1/download",
+      "name": "ed25519-dalek",
+      "normalized_spdx": "BSD-3-Clause",
+      "package_metadata_attribution": "isis lovecruft <isis@patternsinthevoid.net>; Tony Arcieri <bascule@gmail.com>; Michael Rosenberg <michael@mrosenberg.pub>",
+      "raw_cargo_license": "BSD-3-Clause",
+      "version": "2.1.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/either/1.13.0/download",
+      "name": "either",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "bluss",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.13.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/emojis/0.8.0/download",
+      "name": "emojis",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Ross MacArthur <ross@macarthur.io>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.8.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/equivalent/1.0.1/download",
+      "name": "equivalent",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "1.0.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/erased-serde/0.4.10/download",
+      "name": "erased-serde",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.4.10"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/errno/0.3.13/download",
+      "name": "errno",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Chris Wong <lambda.fairy@gmail.com>; Dan Gohman <dev@sunfishcode.online>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.13"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/event-listener/5.4.1/download",
+      "name": "event-listener",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Stjepan Glavina <stjepang@gmail.com>; John Nunley <dev@notgull.net>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "5.4.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/event-listener-strategy/0.5.4/download",
+      "name": "event-listener-strategy",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "John Nunley <dev@notgull.net>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.5.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/extension-trait/1.0.2/download",
+      "name": "extension-trait",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Konrad Borowski <konrad@borowski.pw>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/eyeball/0.8.8/download",
+      "name": "eyeball",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.8.8"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/eyeball-im/0.8.0/download",
+      "name": "eyeball-im",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.8.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/eyeball-im-util/0.10.0/download",
+      "name": "eyeball-im-util",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.10.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/fallible-iterator/0.3.0/download",
+      "name": "fallible-iterator",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Steven Fackler <sfackler@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/fallible-streaming-iterator/0.1.9/download",
+      "name": "fallible-streaming-iterator",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Steven Fackler <sfackler@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.9"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/fancy-regex/0.18.0/download",
+      "name": "fancy-regex",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Raph Levien <raph@google.com>; Robin Stocker <robin@nibor.org>; Keith Hall <keith.hall@available.systems>",
+      "raw_cargo_license": "MIT",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/fastdivide/0.4.2/download",
+      "name": "fastdivide",
+      "normalized_spdx": "zlib-acknowledgement OR MIT",
+      "package_metadata_attribution": "Paul Masurel <paul.masurel@gmail.com>",
+      "raw_cargo_license": "zlib-acknowledgement OR MIT",
+      "version": "0.4.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/fastrand/2.2.0/download",
+      "name": "fastrand",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Stjepan Glavina <stjepang@gmail.com>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "2.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/find-msvc-tools/0.1.7/download",
+      "name": "find-msvc-tools",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.7"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/flate2/1.1.5/download",
+      "name": "flate2",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alex Crichton <alex@alexcrichton.com>; Josh Triplett <josh@joshtriplett.org>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.1.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/fnv/1.0.7/download",
+      "name": "fnv",
+      "normalized_spdx": "Apache-2.0  OR  MIT",
+      "package_metadata_attribution": "Alex Crichton <alex@alexcrichton.com>",
+      "raw_cargo_license": "Apache-2.0  OR  MIT",
+      "version": "1.0.7"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/foldhash/0.1.5/download",
+      "name": "foldhash",
+      "normalized_spdx": "Zlib",
+      "package_metadata_attribution": "Orson Peters <orsonpeters@gmail.com>",
+      "raw_cargo_license": "Zlib",
+      "version": "0.1.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/foldhash/0.2.0/download",
+      "name": "foldhash",
+      "normalized_spdx": "Zlib",
+      "package_metadata_attribution": "Orson Peters <orsonpeters@gmail.com>",
+      "raw_cargo_license": "Zlib",
+      "version": "0.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/form_urlencoded/1.2.2/download",
+      "name": "form_urlencoded",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The rust-url developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.2.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/fs-err/2.11.0/download",
+      "name": "fs-err",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Andrew Hickman <andrew.hickman1@sky.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.11.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/fs4/0.13.1/download",
+      "name": "fs4",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Dan Burkert <dan@danburkert.com>; Al Liu <scygliu1@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.13.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/fs_extra/1.3.0/download",
+      "name": "fs_extra",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Denis Kurilenko <webdesus@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "1.3.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/futures/0.3.31/download",
+      "name": "futures",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.31"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/futures-channel/0.3.31/download",
+      "name": "futures-channel",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.31"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/futures-core/0.3.31/download",
+      "name": "futures-core",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.31"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/futures-executor/0.3.31/download",
+      "name": "futures-executor",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.31"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/futures-io/0.3.31/download",
+      "name": "futures-io",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.31"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/futures-macro/0.3.31/download",
+      "name": "futures-macro",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.31"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/futures-sink/0.3.31/download",
+      "name": "futures-sink",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.31"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/futures-task/0.3.31/download",
+      "name": "futures-task",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.31"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/futures-util/0.3.31/download",
+      "name": "futures-util",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.31"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/fuzzy-matcher/0.3.7/download",
+      "name": "fuzzy-matcher",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Jinzhou Zhang <lotabout@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.3.7"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/generic-array/0.14.7/download",
+      "name": "generic-array",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Bartłomiej Kamiński <fizyk20@gmail.com>; Aaron Trent <novacrazy@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.14.7"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/getrandom/0.2.15/download",
+      "name": "getrandom",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.15"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/getrandom/0.3.4/download",
+      "name": "getrandom",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/getrandom/0.4.2/download",
+      "name": "getrandom",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.4.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/gimli/0.32.3/download",
+      "name": "gimli",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.32.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/glob/0.3.3/download",
+      "name": "glob",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/goblin/0.8.2/download",
+      "name": "goblin",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "m4b <m4b.github.io@gmail.com>; seu <seu@panopticon.re>; Will Glynn <will@willglynn.com>; Philip Craig <philipjcraig@gmail.com>; Lzu Tao <taolzu@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.8.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/growable-bloom-filter/2.1.1/download",
+      "name": "growable-bloom-filter",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "David Briggs <david@dpbriggs.ca>; Arthur Silva <arthurprs@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "2.1.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/h2/0.4.5/download",
+      "name": "h2",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Carl Lerche <me@carllerche.com>; Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.4.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/hashbrown/0.15.2/download",
+      "name": "hashbrown",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Amanieu d'Antras <amanieu@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.15.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/hashbrown/0.16.1/download",
+      "name": "hashbrown",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Amanieu d'Antras <amanieu@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.16.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/hashlink/0.10.0/download",
+      "name": "hashlink",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "kyren <kerriganw@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.10.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/headers/0.4.1/download",
+      "name": "headers",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.4.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/headers-core/0.3.0/download",
+      "name": "headers-core",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.3.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/heck/0.5.0/download",
+      "name": "heck",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/hkdf/0.12.4/download",
+      "name": "hkdf",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.12.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/hmac/0.12.1/download",
+      "name": "hmac",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.12.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/html5ever/0.39.0/download",
+      "name": "html5ever",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The html5ever Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.39.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/htmlescape/0.3.1/download",
+      "name": "htmlescape",
+      "normalized_spdx": "Apache-2.0  OR  MIT  OR  MPL-2.0",
+      "package_metadata_attribution": "Viktor Dahl <pazaconyoman@gmail.com>",
+      "raw_cargo_license": "Apache-2.0  OR  MIT  OR  MPL-2.0",
+      "version": "0.3.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/http/1.3.1/download",
+      "name": "http",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alex Crichton <alex@alexcrichton.com>; Carl Lerche <me@carllerche.com>; Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.3.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/http-auth/0.1.10/download",
+      "name": "http-auth",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.10"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/http-body/1.0.1/download",
+      "name": "http-body",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Carl Lerche <me@carllerche.com>; Lucio Franco <luciofranco14@gmail.com>; Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT",
+      "version": "1.0.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/http-body-util/0.1.2/download",
+      "name": "http-body-util",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Carl Lerche <me@carllerche.com>; Lucio Franco <luciofranco14@gmail.com>; Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.1.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/httparse/1.9.4/download",
+      "name": "httparse",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.9.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/httpdate/1.0.3/download",
+      "name": "httpdate",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Pyfisch <pyfisch@posteo.org>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/hyper/1.7.0/download",
+      "name": "hyper",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT",
+      "version": "1.7.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/hyper-rustls/0.27.2/download",
+      "name": "hyper-rustls",
+      "normalized_spdx": "Apache-2.0 OR ISC OR MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0 OR ISC OR MIT",
+      "version": "0.27.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/hyper-util/0.1.16/download",
+      "name": "hyper-util",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.1.16"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/iana-time-zone/0.1.60/download",
+      "name": "iana-time-zone",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Andrew Straw <strawman@astraw.com>; René Kijewski <rene.kijewski@fu-berlin.de>; Ryan Lopopolo <rjl@hyperbo.la>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.60"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/icu_collections/1.5.0/download",
+      "name": "icu_collections",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/icu_locid/1.5.0/download",
+      "name": "icu_locid",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/icu_locid_transform/1.5.0/download",
+      "name": "icu_locid_transform",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/icu_locid_transform_data/1.5.0/download",
+      "name": "icu_locid_transform_data",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/icu_normalizer/1.5.0/download",
+      "name": "icu_normalizer",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/icu_normalizer_data/1.5.0/download",
+      "name": "icu_normalizer_data",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/icu_properties/1.5.1/download",
+      "name": "icu_properties",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "1.5.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/icu_properties_data/1.5.0/download",
+      "name": "icu_properties_data",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/icu_provider/1.5.0/download",
+      "name": "icu_provider",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/icu_provider_macros/1.5.0/download",
+      "name": "icu_provider_macros",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ident_case/1.0.1/download",
+      "name": "ident_case",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Ted Driggs <ted.driggs@outlook.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/idna/1.1.0/download",
+      "name": "idna",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The rust-url developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.1.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/idna_adapter/1.2.0/download",
+      "name": "idna_adapter",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "The rust-url developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "1.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/imbl/6.1.0/download",
+      "name": "imbl",
+      "normalized_spdx": "MPL-2.0-or-later",
+      "package_metadata_attribution": "Bodil Stokke <bodil@bodil.org>; Joe Neeman <joeneeman@gmail.com>; Arthur Silva <arthurprs@gmail.com>",
+      "raw_cargo_license": "MPL-2.0+",
+      "version": "6.1.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/imbl-sized-chunks/0.1.3/download",
+      "name": "imbl-sized-chunks",
+      "normalized_spdx": "MPL-2.0-or-later",
+      "package_metadata_attribution": "Bodil Stokke <bodil@bodil.org>; Joe Neeman <joeneeman@gmail.com>",
+      "raw_cargo_license": "MPL-2.0+",
+      "version": "0.1.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/include_dir/0.7.4/download",
+      "name": "include_dir",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Michael Bryan <michaelfbryan@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.7.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/include_dir_macros/0.7.4/download",
+      "name": "include_dir_macros",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Michael Bryan <michaelfbryan@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.7.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/indexmap/2.12.1/download",
+      "name": "indexmap",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "2.12.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/inout/0.1.3/download",
+      "name": "inout",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/insta/1.44.1/download",
+      "name": "insta",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Armin Ronacher <armin.ronacher@active-4.com>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "1.44.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/inventory/0.3.24/download",
+      "name": "inventory",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.24"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ipnet/2.9.0/download",
+      "name": "ipnet",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Kris Price <kris@krisprice.nz>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.9.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/iri-string/0.7.8/download",
+      "name": "iri-string",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "YOSHIOKA Takuma <nop_thread@nops.red>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.7.8"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/itertools/0.10.5/download",
+      "name": "itertools",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "bluss",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.10.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/itertools/0.14.0/download",
+      "name": "itertools",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "bluss",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.14.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/itoa/1.0.11/download",
+      "name": "itoa",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.11"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/jobserver/0.1.32/download",
+      "name": "jobserver",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alex Crichton <alex@alexcrichton.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.32"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/js-sys/0.3.91/download",
+      "name": "js-sys",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The wasm-bindgen Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.91"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/js_int/0.2.2/download",
+      "name": "js_int",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Jonas Platte <jplatte+git@posteo.de>",
+      "raw_cargo_license": "MIT",
+      "version": "0.2.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/js_option/0.2.0/download",
+      "name": "js_option",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/konst/0.4.3/download",
+      "name": "konst",
+      "normalized_spdx": "Zlib",
+      "package_metadata_attribution": "rodrimati1992 <rodrimatt1985@gmail.com>",
+      "raw_cargo_license": "Zlib",
+      "version": "0.4.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/language-tags/0.3.2/download",
+      "name": "language-tags",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Pyfisch <pyfisch@gmail.com>; Tpt <thomas@pellissier-tanon.fr>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/lazy_static/1.5.0/download",
+      "name": "lazy_static",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Marvin Löbel <loebel.marvin@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/levenshtein_automata/0.2.1/download",
+      "name": "levenshtein_automata",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Paul Masurel <paul.masurel@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.2.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/libc/0.2.175/download",
+      "name": "libc",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.175"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/libm/0.2.15/download",
+      "name": "libm",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Jorge Aparicio <jorge@japaric.io>",
+      "raw_cargo_license": "MIT",
+      "version": "0.2.15"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/libsqlite3-sys/0.35.0/download",
+      "name": "libsqlite3-sys",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "The rusqlite developers",
+      "raw_cargo_license": "MIT",
+      "version": "0.35.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/litemap/0.7.4/download",
+      "name": "litemap",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "0.7.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/lock_api/0.4.12/download",
+      "name": "lock_api",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Amanieu d'Antras <amanieu@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.4.12"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/log/0.4.27/download",
+      "name": "log",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.4.27"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/log-panics/2.1.0/download",
+      "name": "log-panics",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Steven Fackler <sfackler@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.1.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/lru/0.16.4/download",
+      "name": "lru",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Jerome Froelich <jeromefroelic@hotmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.16.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/lz4_flex/0.13.1/download",
+      "name": "lz4_flex",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Pascal Seitz <pascal.seitz@gmail.com>; Arthur Silva <arthurprs@gmail.com>; ticki <Ticki@users.noreply.github.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.13.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/maplit/1.0.2/download",
+      "name": "maplit",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "bluss",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/markup5ever/0.39.0/download",
+      "name": "markup5ever",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The html5ever Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.39.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/matchers/0.2.0/download",
+      "name": "matchers",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Eliza Weisman <eliza@buoyant.io>",
+      "raw_cargo_license": "MIT",
+      "version": "0.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/matrix-pickle/0.2.3/download",
+      "name": "matrix-pickle",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.2.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/matrix-pickle-derive/0.2.3/download",
+      "name": "matrix-pickle-derive",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.2.3"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Damir Jelić <poljar@termina.org.uk>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-base",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Damir Jelić <poljar@termina.org.uk>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-common",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Damir Jelić <poljar@termina.org.uk>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-contentscanner",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Jorge Martín Espinosa <jorgem@element.io>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-crypto",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Damir Jelić <poljar@termina.org.uk>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-ffi",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-ffi-macros",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.7.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-search",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Shrey Patel <shreyrg14@gmail.com>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-sqlite",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-store-encryption",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-test",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Damir Jelić <poljar@termina.org.uk>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-test-macros",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "stoically <stoically@protonmail.com>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-test-utils",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+      "name": "matrix-sdk-ui",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.18.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/measure_time/0.9.0/download",
+      "name": "measure_time",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Pascal Seitz <pascal.seitz@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.9.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/memchr/2.7.4/download",
+      "name": "memchr",
+      "normalized_spdx": "Unlicense OR MIT",
+      "package_metadata_attribution": "Andrew Gallant <jamslam@gmail.com>; bluss",
+      "raw_cargo_license": "Unlicense OR MIT",
+      "version": "2.7.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/memmap2/0.9.7/download",
+      "name": "memmap2",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Dan Burkert <dan@danburkert.com>; Yevhenii Reizner <razrfalcon@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.9.7"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/mime/0.3.17/download",
+      "name": "mime",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.17"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/mime2ext/0.1.54/download",
+      "name": "mime2ext",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Jan Verbeek <jan.verbeek@posteo.nl>",
+      "raw_cargo_license": "MIT",
+      "version": "0.1.54"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/minimal-lexical/0.2.1/download",
+      "name": "minimal-lexical",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alex Huszagh <ahuszagh@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/miniz_oxide/0.8.9/download",
+      "name": "miniz_oxide",
+      "normalized_spdx": "MIT OR Zlib OR Apache-2.0",
+      "package_metadata_attribution": "Frommi <daniil.liferenko@gmail.com>; oyvindln <oyvindln@users.noreply.github.com>; Rich Geldreich richgel99@gmail.com",
+      "raw_cargo_license": "MIT OR Zlib OR Apache-2.0",
+      "version": "0.8.9"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/mio/1.0.2/download",
+      "name": "mio",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Carl Lerche <me@carllerche.com>; Thomas de Zeeuw <thomasdezeeuw@gmail.com>; Tokio Contributors <team@tokio.rs>",
+      "raw_cargo_license": "MIT",
+      "version": "1.0.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/murmurhash32/0.3.1/download",
+      "name": "murmurhash32",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Paul Masurel <paul.masurel@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.3.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/new_debug_unreachable/1.0.6/download",
+      "name": "new_debug_unreachable",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Matt Brubeck <mbrubeck@limpet.net>; Jonathan Reem <jonathan.reem@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "1.0.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/nom/7.1.3/download",
+      "name": "nom",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "contact@geoffroycouprie.com",
+      "raw_cargo_license": "MIT",
+      "version": "7.1.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/nu-ansi-term/0.50.1/download",
+      "name": "nu-ansi-term",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "ogham@bsago.me; Ryan Scheel (Havvy) <ryan.havvy@gmail.com>; Josh Triplett <josh@joshtriplett.org>; The Nushell Project Developers",
+      "raw_cargo_license": "MIT",
+      "version": "0.50.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/num-bigint/0.4.8/download",
+      "name": "num-bigint",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.4.8"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/num-conv/0.2.0/download",
+      "name": "num-conv",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jacob Pratt <jacob@jhpratt.dev>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/num-integer/0.1.46/download",
+      "name": "num-integer",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.46"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/num-traits/0.2.19/download",
+      "name": "num-traits",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.19"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/num_cpus/1.17.0/download",
+      "name": "num_cpus",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.17.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/num_threads/0.1.7/download",
+      "name": "num_threads",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jacob Pratt <open-source@jhpratt.dev>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.7"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/oauth2/5.0.0/download",
+      "name": "oauth2",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alex Crichton <alex@alexcrichton.com>; Florin Lipan <florinlipan@gmail.com>; David A. Ramos <ramos@cs.stanford.edu>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "5.0.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/oauth2-reqwest/0.1.0-alpha.3/download",
+      "name": "oauth2-reqwest",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "David A. Ramos <ramos@cs.stanford.edu>",
+      "raw_cargo_license": "MIT",
+      "version": "0.1.0-alpha.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/object/0.37.3/download",
+      "name": "object",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.37.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/oid-registry/0.8.1/download",
+      "name": "oid-registry",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Pierre Chifflier <chifflier@wzdftpd.net>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.8.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/once_cell/1.21.4/download",
+      "name": "once_cell",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Aleksey Kladov <aleksey.kladov@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.21.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/oneshot/0.1.13/download",
+      "name": "oneshot",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Linus Färnstrand <faern@faern.net>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.13"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/oorandom/11.1.5/download",
+      "name": "oorandom",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Simon Heath <icefox@dreamquest.io>",
+      "raw_cargo_license": "MIT",
+      "version": "11.1.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/opaque-debug/0.3.1/download",
+      "name": "opaque-debug",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/option-ext/0.2.0/download",
+      "name": "option-ext",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Simon Ochsenreither <simon@ochsenreither.de>",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ordered-float/5.3.0/download",
+      "name": "ordered-float",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Jonathan Reem <jonathan.reem@gmail.com>; Matt Brubeck <mbrubeck@limpet.net>",
+      "raw_cargo_license": "MIT",
+      "version": "5.3.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ownedbytes/0.9.0/download",
+      "name": "ownedbytes",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Paul Masurel <paul@quickwit.io>; Pascal Seitz <pascal@quickwit.io>",
+      "raw_cargo_license": "MIT",
+      "version": "0.9.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/parking/2.2.0/download",
+      "name": "parking",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Stjepan Glavina <stjepang@gmail.com>; The Rust Project Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "2.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/parking_lot/0.12.3/download",
+      "name": "parking_lot",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Amanieu d'Antras <amanieu@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.12.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/parking_lot_core/0.9.10/download",
+      "name": "parking_lot_core",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Amanieu d'Antras <amanieu@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.9.10"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/pbkdf2/0.12.2/download",
+      "name": "pbkdf2",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.12.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/pem/3.0.6/download",
+      "name": "pem",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Jonathan Creekmore <jonathan@thecreekmores.org>",
+      "raw_cargo_license": "MIT",
+      "version": "3.0.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/percent-encoding/2.3.2/download",
+      "name": "percent-encoding",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The rust-url developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.3.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/pest/2.8.0/download",
+      "name": "pest",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Dragoș Tiselice <dragostiselice@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.8.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/pest_derive/2.8.0/download",
+      "name": "pest_derive",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Dragoș Tiselice <dragostiselice@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.8.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/pest_generator/2.8.0/download",
+      "name": "pest_generator",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Dragoș Tiselice <dragostiselice@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.8.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/pest_meta/2.8.0/download",
+      "name": "pest_meta",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Dragoș Tiselice <dragostiselice@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.8.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/phf/0.13.1/download",
+      "name": "phf",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Steven Fackler <sfackler@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.13.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/phf_codegen/0.13.1/download",
+      "name": "phf_codegen",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Steven Fackler <sfackler@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.13.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/phf_generator/0.13.1/download",
+      "name": "phf_generator",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Steven Fackler <sfackler@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.13.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/phf_shared/0.13.1/download",
+      "name": "phf_shared",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Steven Fackler <sfackler@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.13.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/pin-project-lite/0.2.16/download",
+      "name": "pin-project-lite",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.2.16"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/pin-utils/0.1.0/download",
+      "name": "pin-utils",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Josef Brandl <mail@josefbrandl.de>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/pkcs8/0.10.2/download",
+      "name": "pkcs8",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.10.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/pkg-config/0.3.30/download",
+      "name": "pkg-config",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alex Crichton <alex@alexcrichton.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.30"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/plain/0.2.3/download",
+      "name": "plain",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "jzr",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/poly1305/0.8.0/download",
+      "name": "poly1305",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.8.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/powerfmt/0.2.0/download",
+      "name": "powerfmt",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jacob Pratt <jacob@jhpratt.dev>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ppv-lite86/0.2.17/download",
+      "name": "ppv-lite86",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The CryptoCorrosion Contributors",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.17"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/precomputed-hash/0.1.1/download",
+      "name": "precomputed-hash",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Emilio Cobos Álvarez <emilio@crisal.io>",
+      "raw_cargo_license": "MIT",
+      "version": "0.1.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/prettyplease/0.2.34/download",
+      "name": "prettyplease",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.34"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/proc-macro-crate/3.5.0/download",
+      "name": "proc-macro-crate",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Bastian Köcher <git@kchr.de>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "3.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/proc-macro-error-attr2/2.0.0/download",
+      "name": "proc-macro-error-attr2",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "CreepySkeleton <creepy-skeleton@yandex.ru>; GnomedDev <david2005thomas@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.0.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/proc-macro-error2/2.0.1/download",
+      "name": "proc-macro-error2",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "CreepySkeleton <creepy-skeleton@yandex.ru>; GnomedDev <david2005thomas@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.0.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/proc-macro2/1.0.106/download",
+      "name": "proc-macro2",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>; Alex Crichton <alex@alexcrichton.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.106"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/proptest/1.9.0/download",
+      "name": "proptest",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jason Lingle",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.9.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/prost/0.14.3/download",
+      "name": "prost",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Dan Burkert <dan@danburkert.com>; Lucio Franco <luciofranco14@gmail.com>; Casper Meijn <casper@meijn.net>; Tokio Contributors <team@tokio.rs>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.14.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/prost-derive/0.14.3/download",
+      "name": "prost-derive",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Dan Burkert <dan@danburkert.com>; Lucio Franco <luciofranco14@gmail.com>; Casper Meijn <casper@meijn.net>; Tokio Contributors <team@tokio.rs>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.14.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/pulldown-cmark/0.13.0/download",
+      "name": "pulldown-cmark",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Raph Levien <raph.levien@gmail.com>; Marcus Klaas de Vries <mail@marcusklaas.nl>",
+      "raw_cargo_license": "MIT",
+      "version": "0.13.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/pulldown-cmark-escape/0.11.0/download",
+      "name": "pulldown-cmark-escape",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Raph Levien <raph.levien@gmail.com>; Marcus Klaas de Vries <mail@marcusklaas.nl>",
+      "raw_cargo_license": "MIT",
+      "version": "0.11.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/quote/1.0.46/download",
+      "name": "quote",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.46"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rand/0.10.1/download",
+      "name": "rand",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers; The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.10.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rand/0.8.6/download",
+      "name": "rand",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers; The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.8.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rand/0.9.4/download",
+      "name": "rand",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers; The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.9.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rand_chacha/0.3.1/download",
+      "name": "rand_chacha",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers; The Rust Project Developers; The CryptoCorrosion Contributors",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rand_chacha/0.9.0/download",
+      "name": "rand_chacha",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers; The Rust Project Developers; The CryptoCorrosion Contributors",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.9.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rand_core/0.10.0/download",
+      "name": "rand_core",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.10.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rand_core/0.6.4/download",
+      "name": "rand_core",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers; The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.6.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rand_core/0.9.3/download",
+      "name": "rand_core",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers; The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.9.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rand_xorshift/0.4.0/download",
+      "name": "rand_xorshift",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers; The Rust Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.4.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rand_xoshiro/0.7.0/download",
+      "name": "rand_xoshiro",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rand Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.7.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rayon/1.10.0/download",
+      "name": "rayon",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Niko Matsakis <niko@alum.mit.edu>; Josh Stone <cuviper@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.10.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rayon-core/1.12.1/download",
+      "name": "rayon-core",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Niko Matsakis <niko@alum.mit.edu>; Josh Stone <cuviper@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.12.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rcgen/0.14.8/download",
+      "name": "rcgen",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.14.8"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/readlock/0.1.8/download",
+      "name": "readlock",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.1.8"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/readlock-tokio/0.1.3/download",
+      "name": "readlock-tokio",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.1.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/regex/1.12.2/download",
+      "name": "regex",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rust Project Developers; Andrew Gallant <jamslam@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.12.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/regex-automata/0.4.14/download",
+      "name": "regex-automata",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rust Project Developers; Andrew Gallant <jamslam@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.4.14"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/regex-syntax/0.8.5/download",
+      "name": "regex-syntax",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Rust Project Developers; Andrew Gallant <jamslam@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.8.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/reqwest/0.13.2/download",
+      "name": "reqwest",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.13.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ring/0.17.14/download",
+      "name": "ring",
+      "normalized_spdx": "Apache-2.0 AND ISC",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0 AND ISC",
+      "version": "0.17.14"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rmp/0.8.15/download",
+      "name": "rmp",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Evgeny Safronov <division494@gmail.com>; Kornel <kornel@geekhood.net>",
+      "raw_cargo_license": "MIT",
+      "version": "0.8.15"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rmp-serde/1.3.0/download",
+      "name": "rmp-serde",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Evgeny Safronov <division494@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "1.3.0"
+    },
+    {
+      "immutable_source": "https://github.com/ruma/ruma/commit/db24422e03aea7c7974230098fe9aeb5481cddc6",
+      "name": "ruma",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.16.0"
+    },
+    {
+      "immutable_source": "https://github.com/ruma/ruma/commit/db24422e03aea7c7974230098fe9aeb5481cddc6",
+      "name": "ruma-client-api",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.24.0"
+    },
+    {
+      "immutable_source": "https://github.com/ruma/ruma/commit/db24422e03aea7c7974230098fe9aeb5481cddc6",
+      "name": "ruma-common",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.19.0"
+    },
+    {
+      "immutable_source": "https://github.com/ruma/ruma/commit/db24422e03aea7c7974230098fe9aeb5481cddc6",
+      "name": "ruma-events",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.34.0"
+    },
+    {
+      "immutable_source": "https://github.com/ruma/ruma/commit/db24422e03aea7c7974230098fe9aeb5481cddc6",
+      "name": "ruma-federation-api",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.15.0"
+    },
+    {
+      "immutable_source": "https://github.com/ruma/ruma/commit/db24422e03aea7c7974230098fe9aeb5481cddc6",
+      "name": "ruma-html",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.8.0"
+    },
+    {
+      "immutable_source": "https://github.com/ruma/ruma/commit/db24422e03aea7c7974230098fe9aeb5481cddc6",
+      "name": "ruma-identifiers-validation",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.12.1"
+    },
+    {
+      "immutable_source": "https://github.com/ruma/ruma/commit/db24422e03aea7c7974230098fe9aeb5481cddc6",
+      "name": "ruma-macros",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.19.0"
+    },
+    {
+      "immutable_source": "https://github.com/ruma/ruma/commit/db24422e03aea7c7974230098fe9aeb5481cddc6",
+      "name": "ruma-signatures",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.21.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rusqlite/0.37.0/download",
+      "name": "rusqlite",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "The rusqlite developers",
+      "raw_cargo_license": "MIT",
+      "version": "0.37.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rust-stemmers/1.2.0/download",
+      "name": "rust-stemmers",
+      "normalized_spdx": "MIT OR BSD-3-Clause",
+      "package_metadata_attribution": "Jakob Demler <jdemler@curry-software.com>; CurrySoftware <info@curry-software.com>",
+      "raw_cargo_license": "MIT OR BSD-3-Clause",
+      "version": "1.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rustc-demangle/0.1.24/download",
+      "name": "rustc-demangle",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alex Crichton <alex@alexcrichton.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.24"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rustc-hash/2.0.0/download",
+      "name": "rustc-hash",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "The Rust Project Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "2.0.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rustc_version/0.4.0/download",
+      "name": "rustc_version",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Dirkjan Ochtman <dirkjan@ochtman.nl>; Marvin Löbel <loebel.marvin@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.4.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rusticata-macros/4.1.0/download",
+      "name": "rusticata-macros",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Pierre Chifflier <chifflier@wzdftpd.net>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "4.1.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rustix/1.0.8/download",
+      "name": "rustix",
+      "normalized_spdx": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Dan Gohman <dev@sunfishcode.online>; Jakub Konka <kubkon@jakubkonka.com>",
+      "raw_cargo_license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "version": "1.0.8"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rustls/0.23.42/download",
+      "name": "rustls",
+      "normalized_spdx": "Apache-2.0 OR ISC OR MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0 OR ISC OR MIT",
+      "version": "0.23.42"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rustls-pki-types/1.14.0/download",
+      "name": "rustls-pki-types",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.14.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rustls-platform-verifier/0.6.2/download",
+      "name": "rustls-platform-verifier",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.6.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rustls-webpki/0.103.13/download",
+      "name": "rustls-webpki",
+      "normalized_spdx": "ISC",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "ISC",
+      "version": "0.103.13"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/rustversion/1.0.22/download",
+      "name": "rustversion",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.22"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ryu/1.0.18/download",
+      "name": "ryu",
+      "normalized_spdx": "Apache-2.0 OR BSL-1.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "Apache-2.0 OR BSL-1.0",
+      "version": "1.0.18"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/scopeguard/1.2.0/download",
+      "name": "scopeguard",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "bluss",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/scroll/0.12.0/download",
+      "name": "scroll",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "m4b <m4b.github.io@gmail.com>; Ted Mielczarek <ted@mielczarek.org>",
+      "raw_cargo_license": "MIT",
+      "version": "0.12.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/scroll_derive/0.12.0/download",
+      "name": "scroll_derive",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "m4b <m4b.github.io@gmail.com>; Ted Mielczarek <ted@mielczarek.org>; Systemcluster <me@systemcluster.me>",
+      "raw_cargo_license": "MIT",
+      "version": "0.12.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/security-framework/3.5.1/download",
+      "name": "security-framework",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Steven Fackler <sfackler@gmail.com>; Kornel <kornel@geekhood.net>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "3.5.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/security-framework-sys/2.15.0/download",
+      "name": "security-framework-sys",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Steven Fackler <sfackler@gmail.com>; Kornel <kornel@geekhood.net>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.15.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/semver/1.0.27/download",
+      "name": "semver",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.27"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/serde/1.0.228/download",
+      "name": "serde",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Erick Tryzelaar <erick.tryzelaar@gmail.com>; David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.228"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/serde_bytes/0.11.19/download",
+      "name": "serde_bytes",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.11.19"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/serde_core/1.0.228/download",
+      "name": "serde_core",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Erick Tryzelaar <erick.tryzelaar@gmail.com>; David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.228"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/serde_derive/1.0.228/download",
+      "name": "serde_derive",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Erick Tryzelaar <erick.tryzelaar@gmail.com>; David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.228"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/serde_html_form/0.4.0/download",
+      "name": "serde_html_form",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.4.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/serde_json/1.0.145/download",
+      "name": "serde_json",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Erick Tryzelaar <erick.tryzelaar@gmail.com>; David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.145"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/serde_path_to_error/0.1.20/download",
+      "name": "serde_path_to_error",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.20"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/serde_spanned/1.1.1/download",
+      "name": "serde_spanned",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.1.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/serde_urlencoded/0.7.1/download",
+      "name": "serde_urlencoded",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Anthony Ramine <n.oxyde@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.7.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/sha1/0.10.6/download",
+      "name": "sha1",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.10.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/sha2/0.10.9/download",
+      "name": "sha2",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.10.9"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/sharded-slab/0.1.7/download",
+      "name": "sharded-slab",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Eliza Weisman <eliza@buoyant.io>",
+      "raw_cargo_license": "MIT",
+      "version": "0.1.7"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/shlex/1.3.0/download",
+      "name": "shlex",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "comex <comexk@gmail.com>; Fenhl <fenhl@fenhl.net>; Adrian Taylor <adetaylor@chromium.org>; Alex Touchet <alextouchet@outlook.com>; Daniel Parks <dp+git@oxidized.org>; Garrett Berg <googberg@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.3.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/signature/2.2.0/download",
+      "name": "signature",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "2.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/simd-adler32/0.3.7/download",
+      "name": "simd-adler32",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Marvin Countryman <me@maar.vin>",
+      "raw_cargo_license": "MIT",
+      "version": "0.3.7"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/similar/2.6.0/download",
+      "name": "similar",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Armin Ronacher <armin.ronacher@active-4.com>; Pierre-Étienne Meunier <pe@pijul.org>; Brandon Williams <bwilliams.eng@gmail.com>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "2.6.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/similar-asserts/1.7.0/download",
+      "name": "similar-asserts",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Armin Ronacher <armin.ronacher@active-4.com>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "1.7.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/siphasher/1.0.1/download",
+      "name": "siphasher",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Frank Denis <github@pureftpd.org>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/sketches-ddsketch/0.4.0/download",
+      "name": "sketches-ddsketch",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Mike Heffner <mikeh@fesnel.com>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.4.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/slab/0.4.9/download",
+      "name": "slab",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Carl Lerche <me@carllerche.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.4.9"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/smallvec/1.13.2/download",
+      "name": "smallvec",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Servo Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.13.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/smawk/0.3.2/download",
+      "name": "smawk",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Martin Geisler <martin@geisler.net>",
+      "raw_cargo_license": "MIT",
+      "version": "0.3.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/socket2/0.6.0/download",
+      "name": "socket2",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alex Crichton <alex@alexcrichton.com>; Thomas de Zeeuw <thomasdezeeuw@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.6.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/spki/0.7.3/download",
+      "name": "spki",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "0.7.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/stable_deref_trait/1.2.0/download",
+      "name": "stable_deref_trait",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Robert Grosse <n210241048576@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.2.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/static_assertions/1.1.0/download",
+      "name": "static_assertions",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Nikolai Vazquez",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.1.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/stream_assert/0.1.1/download",
+      "name": "stream_assert",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.1.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/string_cache/0.9.0/download",
+      "name": "string_cache",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Servo Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.9.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/string_cache_codegen/0.6.1/download",
+      "name": "string_cache_codegen",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The Servo Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.6.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/strsim/0.11.1/download",
+      "name": "strsim",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Danny Guo <danny@dannyguo.com>; maxbachmann <oss@maxbachmann.de>",
+      "raw_cargo_license": "MIT",
+      "version": "0.11.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/subtle/2.6.1/download",
+      "name": "subtle",
+      "normalized_spdx": "BSD-3-Clause",
+      "package_metadata_attribution": "Isis Lovecruft <isis@patternsinthevoid.net>; Henry de Valence <hdevalence@hdevalence.ca>",
+      "raw_cargo_license": "BSD-3-Clause",
+      "version": "2.6.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/syn/2.0.118/download",
+      "name": "syn",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.0.118"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/sync_wrapper/1.0.1/download",
+      "name": "sync_wrapper",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Actyx AG <developer@actyx.io>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "1.0.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/synstructure/0.13.1/download",
+      "name": "synstructure",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Nika Layzell <nika@thelayzells.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.13.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tantivy/0.26.1/download",
+      "name": "tantivy",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Paul Masurel <paul.masurel@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.26.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tantivy-bitpacker/0.10.0/download",
+      "name": "tantivy-bitpacker",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Paul Masurel <paul.masurel@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.10.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tantivy-columnar/0.7.0/download",
+      "name": "tantivy-columnar",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.7.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tantivy-common/0.11.0/download",
+      "name": "tantivy-common",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Paul Masurel <paul@quickwit.io>; Pascal Seitz <pascal@quickwit.io>",
+      "raw_cargo_license": "MIT",
+      "version": "0.11.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tantivy-fst/0.5.0/download",
+      "name": "tantivy-fst",
+      "normalized_spdx": "Unlicense OR MIT",
+      "package_metadata_attribution": "Andrew Gallant <jamslam@gmail.com>",
+      "raw_cargo_license": "Unlicense OR MIT",
+      "version": "0.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tantivy-query-grammar/0.26.0/download",
+      "name": "tantivy-query-grammar",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Paul Masurel <paul.masurel@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.26.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tantivy-sstable/0.7.0/download",
+      "name": "tantivy-sstable",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.7.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tantivy-stacker/0.7.0/download",
+      "name": "tantivy-stacker",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.7.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tantivy-tokenizer-api/0.7.0/download",
+      "name": "tantivy-tokenizer-api",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.7.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tempfile/3.23.0/download",
+      "name": "tempfile",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Steven Allen <steven@stebalien.com>; The Rust Project Developers; Ashley Mannix <ashleymannix@live.com.au>; Jason White <me@jasonwhite.io>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "3.23.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tendril/0.5.0/download",
+      "name": "tendril",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Keegan McAllister <mcallister.keegan@gmail.com>; Simon Sapin <simon.sapin@exyr.org>; Chris Morgan <me@chrismorgan.info>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/textwrap/0.16.2/download",
+      "name": "textwrap",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Martin Geisler <martin@geisler.net>",
+      "raw_cargo_license": "MIT",
+      "version": "0.16.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/thiserror/1.0.63/download",
+      "name": "thiserror",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.63"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/thiserror/2.0.18/download",
+      "name": "thiserror",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.0.18"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/thiserror-impl/1.0.63/download",
+      "name": "thiserror-impl",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.63"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/thiserror-impl/2.0.18/download",
+      "name": "thiserror-impl",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.0.18"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/thread_local/1.1.8/download",
+      "name": "thread_local",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Amanieu d'Antras <amanieu@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.1.8"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/time/0.3.47/download",
+      "name": "time",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jacob Pratt <open-source@jhpratt.dev>; Time contributors",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.47"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/time-core/0.1.8/download",
+      "name": "time-core",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jacob Pratt <open-source@jhpratt.dev>; Time contributors",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.8"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/time-macros/0.2.27/download",
+      "name": "time-macros",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jacob Pratt <open-source@jhpratt.dev>; Time contributors",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.27"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tinystr/0.7.6/download",
+      "name": "tinystr",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "0.7.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tinyvec/1.8.0/download",
+      "name": "tinyvec",
+      "normalized_spdx": "Zlib OR Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Lokathor <zefria@gmail.com>",
+      "raw_cargo_license": "Zlib OR Apache-2.0 OR MIT",
+      "version": "1.8.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tinyvec_macros/0.1.1/download",
+      "name": "tinyvec_macros",
+      "normalized_spdx": "MIT OR Apache-2.0 OR Zlib",
+      "package_metadata_attribution": "Soveu <marx.tomasz@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0 OR Zlib",
+      "version": "0.1.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tokio/1.48.0/download",
+      "name": "tokio",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Tokio Contributors <team@tokio.rs>",
+      "raw_cargo_license": "MIT",
+      "version": "1.48.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tokio-macros/2.6.0/download",
+      "name": "tokio-macros",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Tokio Contributors <team@tokio.rs>",
+      "raw_cargo_license": "MIT",
+      "version": "2.6.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tokio-rustls/0.26.0/download",
+      "name": "tokio-rustls",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.26.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tokio-stream/0.1.17/download",
+      "name": "tokio-stream",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Tokio Contributors <team@tokio.rs>",
+      "raw_cargo_license": "MIT",
+      "version": "0.1.17"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tokio-test/0.4.4/download",
+      "name": "tokio-test",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Tokio Contributors <team@tokio.rs>",
+      "raw_cargo_license": "MIT",
+      "version": "0.4.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tokio-util/0.7.17/download",
+      "name": "tokio-util",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Tokio Contributors <team@tokio.rs>",
+      "raw_cargo_license": "MIT",
+      "version": "0.7.17"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/toml/0.9.7/download",
+      "name": "toml",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.9.7"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/toml/1.1.2%2Bspec-1.1.0/download",
+      "name": "toml",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.1.2+spec-1.1.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/toml_datetime/0.7.2/download",
+      "name": "toml_datetime",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.7.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/toml_datetime/1.1.1%2Bspec-1.1.0/download",
+      "name": "toml_datetime",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.1.1+spec-1.1.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/toml_edit/0.25.6%2Bspec-1.1.0/download",
+      "name": "toml_edit",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.25.6+spec-1.1.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/toml_parser/1.1.2%2Bspec-1.1.0/download",
+      "name": "toml_parser",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.1.2+spec-1.1.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/toml_writer/1.0.4/download",
+      "name": "toml_writer",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tower/0.5.2/download",
+      "name": "tower",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Tower Maintainers <team@tower-rs.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.5.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tower-http/0.6.8/download",
+      "name": "tower-http",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Tower Maintainers <team@tower-rs.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.6.8"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tower-layer/0.3.3/download",
+      "name": "tower-layer",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Tower Maintainers <team@tower-rs.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.3.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/tower-service/0.3.3/download",
+      "name": "tower-service",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Tower Maintainers <team@tower-rs.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.3.3"
+    },
+    {
+      "immutable_source": "https://github.com/tokio-rs/tracing/commit/20f5b3d8ba057ca9c4ae00ad30dda3dce8a71c05",
+      "name": "tracing",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Eliza Weisman <eliza@buoyant.io>; Tokio Contributors <team@tokio.rs>",
+      "raw_cargo_license": "MIT",
+      "version": "0.1.41"
+    },
+    {
+      "immutable_source": "https://github.com/tokio-rs/tracing/commit/20f5b3d8ba057ca9c4ae00ad30dda3dce8a71c05",
+      "name": "tracing-appender",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Zeki Sherif <zekshi@amazon.com>; Tokio Contributors <team@tokio.rs>",
+      "raw_cargo_license": "MIT",
+      "version": "0.2.3"
+    },
+    {
+      "immutable_source": "https://github.com/tokio-rs/tracing/commit/20f5b3d8ba057ca9c4ae00ad30dda3dce8a71c05",
+      "name": "tracing-attributes",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Tokio Contributors <team@tokio.rs>; Eliza Weisman <eliza@buoyant.io>; David Barsky <dbarsky@amazon.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.1.30"
+    },
+    {
+      "immutable_source": "https://github.com/tokio-rs/tracing/commit/20f5b3d8ba057ca9c4ae00ad30dda3dce8a71c05",
+      "name": "tracing-core",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Tokio Contributors <team@tokio.rs>",
+      "raw_cargo_license": "MIT",
+      "version": "0.1.34"
+    },
+    {
+      "immutable_source": "https://github.com/tokio-rs/tracing/commit/20f5b3d8ba057ca9c4ae00ad30dda3dce8a71c05",
+      "name": "tracing-subscriber",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Eliza Weisman <eliza@buoyant.io>; David Barsky <me@davidbarsky.com>; Tokio Contributors <team@tokio.rs>",
+      "raw_cargo_license": "MIT",
+      "version": "0.3.20"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/try-lock/0.2.5/download",
+      "name": "try-lock",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.2.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/typeid/1.0.3/download",
+      "name": "typeid",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/typenum/1.17.0/download",
+      "name": "typenum",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Paho Lurie-Gregg <paho@paholg.com>; Andre Bogus <bogusandre@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.17.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/typetag/0.2.22/download",
+      "name": "typetag",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.22"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/typetag-impl/0.2.22/download",
+      "name": "typetag-impl",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.22"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/typewit/1.14.2/download",
+      "name": "typewit",
+      "normalized_spdx": "Zlib",
+      "package_metadata_attribution": "rodrimati1992 <rodrimatt1985@gmail.com>",
+      "raw_cargo_license": "Zlib",
+      "version": "1.14.2"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ucd-trie/0.1.7/download",
+      "name": "ucd-trie",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Andrew Gallant <jamslam@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.7"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/ulid/1.1.4/download",
+      "name": "ulid",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "dylanhart <dylan96hart@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "1.1.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/unarray/0.1.4/download",
+      "name": "unarray",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/unicase/2.7.0/download",
+      "name": "unicase",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.7.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/unicode-ident/1.0.22/download",
+      "name": "unicode-ident",
+      "normalized_spdx": "(MIT OR Apache-2.0) AND Unicode-3.0",
+      "package_metadata_attribution": "David Tolnay <dtolnay@gmail.com>",
+      "raw_cargo_license": "(MIT OR Apache-2.0) AND Unicode-3.0",
+      "version": "1.0.22"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/unicode-normalization/0.1.25/download",
+      "name": "unicode-normalization",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "kwantam <kwantam@gmail.com>; Manish Goregaokar <manishsmail@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.25"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/unicode-segmentation/1.12.0/download",
+      "name": "unicode-segmentation",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "kwantam <kwantam@gmail.com>; Manish Goregaokar <manishsmail@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.12.0"
+    },
+    {
+      "immutable_source": "https://github.com/mozilla/uniffi-rs/commit/e5f4821410bea19e71984ea5e06a7bc8b11ed9e5",
+      "name": "uniffi",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.31.0"
+    },
+    {
+      "immutable_source": "https://github.com/mozilla/uniffi-rs/commit/e5f4821410bea19e71984ea5e06a7bc8b11ed9e5",
+      "name": "uniffi_bindgen",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.31.0"
+    },
+    {
+      "immutable_source": "https://github.com/mozilla/uniffi-rs/commit/e5f4821410bea19e71984ea5e06a7bc8b11ed9e5",
+      "name": "uniffi_build",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.31.0"
+    },
+    {
+      "immutable_source": "https://github.com/mozilla/uniffi-rs/commit/e5f4821410bea19e71984ea5e06a7bc8b11ed9e5",
+      "name": "uniffi_core",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.31.0"
+    },
+    {
+      "immutable_source": "https://github.com/mozilla/uniffi-rs/commit/e5f4821410bea19e71984ea5e06a7bc8b11ed9e5",
+      "name": "uniffi_internal_macros",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.31.0"
+    },
+    {
+      "immutable_source": "https://github.com/mozilla/uniffi-rs/commit/e5f4821410bea19e71984ea5e06a7bc8b11ed9e5",
+      "name": "uniffi_macros",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.31.0"
+    },
+    {
+      "immutable_source": "https://github.com/mozilla/uniffi-rs/commit/e5f4821410bea19e71984ea5e06a7bc8b11ed9e5",
+      "name": "uniffi_meta",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.31.0"
+    },
+    {
+      "immutable_source": "https://github.com/mozilla/uniffi-rs/commit/e5f4821410bea19e71984ea5e06a7bc8b11ed9e5",
+      "name": "uniffi_pipeline",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.31.0"
+    },
+    {
+      "immutable_source": "https://github.com/mozilla/uniffi-rs/commit/e5f4821410bea19e71984ea5e06a7bc8b11ed9e5",
+      "name": "uniffi_udl",
+      "normalized_spdx": "MPL-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MPL-2.0",
+      "version": "0.31.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/universal-hash/0.5.1/download",
+      "name": "universal-hash",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "RustCrypto Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.5.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/untrusted/0.7.1/download",
+      "name": "untrusted",
+      "normalized_spdx": "ISC",
+      "package_metadata_attribution": "Brian Smith <brian@briansmith.org>",
+      "raw_cargo_license": "ISC",
+      "version": "0.7.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/untrusted/0.9.0/download",
+      "name": "untrusted",
+      "normalized_spdx": "ISC",
+      "package_metadata_attribution": "Brian Smith <brian@briansmith.org>",
+      "raw_cargo_license": "ISC",
+      "version": "0.9.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/url/2.5.7/download",
+      "name": "url",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The rust-url developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.5.7"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/urlencoding/2.1.3/download",
+      "name": "urlencoding",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Kornel <kornel@geekhood.net>; Bertram Truong <b@bertramtruong.com>",
+      "raw_cargo_license": "MIT",
+      "version": "2.1.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/utf-8/0.7.6/download",
+      "name": "utf-8",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Simon Sapin <simon.sapin@exyr.org>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.7.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/utf16_iter/1.0.5/download",
+      "name": "utf16_iter",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Henri Sivonen <hsivonen@hsivonen.fi>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "1.0.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/utf8-ranges/1.0.5/download",
+      "name": "utf8-ranges",
+      "normalized_spdx": "Unlicense OR MIT",
+      "package_metadata_attribution": "Andrew Gallant <jamslam@gmail.com>",
+      "raw_cargo_license": "Unlicense OR MIT",
+      "version": "1.0.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/utf8_iter/1.0.4/download",
+      "name": "utf8_iter",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Henri Sivonen <hsivonen@hsivonen.fi>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "1.0.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/uuid/1.18.1/download",
+      "name": "uuid",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Ashley Mannix<ashleymannix@live.com.au>; Dylan DPC<dylan.dpc@gmail.com>; Hunar Roop Kahlon<hunar.roop@gmail.com>",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "1.18.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/vcpkg/0.2.15/download",
+      "name": "vcpkg",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jim McGrath <jimmc2@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.15"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/vergen/9.0.6/download",
+      "name": "vergen",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jason Ozias <jason.g.ozias@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "9.0.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/vergen-gitcl/1.0.8/download",
+      "name": "vergen-gitcl",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jason Ozias <jason.g.ozias@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.0.8"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/vergen-lib/0.1.6/download",
+      "name": "vergen-lib",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Jason Ozias <jason.g.ozias@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.1.6"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/version_check/0.9.4/download",
+      "name": "version_check",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Sergio Benitez <sb@sergio.bz>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.9.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/vodozemac/0.10.0/download",
+      "name": "vodozemac",
+      "normalized_spdx": "Apache-2.0",
+      "package_metadata_attribution": "Damir Jelić <poljar@termina.org.uk>; Denis Kasak <dkasak@termina.org.uk>",
+      "raw_cargo_license": "Apache-2.0",
+      "version": "0.10.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/want/0.3.1/download",
+      "name": "want",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Sean McArthur <sean@seanmonstar.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.3.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/wasm-bindgen/0.2.114/download",
+      "name": "wasm-bindgen",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The wasm-bindgen Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.114"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/wasm-bindgen-futures/0.4.64/download",
+      "name": "wasm-bindgen-futures",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The wasm-bindgen Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.4.64"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/wasm-bindgen-macro/0.2.114/download",
+      "name": "wasm-bindgen-macro",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The wasm-bindgen Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.114"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/wasm-bindgen-macro-support/0.2.114/download",
+      "name": "wasm-bindgen-macro-support",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The wasm-bindgen Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.114"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/wasm-bindgen-shared/0.2.114/download",
+      "name": "wasm-bindgen-shared",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The wasm-bindgen Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.114"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/wasm-bindgen-test/0.3.64/download",
+      "name": "wasm-bindgen-test",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The wasm-bindgen Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.64"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/wasm-bindgen-test-macro/0.3.64/download",
+      "name": "wasm-bindgen-test-macro",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The wasm-bindgen Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.3.64"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/wasm-bindgen-test-shared/0.2.114/download",
+      "name": "wasm-bindgen-test-shared",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The wasm-bindgen Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.114"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/web-time/1.1.0/download",
+      "name": "web-time",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "1.1.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/web_atoms/0.2.3/download",
+      "name": "web_atoms",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "The html5ever Project Developers",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.2.3"
+    },
+    {
+      "immutable_source": "https://github.com/mozilla/uniffi-rs/commit/e5f4821410bea19e71984ea5e06a7bc8b11ed9e5",
+      "name": "weedle2",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Sharad Chand <sharad.d.chand@gmail.com>; Jan-Erik Rediger <jrediger@mozilla.com>",
+      "raw_cargo_license": "MIT",
+      "version": "5.0.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/wildmatch/2.6.1/download",
+      "name": "wildmatch",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Armin Becher <armin.becher@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "2.6.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/winnow/0.7.13/download",
+      "name": "winnow",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "0.7.13"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/winnow/1.0.1/download",
+      "name": "winnow",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "MIT",
+      "version": "1.0.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/wiremock/0.6.5/download",
+      "name": "wiremock",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Luca Palmieri <rust@lpalmieri.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.6.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/write16/1.0.0/download",
+      "name": "write16",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "Upstream project contributors; see immutable source",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "1.0.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/writeable/0.5.5/download",
+      "name": "writeable",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "0.5.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/x25519-dalek/2.0.1/download",
+      "name": "x25519-dalek",
+      "normalized_spdx": "BSD-3-Clause",
+      "package_metadata_attribution": "Isis Lovecruft <isis@patternsinthevoid.net>; DebugSteven <debugsteven@gmail.com>; Henry de Valence <hdevalence@hdevalence.ca>",
+      "raw_cargo_license": "BSD-3-Clause",
+      "version": "2.0.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/x509-parser/0.18.1/download",
+      "name": "x509-parser",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Pierre Chifflier <chifflier@wzdftpd.net>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.18.1"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/xxhash-rust/0.8.11/download",
+      "name": "xxhash-rust",
+      "normalized_spdx": "BSL-1.0",
+      "package_metadata_attribution": "Douman <douman@gmx.se>",
+      "raw_cargo_license": "BSL-1.0",
+      "version": "0.8.11"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/yasna/0.6.0/download",
+      "name": "yasna",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Masaki Hara <ackie.h.gmai@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "0.6.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/yoke/0.7.5/download",
+      "name": "yoke",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "Manish Goregaokar <manishsmail@gmail.com>",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "0.7.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/yoke-derive/0.7.5/download",
+      "name": "yoke-derive",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "Manish Goregaokar <manishsmail@gmail.com>",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "0.7.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/zerofrom/0.1.5/download",
+      "name": "zerofrom",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "Manish Goregaokar <manishsmail@gmail.com>",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "0.1.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/zerofrom-derive/0.1.5/download",
+      "name": "zerofrom-derive",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "Manish Goregaokar <manishsmail@gmail.com>",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "0.1.5"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/zeroize/1.9.0/download",
+      "name": "zeroize",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "The RustCrypto Project Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "1.9.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/zeroize_derive/1.5.0/download",
+      "name": "zeroize_derive",
+      "normalized_spdx": "Apache-2.0 OR MIT",
+      "package_metadata_attribution": "The RustCrypto Project Developers",
+      "raw_cargo_license": "Apache-2.0 OR MIT",
+      "version": "1.5.0"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/zerovec/0.10.4/download",
+      "name": "zerovec",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "The ICU4X Project Developers",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "0.10.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/zerovec-derive/0.10.3/download",
+      "name": "zerovec-derive",
+      "normalized_spdx": "Unicode-3.0",
+      "package_metadata_attribution": "Manish Goregaokar <manishsmail@gmail.com>",
+      "raw_cargo_license": "Unicode-3.0",
+      "version": "0.10.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/zstd/0.13.3/download",
+      "name": "zstd",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Alexandre Bury <alexandre.bury@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "0.13.3"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/zstd-safe/7.2.4/download",
+      "name": "zstd-safe",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alexandre Bury <alexandre.bury@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "7.2.4"
+    },
+    {
+      "immutable_source": "https://crates.io/api/v1/crates/zstd-sys/2.0.15%2Bzstd.1.5.7/download",
+      "name": "zstd-sys",
+      "normalized_spdx": "MIT OR Apache-2.0",
+      "package_metadata_attribution": "Alexandre Bury <alexandre.bury@gmail.com>",
+      "raw_cargo_license": "MIT OR Apache-2.0",
+      "version": "2.0.15+zstd.1.5.7"
+    },
+    {
+      "immutable_source": "https://github.com/shssoichiro/zxcvbn-rs/commit/4e8e784b23541d118800df84feedf8160879d1af",
+      "name": "zxcvbn",
+      "normalized_spdx": "MIT",
+      "package_metadata_attribution": "Josh Holmer <jholmer.in@gmail.com>",
+      "raw_cargo_license": "MIT",
+      "version": "3.1.1"
+    }
+  ],
+  "schema_version": 1,
+  "target": "aarch64-apple-darwin"
+}

@@ -1,0 +1,4 @@
+Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip filter=lfs diff=lfs merge=lfs -text
+Vendor/MatrixRustSDK/Sources/MatrixRustSDK/*.swift whitespace=-trailing-space
+LICENSES/*.txt whitespace=-trailing-space,cr-at-eol
+THIRD_PARTY_LICENSES.html whitespace=-trailing-space,cr-at-eol
