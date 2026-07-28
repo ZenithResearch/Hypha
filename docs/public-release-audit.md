@@ -47,18 +47,17 @@ A new tip commit cannot erase those records. Hypha is therefore published from a
 
 The new `ZenithResearch/Hypha` repository was created empty. Before the clean-root push it had zero releases, tags, Actions runs, and issues. No package was published, transferred, or associated during bootstrap. The unavailable organization-wide package listing is not treated as evidence of absence and is not copied into this repository boundary.
 
-## Publication transition gate
+## Completed publication transition
 
-- Push only the reviewed clean root while Actions remain disabled.
-- Verify the new repository still has no copied releases, tags, issues, pull requests, Actions history, or private refs.
-- Change visibility only after that verification passes.
-- Immediately enable private vulnerability reporting and default-branch rules; revert to private if the security transition cannot be completed.
-
-## Required post-publication verification
-
-- As part of the visibility transition, enable and verify GitHub private vulnerability reporting before release announcement or continued public development. If enablement fails, revert visibility to private.
-- Configure and verify default-branch protection/rules.
-- Verify GitHub recognizes AGPL-3.0-or-later and renders the public README/security guidance.
-- Verify unauthenticated clone and Git LFS retrieval.
-- Rerun exact-head CI and confirm jobs execute rather than failing before runner allocation.
-- Recheck releases, packages, Pages, environments, deployments, artifacts, caches, forks, and wiki state from the public boundary.
+- Published clean root `ed94fdf5ae054702e4201a490ca9e62ccf6cccf8`, whose parent count is zero and whose author uses a GitHub noreply address.
+- Verified that the only branch initially published was `main`; no historical branch, pull-request ref, release, issue, Actions run, or old tag was copied.
+- Kept `ZenithResearch/Hypha-private-archive` private and set it read-only with GitHub's archive control.
+- Verified public README and AGPL detection through unauthenticated GitHub endpoints.
+- Verified an unauthenticated HTTPS clone and Git LFS retrieval of the SDK artifact at SHA-256 `ca8796d0f065ade3787de2f18693afd940914ce2e35f807ccf479d2f14c5c565`.
+- Enabled and verified GitHub private vulnerability reporting.
+- Enabled secret scanning, secret-scanning push protection, and Dependabot security updates.
+- Applied active `Protect main` ruleset `19932949`: no deletion or force push, linear history, pull-request changes, resolved review threads, and required `macos` status checks.
+- Kept Actions token defaults at `contents: read`; workflows cannot approve pull requests.
+- Created lightweight tag `public-ci-ed94fdf` only to trigger verification on the root commit after Actions was enabled.
+- Verified the standard `macos-26` job executed every workflow step successfully on that exact root: [run 30408519317](https://github.com/ZenithResearch/Hypha/actions/runs/30408519317).
+- Rechecked the public boundary after publication: no releases, no copied issues or pull requests, and no transferred package publication or association.

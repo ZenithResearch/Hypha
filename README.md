@@ -50,7 +50,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build
 open Hypha.app
 ```
 
-The packaged app uses a checksummed, repository-local Matrix Rust SDK binary artifact tracked with Git LFS. Run `git lfs pull` after cloning. Its source commits, macOS 26.4 build boundary, regression tests, and checksum are recorded in [`Vendor/MatrixRustSDK/PROVENANCE.md`](Vendor/MatrixRustSDK/PROVENANCE.md). It never offers a synthetic room or plaintext fallback. Invite-token account creation is shown only when the connected homeserver's registration UIA advertises `m.login.registration_token`; otherwise the sign-in surface does not solicit an invite token.
+The packaged app uses a checksummed, repository-local Matrix Rust SDK binary artifact tracked with Git LFS. After cloning, run `git lfs install --local` and `git lfs pull`. Its source commits, macOS 26.4 build boundary, regression tests, and checksum are recorded in [`Vendor/MatrixRustSDK/PROVENANCE.md`](Vendor/MatrixRustSDK/PROVENANCE.md). It never offers a synthetic room or plaintext fallback. Invite-token account creation is shown only when the connected homeserver's registration UIA advertises `m.login.registration_token`; otherwise the sign-in surface does not solicit an invite token.
 
 ### One-time local identity migration
 
