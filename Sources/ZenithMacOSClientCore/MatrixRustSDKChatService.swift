@@ -1520,6 +1520,7 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
         return MatrixTimelineEvent(
             id: id,
             senderDisplayName: senderDisplayName,
+            senderID: event.sender,
             content: mappedContent,
             isOwn: event.isOwn,
             authenticity: mapTimelineAuthenticity(event.lazyProvider.getShields(strict: true)),

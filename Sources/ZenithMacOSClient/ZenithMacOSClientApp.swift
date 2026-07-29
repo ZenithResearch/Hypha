@@ -1,3 +1,4 @@
+import Accessibility
 import SwiftUI
 import ZenithMacOSClientCore
 
@@ -52,7 +53,7 @@ final class MatrixAppModel: ObservableObject {
     @Published var homeserverState: HomeserverOnboardingState = .awaitingInput
     @Published var username = ""
     @Published var password = ""
-    @Published var composer = ""
+    @Published var messageDraftStore = HyphaMessageDraftStore()
     @Published var rooms: [MatrixRoomSummary] = []
     @Published var trustState: MatrixDeviceTrustState = .unknown
     @Published var verificationFlowState: MatrixVerificationFlowState = .idle
@@ -103,6 +104,13 @@ final class MatrixAppModel: ObservableObject {
     }
 
     var isCheckingHomeserver: Bool { homeserverState == .checking }
+
+    var composer: String {
+        get { messageDraftStore.activeDraft.text }
+        set { messageDraftStore.edit(newValue) }
+    }
+
+    var messageDraft: HyphaMessageDraft { messageDraftStore.activeDraft }
 
     func connectHomeserver() async {
         timelineRefreshTask?.cancel()
@@ -535,6 +543,7 @@ final class MatrixAppModel: ObservableObject {
         if case let .thread(room, _, _) = state {
             if !rooms.contains(where: { $0.id == room.id }) { rooms.append(room) }
             rooms.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            messageDraftStore.activate(draftContext(for: room))
             startTimelineRefresh(coordinator: coordinator, room: room)
         }
     }
@@ -558,9 +567,12 @@ final class MatrixAppModel: ObservableObject {
     func open(_ room: MatrixRoomSummary) async {
         guard let coordinator else { return }
         timelineRefreshTask?.cancel()
+        let draftContext = draftContext(for: room)
         await coordinator.open(room: room)
+        guard coordinator === self.coordinator else { return }
         applyState(from: coordinator)
-        guard case .thread = state else { return }
+        guard case let .thread(openRoom, _, _) = state, openRoom.id == room.id else { return }
+        messageDraftStore.activate(draftContext)
         startTimelineRefresh(coordinator: coordinator, room: room)
     }
 
@@ -575,18 +587,59 @@ final class MatrixAppModel: ObservableObject {
                 }
                 guard let self, let coordinator else { return }
                 await coordinator.refreshOpenRoom()
+                guard coordinator === self.coordinator else { return }
+                guard case let .thread(openRoom, _, _) = coordinator.state,
+                      openRoom.id == room.id else { return }
                 self.applyState(from: coordinator)
-                guard case let .thread(openRoom, _, _) = self.state, openRoom.id == room.id else { return }
             }
         }
     }
 
     func send() async {
-        guard let coordinator else { return }
-        let body = composer
-        composer = ""
-        await coordinator.send(body)
+        guard let coordinator,
+              case let .thread(room, _, _) = state,
+              let activeContext = messageDraftStore.activeContext,
+              room.id == activeContext.roomID,
+              let submission = messageDraftStore.beginSend() else { return }
+        let sent = await coordinator.send(submission.body)
+        if sent {
+            messageDraftStore.succeedSend(in: submission.context)
+        } else {
+            messageDraftStore.failSend(
+                in: submission.context,
+                reason: sendFailureGuidance(for: coordinator.state)
+            )
+        }
+        guard coordinator === self.coordinator else { return }
         applyState(from: coordinator)
+    }
+
+    private func draftContext(for room: MatrixRoomSummary) -> HyphaMessageDraftStore.Context {
+        let fallbackAccountID = [
+            activeConfiguration?.homeserver.absoluteString ?? "unconfigured",
+            username,
+        ].joined(separator: "|")
+        return HyphaMessageDraftStore.Context(
+            accountID: activeSessionAccountKey ?? fallbackAccountID,
+            roomID: room.id
+        )
+    }
+
+    private func sendFailureGuidance(for state: MatrixChatState) -> String {
+        switch state {
+        case .offline:
+            "The homeserver is offline. Your draft is still here; reconnect, then retry."
+        case .sessionExpired:
+            "The Matrix session expired. Your draft is still here; sign in again, then retry."
+        case .trustBlocked:
+            "Sending is blocked because device trust changed. Your draft was preserved."
+        case .recoveryRequired:
+            "Encryption recovery is required. Your draft was preserved."
+        case let .unavailable(reason):
+            "Message not sent: \(reason). Your draft was preserved."
+        default:
+            "Message not sent. Your draft is still here; review it and retry."
+        }
     }
 
     private func applyState(from coordinator: MatrixChatCoordinator) {
@@ -1283,63 +1336,27 @@ private struct MatrixCompanionShell: View {
         composerState: MatrixComposerState
     ) -> some View {
         VStack(spacing: 0) {
-            List(events) { event in
-                VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
-                    Text(event.senderDisplayName)
-                        .font(ZenithDesign.Typography.technical(size: 13, weight: .semibold))
-                        .foregroundStyle(ZenithDesign.Palette.muted)
-                    switch event.content {
-                    case let .text(body):
-                        Text(body)
-                    case let .undecryptable(reason):
-                        Label(reason, systemImage: "lock.trianglebadge.exclamationmark")
-                            .foregroundStyle(ZenithDesign.Palette.warning)
-                            .accessibilityIdentifier("matrix.timeline.undecryptable")
-                    case let .unsupported(type):
-                        Label("Unsupported encrypted event: \(type)", systemImage: "questionmark.square.dashed")
-                            .foregroundStyle(ZenithDesign.Palette.muted)
-                    }
-                    if let authenticity = eventAuthenticityLabel(event.authenticity) {
-                        Label(authenticity, systemImage: "exclamationmark.shield.fill")
-                            .font(.caption)
-                            .foregroundStyle(eventAuthenticityColor(event.authenticity))
-                            .accessibilityIdentifier("matrix.timeline.authenticity")
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-            .scrollContentBackground(.hidden)
-            .background(ZenithDesign.Palette.base)
-            .accessibilityIdentifier("matrix.thread.timeline")
+            HyphaChatTimeline(room: room, events: events)
 
             ZenithMessageComposer(
                 text: $model.composer,
                 roomName: room.name,
-                isEnabled: composerState == .ready,
+                isSending: model.messageDraft.isSending,
+                disabledReason: composerDisabledReason(composerState),
+                failureReason: model.messageDraft.failureReason,
                 send: { Task { await model.send() } }
             )
         }
     }
 
-    private func eventAuthenticityLabel(_ authenticity: MatrixEventAuthenticity) -> String? {
-        switch authenticity {
-        case .noWarning: return nil
-        case .authenticityNotGuaranteed: return "Message authenticity cannot be guaranteed"
-        case .unknownDevice: return "Encrypted by an unknown device"
-        case .unsignedDevice: return "Encrypted by a device not verified by its owner"
-        case .unverifiedIdentity: return "The sender's Matrix identity is not verified"
-        case .verificationViolation: return "The sender's verified Matrix identity changed"
-        case .mismatchedSender: return "The encrypted session does not match the event sender"
-        case .sentInClear: return "Sent without encryption in an encrypted room"
-        }
-    }
-
-    private func eventAuthenticityColor(_ authenticity: MatrixEventAuthenticity) -> Color {
-        switch authenticity {
-        case .verificationViolation, .mismatchedSender, .sentInClear:
-            return ZenithDesign.Palette.error
-        default:
-            return ZenithDesign.Palette.warning
+    private func composerDisabledReason(_ state: MatrixComposerState) -> String? {
+        switch state {
+        case .ready:
+            nil
+        case .sending:
+            "Another message is already sending."
+        case let .disabled(reason):
+            reason
         }
     }
 
@@ -1394,41 +1411,157 @@ private struct MatrixCompanionShell: View {
     }
 }
 
+private struct HyphaChatTimeline: View {
+    let room: MatrixRoomSummary
+    let events: [MatrixTimelineEvent]
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var liveEdgeState: HyphaChatLiveEdgePolicy.State?
+
+    private var latestAnchor: String { "matrix.thread.latest.\(room.id)" }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ZStack(alignment: .bottomTrailing) {
+                List {
+                    if events.isEmpty {
+                        HyphaChatEmptyState(isEncrypted: room.isEncrypted)
+                            .frame(maxWidth: .infinity)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    } else {
+                        ForEach(events.indices, id: \.self) { index in
+                            HyphaChatMessageRow(
+                                event: events[index],
+                                previousEvent: index > events.startIndex ? events[index - 1] : nil,
+                                nextEvent: index < events.index(before: events.endIndex) ? events[index + 1] : nil
+                            )
+                            .id(events[index].id)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                        }
+                    }
+
+                    Color.clear
+                        .frame(height: 1)
+                        .id(latestAnchor)
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+                }
+                .scrollContentBackground(.hidden)
+                .background(ZenithDesign.Palette.base)
+                .accessibilityIdentifier("matrix.thread.timeline")
+                .onAppear { openRoom(at: proxy) }
+                .onChange(of: room.id) { _, _ in openRoom(at: proxy) }
+                .onChange(of: events.map(\.id)) { _, eventIDs in
+                    eventsUpdated(eventIDs: eventIDs, at: proxy)
+                }
+                .onScrollGeometryChange(for: Bool.self) { geometry in
+                    geometry.contentSize.height <= geometry.containerSize.height
+                        || geometry.visibleRect.maxY >= geometry.contentSize.height - 80
+                } action: { _, isAtLiveEdge in
+                    guard liveEdgeState?.roomID == room.id else { return }
+                    _ = HyphaChatLiveEdgePolicy.reduce(
+                        state: &liveEdgeState,
+                        event: .liveEdgeChanged(isAtLiveEdge)
+                    )
+                }
+
+                if liveEdgeState?.showsNewMessageAffordance == true {
+                    Button {
+                        let decision = HyphaChatLiveEdgePolicy.reduce(
+                            state: &liveEdgeState,
+                            event: .jumpToLatest
+                        )
+                        scrollToLatest(if: decision.autoScrollToLatest, proxy: proxy, animated: true)
+                    } label: {
+                        Label("Jump to latest", systemImage: "arrow.down.to.line.compact")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(ZenithDesign.Space.x4)
+                    .accessibilityHint("Moves to the newest message and resumes following new messages.")
+                    .accessibilityIdentifier("matrix.thread.jump-to-latest")
+                }
+            }
+            .onChange(of: liveEdgeState?.showsNewMessageAffordance) { previous, current in
+                guard previous != true, current == true else { return }
+                AccessibilityNotification.Announcement(
+                    "New messages are available. Jump to latest is now available."
+                ).post()
+            }
+        }
+    }
+
+    private func openRoom(at proxy: ScrollViewProxy) {
+        let decision = HyphaChatLiveEdgePolicy.reduce(
+            state: &liveEdgeState,
+            event: .roomOpenedWithEvents(roomID: room.id, eventIDs: events.map(\.id))
+        )
+        scrollToLatest(if: decision.autoScrollToLatest, proxy: proxy, animated: false)
+    }
+
+    private func eventsUpdated(eventIDs: [String], at proxy: ScrollViewProxy) {
+        let decision = HyphaChatLiveEdgePolicy.reduce(
+            state: &liveEdgeState,
+            event: .eventsUpdatedWithEvents(roomID: room.id, eventIDs: eventIDs)
+        )
+        scrollToLatest(if: decision.autoScrollToLatest, proxy: proxy, animated: true)
+    }
+
+    private func scrollToLatest(if shouldScroll: Bool, proxy: ScrollViewProxy, animated: Bool) {
+        guard shouldScroll else { return }
+        Task { @MainActor in
+            await Task.yield()
+            if animated && !reduceMotion {
+                withAnimation { proxy.scrollTo(latestAnchor, anchor: .bottom) }
+            } else {
+                proxy.scrollTo(latestAnchor, anchor: .bottom)
+            }
+        }
+    }
+}
+
 private struct ZenithMessageComposer: View {
     @Binding var text: String
     let roomName: String
-    let isEnabled: Bool
+    let isSending: Bool
+    let disabledReason: String?
+    let failureReason: String?
     let send: () -> Void
     @FocusState private var isFocused: Bool
 
     private var canSend: Bool {
-        isEnabled && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !isSending && disabledReason == nil && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
-        HStack(spacing: ZenithDesign.Space.x3) {
-            TextField("Message \(roomName)", text: $text, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(ZenithDesign.Typography.corporate(size: 15, weight: .medium))
-                .foregroundStyle(ZenithDesign.Palette.content)
-                .lineLimit(1...5)
-                .focused($isFocused)
-                .accessibilityIdentifier("matrix.thread.composer")
-                .onSubmit { submitIfReady() }
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+            HStack(spacing: ZenithDesign.Space.x3) {
+                TextField("Message \(roomName)", text: $text, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(ZenithDesign.Typography.corporate(.body, weight: .medium))
+                    .foregroundStyle(ZenithDesign.Palette.content)
+                    .lineLimit(1...5)
+                    .focused($isFocused)
+                    .accessibilityIdentifier("matrix.thread.composer")
+                    .onSubmit { submitIfReady() }
 
-            Button(action: submitIfReady) {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 15, weight: .bold))
-                    .frame(width: 40, height: 40)
-                    .foregroundStyle(canSend ? ZenithDesign.Palette.base : ZenithDesign.Palette.muted)
-                    .background(canSend ? ZenithDesign.Palette.brand : ZenithDesign.Palette.baseRaised)
-                    .clipShape(Circle())
+                Button(action: submitIfReady) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 15, weight: .bold))
+                        .frame(width: 40, height: 40)
+                        .foregroundStyle(canSend ? ZenithDesign.Palette.base : ZenithDesign.Palette.muted)
+                        .background(canSend ? ZenithDesign.Palette.brand : ZenithDesign.Palette.baseRaised)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.defaultAction)
+                .disabled(!canSend)
+                .accessibilityLabel(isSending ? "Sending message" : "Send message")
+                .accessibilityIdentifier("matrix.thread.send")
             }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.defaultAction)
-            .disabled(!canSend)
-            .accessibilityLabel("Send message")
-            .accessibilityIdentifier("matrix.thread.send")
+
+            composerStatus
         }
         .padding(.leading, ZenithDesign.Space.x5)
         .padding(.trailing, ZenithDesign.Space.x3)
@@ -1448,6 +1581,49 @@ private struct ZenithMessageComposer: View {
         .padding(.horizontal, ZenithDesign.Space.x6)
         .padding(.vertical, ZenithDesign.Space.x4)
         .background(ZenithDesign.Palette.base)
+        .onChange(of: statusAnnouncement) { _, announcement in
+            guard let announcement else { return }
+            AccessibilityNotification.Announcement(announcement).post()
+        }
+    }
+
+    private var statusAnnouncement: String? {
+        if isSending {
+            return "Sending message."
+        }
+        if let failureReason {
+            return "Message failed to send. \(failureReason) Draft preserved; press Send to retry."
+        }
+        if let disabledReason {
+            return "Message composer unavailable. \(disabledReason)"
+        }
+        return nil
+    }
+
+    @ViewBuilder
+    private var composerStatus: some View {
+        if isSending {
+            HStack(spacing: ZenithDesign.Space.x2) {
+                ProgressView().controlSize(.small)
+                Text("Sending…")
+            }
+            .font(ZenithDesign.Typography.technical(.caption, weight: .semibold))
+            .foregroundStyle(ZenithDesign.Palette.muted)
+            .accessibilityIdentifier("matrix.thread.sending")
+        } else if let failureReason {
+            Label(failureReason, systemImage: "exclamationmark.arrow.triangle.2.circlepath")
+                .font(ZenithDesign.Typography.technical(.caption, weight: .semibold))
+                .foregroundStyle(ZenithDesign.Palette.error)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityHint("Review the preserved draft and press Send to retry.")
+                .accessibilityIdentifier("matrix.thread.send-failure")
+        } else if let disabledReason {
+            Label(disabledReason, systemImage: "lock.fill")
+                .font(ZenithDesign.Typography.technical(.caption, weight: .semibold))
+                .foregroundStyle(ZenithDesign.Palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("matrix.thread.composer-disabled")
+        }
     }
 
     private func submitIfReady() {

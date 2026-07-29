@@ -48,6 +48,7 @@ public struct MatrixTimelineEvent: Identifiable, Equatable, Sendable {
 
     public let id: String
     public let senderDisplayName: String
+    public let senderID: String
     public let content: Content
     public let isOwn: Bool
     public let authenticity: MatrixEventAuthenticity
@@ -56,6 +57,7 @@ public struct MatrixTimelineEvent: Identifiable, Equatable, Sendable {
     public init(
         id: String,
         senderDisplayName: String,
+        senderID: String? = nil,
         content: Content,
         isOwn: Bool = false,
         authenticity: MatrixEventAuthenticity = .noWarning,
@@ -63,6 +65,7 @@ public struct MatrixTimelineEvent: Identifiable, Equatable, Sendable {
     ) {
         self.id = id
         self.senderDisplayName = senderDisplayName
+        self.senderID = senderID ?? senderDisplayName
         self.content = content
         self.isOwn = isOwn
         self.authenticity = authenticity
@@ -328,6 +331,8 @@ public final class MatrixChatCoordinator {
     }
 
     private let service: any MatrixChatService
+    private var roomOperationGeneration: UInt64 = 0
+    private var timelineOperationGeneration: UInt64 = 0
 
     public init(service: any MatrixChatService) {
         self.service = service
@@ -364,41 +369,103 @@ public final class MatrixChatCoordinator {
     }
 
     public func open(room: MatrixRoomSummary) async {
+        roomOperationGeneration &+= 1
+        timelineOperationGeneration &+= 1
+        let operationGeneration = roomOperationGeneration
         do {
             let events = try await service.timeline(for: room.id)
+            guard operationGeneration == roomOperationGeneration else { return }
             state = .thread(room: room, events: events, composer: room.isEncrypted ? .ready : .disabled(reason: "Encrypted rooms only"))
         } catch {
+            guard operationGeneration == roomOperationGeneration else { return }
             state = map(error, room: room)
         }
     }
 
     public func refreshOpenRoom() async {
-        guard case let .thread(room, _, composer) = state else { return }
+        guard case let .thread(room, _, _) = state else { return }
+        let operationGeneration = roomOperationGeneration
+        timelineOperationGeneration &+= 1
+        let timelineGeneration = timelineOperationGeneration
         do {
-            state = .thread(room: room, events: try await service.timeline(for: room.id), composer: composer)
+            let events = try await service.timeline(for: room.id)
+            guard operationGeneration == roomOperationGeneration,
+                  timelineGeneration == timelineOperationGeneration,
+                  case let .thread(currentRoom, _, currentComposer) = state,
+                  currentRoom.id == room.id else { return }
+            state = .thread(room: room, events: events, composer: currentComposer)
         } catch {
-            state = map(error, room: room)
+            guard operationGeneration == roomOperationGeneration,
+                  timelineGeneration == timelineOperationGeneration,
+                  case let .thread(currentRoom, _, _) = state,
+                  currentRoom.id == room.id else { return }
+            let failureState = map(error, room: room)
+            switch failureState {
+            case .offline, .unavailable:
+                return
+            default:
+                state = failureState
+            }
         }
     }
 
-    public func send(_ body: String) async {
+    @discardableResult
+    public func send(_ body: String) async -> Bool {
         guard case let .thread(room, events, composer) = state,
               composer == .ready,
               !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return
+            return false
         }
         guard chatAuthority == .available else {
             state = .trustBlocked(room: room)
-            return
+            return false
         }
 
+        let operationGeneration = roomOperationGeneration
+        timelineOperationGeneration &+= 1
         state = .thread(room: room, events: events, composer: .sending)
         do {
             try await service.sendText(body, to: room.id)
+        } catch {
+            if operationGeneration == roomOperationGeneration {
+                timelineOperationGeneration &+= 1
+                applySendFailure(error, room: room, events: events)
+            }
+            return false
+        }
+
+        guard operationGeneration == roomOperationGeneration else { return true }
+        state = .thread(room: room, events: events, composer: .ready)
+        timelineOperationGeneration &+= 1
+        let timelineGeneration = timelineOperationGeneration
+
+        do {
             let refreshedEvents = try await service.timeline(for: room.id)
+            guard operationGeneration == roomOperationGeneration,
+                  timelineGeneration == timelineOperationGeneration,
+                  case let .thread(currentRoom, _, _) = state,
+                  currentRoom.id == room.id else { return true }
             state = .thread(room: room, events: refreshedEvents, composer: .ready)
         } catch {
-            state = map(error, room: room)
+            if operationGeneration == roomOperationGeneration,
+               timelineGeneration == timelineOperationGeneration {
+                applySendFailure(error, room: room, events: events)
+            }
+        }
+        return true
+    }
+
+    private func applySendFailure(
+        _ error: Error,
+        room: MatrixRoomSummary,
+        events: [MatrixTimelineEvent]
+    ) {
+        let failureState = map(error, room: room)
+        switch failureState {
+        case .offline, .unavailable:
+            state = .thread(room: room, events: events, composer: .ready)
+        default:
+            state = failureState
         }
     }
 
@@ -427,7 +494,10 @@ public final class MatrixChatCoordinator {
     public func removeRoom(_ room: MatrixRoomSummary) async -> Bool {
         guard room.isCreatedByCurrentUser else { return false }
         do {
-            state = .rooms(try await service.removeRoom(roomID: room.id))
+            let remainingRooms = try await service.removeRoom(roomID: room.id)
+            roomOperationGeneration &+= 1
+            timelineOperationGeneration &+= 1
+            state = .rooms(remainingRooms)
             return true
         } catch {
             return false

@@ -397,6 +397,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         let source = try [
             root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
             root.appendingPathComponent("Sources/ZenithMacOSClient/Auth/HyphaAuthenticationViews.swift"),
+            root.appendingPathComponent("Sources/ZenithMacOSClient/Chat/HyphaChatMessageRow.swift"),
             root.appendingPathComponent("Sources/ZenithMacOSClient/DesignSystem/Molecules/HyphaAccountChoiceCard.swift"),
         ].map { try String(contentsOf: $0, encoding: .utf8) }.joined(separator: "\n")
 
@@ -516,7 +517,16 @@ final class MatrixShellSourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/Auth/HyphaAuthenticationViews.swift"),
             encoding: .utf8
         )
-        let source = appSource + "\n" + authSource
+        let messageRowSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/Chat/HyphaChatMessageRow.swift"),
+            encoding: .utf8
+        )
+        let messagePresentationSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClientCore/HyphaChatMessagePresentation.swift"),
+            encoding: .utf8
+        )
+        let source = [appSource, authSource, messageRowSource, messagePresentationSource]
+            .joined(separator: "\n")
 
         guard let submit = authSource.range(of: "private func submit()"),
               let clearSecrets = authSource.range(of: "clearSecrets()", range: submit.lowerBound..<authSource.endIndex),
@@ -535,7 +545,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(source.contains("guard firstDeviceTrustBootstrapState != .bootstrapping else { return }"))
         XCTAssertTrue(source.contains("Verify with another device"))
         XCTAssertTrue(source.contains("matrix.timeline.authenticity"))
-        XCTAssertTrue(source.contains("eventAuthenticityLabel"))
+        XCTAssertTrue(source.contains("authenticityPresentation"))
         XCTAssertTrue(source.contains("private func clearSecrets() {\n        username = \"\""))
         XCTAssertFalse(source.contains("registrationAvailability == .inviteToken && model.trustState"))
         XCTAssertFalse(source.contains("registrationAvailability == .inviteToken && model.recoveryState"))
@@ -559,6 +569,55 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(architecture.contains("security guidance separately from chat authority"))
         XCTAssertTrue(securityModel.contains("not prerequisites for encrypted room creation or current encrypted chat"))
         XCTAssertTrue(faq.contains("proven invalid-signature identity violation"))
+    }
+
+    func testAsyncChatOperationsRejectObsoleteAccountCoordinatorResults() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        let identityGuards = source.components(
+            separatedBy: "guard coordinator === self.coordinator else { return }"
+        ).count - 1
+        XCTAssertGreaterThanOrEqual(identityGuards, 3)
+        XCTAssertTrue(source.contains("let draftContext = draftContext(for: room)"))
+    }
+
+    func testChatTimelineHonorsReducedMotion() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("@Environment(\\.accessibilityReduceMotion)"))
+        XCTAssertTrue(source.contains("if animated && !reduceMotion"))
+    }
+
+    func testChatAsyncStatusChangesPostVoiceOverAnnouncements() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("AccessibilityNotification.Announcement"))
+        XCTAssertTrue(source.contains("New messages are available. Jump to latest is now available."))
+        XCTAssertTrue(source.contains("Draft preserved; press Send to retry."))
     }
 
     func testRecoverySheetShowsSafeRecoveryFailureFeedback() throws {
