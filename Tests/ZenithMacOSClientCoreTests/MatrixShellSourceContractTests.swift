@@ -397,6 +397,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         let source = try [
             root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
             root.appendingPathComponent("Sources/ZenithMacOSClient/Auth/HyphaAuthenticationViews.swift"),
+            root.appendingPathComponent("Sources/ZenithMacOSClient/Chat/HyphaChatMessageRow.swift"),
             root.appendingPathComponent("Sources/ZenithMacOSClient/DesignSystem/Molecules/HyphaAccountChoiceCard.swift"),
         ].map { try String(contentsOf: $0, encoding: .utf8) }.joined(separator: "\n")
 
@@ -516,7 +517,16 @@ final class MatrixShellSourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/Auth/HyphaAuthenticationViews.swift"),
             encoding: .utf8
         )
-        let source = appSource + "\n" + authSource
+        let messageRowSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/Chat/HyphaChatMessageRow.swift"),
+            encoding: .utf8
+        )
+        let messagePresentationSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClientCore/HyphaChatMessagePresentation.swift"),
+            encoding: .utf8
+        )
+        let source = [appSource, authSource, messageRowSource, messagePresentationSource]
+            .joined(separator: "\n")
 
         guard let submit = authSource.range(of: "private func submit()"),
               let clearSecrets = authSource.range(of: "clearSecrets()", range: submit.lowerBound..<authSource.endIndex),
@@ -535,7 +545,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(source.contains("guard firstDeviceTrustBootstrapState != .bootstrapping else { return }"))
         XCTAssertTrue(source.contains("Verify with another device"))
         XCTAssertTrue(source.contains("matrix.timeline.authenticity"))
-        XCTAssertTrue(source.contains("eventAuthenticityLabel"))
+        XCTAssertTrue(source.contains("authenticityPresentation"))
         XCTAssertTrue(source.contains("private func clearSecrets() {\n        username = \"\""))
         XCTAssertFalse(source.contains("registrationAvailability == .inviteToken && model.trustState"))
         XCTAssertFalse(source.contains("registrationAvailability == .inviteToken && model.recoveryState"))
