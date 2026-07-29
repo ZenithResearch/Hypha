@@ -589,9 +589,9 @@ final class MatrixAppModel: ObservableObject {
     func send() async {
         guard let coordinator,
               let body = messageDraft.beginSend() else { return }
-        await coordinator.send(body)
+        let sent = await coordinator.send(body)
         applyState(from: coordinator)
-        if case let .thread(_, _, composerState) = state, composerState == .ready {
+        if sent {
             messageDraft.succeedSend()
         } else {
             messageDraft.failSend(reason: sendFailureGuidance)
