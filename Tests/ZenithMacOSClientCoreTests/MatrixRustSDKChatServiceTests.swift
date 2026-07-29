@@ -273,6 +273,45 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(declineCount, 1)
     }
 
+    func testServicePreservesAllPeerVerificationEligibilityOutcomes() async throws {
+        let cases: [(MatrixPeerVerificationEligibility, Error?, MatrixPeerVerificationEligibility)] = [
+            (.eligiblePeer, nil, .eligiblePeer),
+            (.noEligiblePeer, nil, .noEligiblePeer),
+            (.eligiblePeer, MatrixChatServiceError.offline, .unavailable),
+        ]
+
+        for (liveResult, liveError, expected) in cases {
+            let client = FakeLiveClient(
+                peerVerificationEligibility: liveResult,
+                peerVerificationEligibilityError: liveError
+            )
+            let service = MatrixRustSDKChatService(
+                configuration: .production,
+                vault: MemorySessionVault(),
+                clientFactory: FakeLiveClientFactory(client: client),
+                randomStoreKey: { Data(repeating: 2, count: 32) }
+            )
+            _ = try await service.signIn(username: "alice", password: "secret")
+
+            let observed = await service.peerVerificationEligibility()
+
+            XCTAssertEqual(observed, expected)
+        }
+    }
+
+    func testServiceReportsUnavailablePeerEligibilityWithoutSession() async {
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
+            randomStoreKey: { Data(repeating: 2, count: 32) }
+        )
+
+        let eligibility = await service.peerVerificationEligibility()
+
+        XCTAssertEqual(eligibility, .unavailable)
+    }
+
     func testServiceBootstrapsFirstDeviceTrustWithoutStartingSAS() async throws {
         let client = FakeLiveClient(
             trustState: .unsigned,
@@ -663,6 +702,8 @@ private actor FakeLiveClient: MatrixLiveClient {
     private var roomRemovalRequests: [String] = []
     private var sends: [String] = []
     private let trustState: MatrixDeviceTrustState
+    private let peerVerificationEligibility: MatrixPeerVerificationEligibility
+    private let peerVerificationEligibilityError: Error?
     private let bootstrapState: MatrixFirstDeviceTrustBootstrapState
     private let bootstrapContinuationState: MatrixFirstDeviceTrustBootstrapState
     private let verificationChallenge: MatrixVerificationChallenge
@@ -683,6 +724,8 @@ private actor FakeLiveClient: MatrixLiveClient {
         syncError: Error? = nil,
         roomLoadError: Error? = nil,
         trustState: MatrixDeviceTrustState = .unknown,
+        peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable,
+        peerVerificationEligibilityError: Error? = nil,
         bootstrapState: MatrixFirstDeviceTrustBootstrapState = .unavailable,
         bootstrapContinuationState: MatrixFirstDeviceTrustBootstrapState = .unavailable,
         suspendBootstrap: Bool = false,
@@ -696,6 +739,8 @@ private actor FakeLiveClient: MatrixLiveClient {
         self.syncError = syncError
         self.roomLoadError = roomLoadError
         self.trustState = trustState
+        self.peerVerificationEligibility = peerVerificationEligibility
+        self.peerVerificationEligibilityError = peerVerificationEligibilityError
         self.bootstrapState = bootstrapState
         self.bootstrapContinuationState = bootstrapContinuationState
         self.suspendBootstrap = suspendBootstrap
@@ -746,6 +791,10 @@ private actor FakeLiveClient: MatrixLiveClient {
     }
     func restoreEncryption(recoveryKey: String) async throws { recoveryKeys.append(recoveryKey) }
     func deviceTrustState() async throws -> MatrixDeviceTrustState { trustState }
+    func peerVerificationEligibility() async throws -> MatrixPeerVerificationEligibility {
+        if let peerVerificationEligibilityError { throw peerVerificationEligibilityError }
+        return peerVerificationEligibility
+    }
     func bootstrapFirstDeviceTrust() async throws -> MatrixFirstDeviceTrustBootstrapState {
         bootstraps += 1
         if suspendBootstrap {
