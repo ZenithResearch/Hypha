@@ -604,6 +604,42 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .thread(room: room, events: [initial, latest], composer: .ready))
     }
 
+    func testTransientTimelineRefreshFailurePreservesOpenRoomForPollingRetry() async {
+        let room = MatrixRoomSummary(id: "room-1", name: "Design", isEncrypted: true, hasInvite: false)
+        let initial = MatrixTimelineEvent(id: "$one", senderDisplayName: "Alice", content: .text("one"))
+        let service = FakeMatrixChatService(restoredRooms: [room], events: [initial])
+        let coordinator = MatrixChatCoordinator(service: service)
+        await coordinator.open(room: room)
+        service.roomError = .offline
+
+        await coordinator.refreshOpenRoom()
+
+        XCTAssertEqual(coordinator.state, .thread(room: room, events: [initial], composer: .ready))
+    }
+
+    func testLateSameRoomRefreshCannotOverwriteNewerSnapshot() async {
+        let room = MatrixRoomSummary(id: "room-1", name: "Design", isEncrypted: true, hasInvite: false)
+        let initial = MatrixTimelineEvent(id: "$initial", senderDisplayName: "Alice", content: .text("initial"))
+        let stale = MatrixTimelineEvent(id: "$stale", senderDisplayName: "Alice", content: .text("stale"))
+        let latest = MatrixTimelineEvent(id: "$latest", senderDisplayName: "Alice", content: .text("latest"))
+        let service = FakeMatrixChatService(restoredRooms: [room], events: [initial])
+        let coordinator = MatrixChatCoordinator(service: service)
+        await coordinator.open(room: room)
+        let gate = TimelineSequenceGate()
+        service.timelineHandler = { _ in try await gate.wait() }
+
+        let staleRefresh = Task { await coordinator.refreshOpenRoom() }
+        await gate.waitUntilPending(0)
+        let latestRefresh = Task { await coordinator.refreshOpenRoom() }
+        await gate.waitUntilPending(1)
+        await gate.resume(1, events: [latest])
+        await latestRefresh.value
+        await gate.resume(0, events: [stale])
+        await staleRefresh.value
+
+        XCTAssertEqual(coordinator.state, .thread(room: room, events: [latest], composer: .ready))
+    }
+
     func testLateRoomOpenCannotOverwriteNewerSelection() async {
         let roomA = MatrixRoomSummary(id: "room-a", name: "A", isEncrypted: true, hasInvite: false)
         let roomB = MatrixRoomSummary(id: "room-b", name: "B", isEncrypted: true, hasInvite: false)
@@ -739,6 +775,32 @@ private actor TimelineRequestGate {
 
     func resume(roomID: String, events: [MatrixTimelineEvent]) {
         requests.removeValue(forKey: roomID)?.resume(returning: events)
+    }
+}
+
+private actor TimelineSequenceGate {
+    private var nextRequest = 0
+    private var requests: [Int: CheckedContinuation<[MatrixTimelineEvent], Error>] = [:]
+    private var observers: [Int: [CheckedContinuation<Void, Never>]] = [:]
+
+    func wait() async throws -> [MatrixTimelineEvent] {
+        let request = nextRequest
+        nextRequest += 1
+        return try await withCheckedThrowingContinuation { continuation in
+            requests[request] = continuation
+            observers.removeValue(forKey: request)?.forEach { $0.resume() }
+        }
+    }
+
+    func waitUntilPending(_ request: Int) async {
+        if requests[request] != nil { return }
+        await withCheckedContinuation { continuation in
+            observers[request, default: []].append(continuation)
+        }
+    }
+
+    func resume(_ request: Int, events: [MatrixTimelineEvent]) {
+        requests.removeValue(forKey: request)?.resume(returning: events)
     }
 }
 

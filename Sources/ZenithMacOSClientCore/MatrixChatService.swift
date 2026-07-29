@@ -332,6 +332,7 @@ public final class MatrixChatCoordinator {
 
     private let service: any MatrixChatService
     private var roomOperationGeneration: UInt64 = 0
+    private var timelineOperationGeneration: UInt64 = 0
 
     public init(service: any MatrixChatService) {
         self.service = service
@@ -369,6 +370,7 @@ public final class MatrixChatCoordinator {
 
     public func open(room: MatrixRoomSummary) async {
         roomOperationGeneration &+= 1
+        timelineOperationGeneration &+= 1
         let operationGeneration = roomOperationGeneration
         do {
             let events = try await service.timeline(for: room.id)
@@ -383,17 +385,27 @@ public final class MatrixChatCoordinator {
     public func refreshOpenRoom() async {
         guard case let .thread(room, _, _) = state else { return }
         let operationGeneration = roomOperationGeneration
+        timelineOperationGeneration &+= 1
+        let timelineGeneration = timelineOperationGeneration
         do {
             let events = try await service.timeline(for: room.id)
             guard operationGeneration == roomOperationGeneration,
+                  timelineGeneration == timelineOperationGeneration,
                   case let .thread(currentRoom, _, currentComposer) = state,
                   currentRoom.id == room.id else { return }
             state = .thread(room: room, events: events, composer: currentComposer)
         } catch {
             guard operationGeneration == roomOperationGeneration,
+                  timelineGeneration == timelineOperationGeneration,
                   case let .thread(currentRoom, _, _) = state,
                   currentRoom.id == room.id else { return }
-            state = map(error, room: room)
+            let failureState = map(error, room: room)
+            switch failureState {
+            case .offline, .unavailable:
+                return
+            default:
+                state = failureState
+            }
         }
     }
 
@@ -410,26 +422,33 @@ public final class MatrixChatCoordinator {
         }
 
         let operationGeneration = roomOperationGeneration
+        timelineOperationGeneration &+= 1
         state = .thread(room: room, events: events, composer: .sending)
         do {
             try await service.sendText(body, to: room.id)
         } catch {
             if operationGeneration == roomOperationGeneration {
+                timelineOperationGeneration &+= 1
                 applySendFailure(error, room: room, events: events)
             }
             return false
         }
 
         guard operationGeneration == roomOperationGeneration else { return true }
+        state = .thread(room: room, events: events, composer: .ready)
+        timelineOperationGeneration &+= 1
+        let timelineGeneration = timelineOperationGeneration
 
         do {
             let refreshedEvents = try await service.timeline(for: room.id)
             guard operationGeneration == roomOperationGeneration,
+                  timelineGeneration == timelineOperationGeneration,
                   case let .thread(currentRoom, _, _) = state,
                   currentRoom.id == room.id else { return true }
             state = .thread(room: room, events: refreshedEvents, composer: .ready)
         } catch {
-            if operationGeneration == roomOperationGeneration {
+            if operationGeneration == roomOperationGeneration,
+               timelineGeneration == timelineOperationGeneration {
                 applySendFailure(error, room: room, events: events)
             }
         }

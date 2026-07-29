@@ -566,10 +566,12 @@ final class MatrixAppModel: ObservableObject {
     func open(_ room: MatrixRoomSummary) async {
         guard let coordinator else { return }
         timelineRefreshTask?.cancel()
+        let draftContext = draftContext(for: room)
         await coordinator.open(room: room)
+        guard coordinator === self.coordinator else { return }
         applyState(from: coordinator)
         guard case let .thread(openRoom, _, _) = state, openRoom.id == room.id else { return }
-        messageDraftStore.activate(draftContext(for: room))
+        messageDraftStore.activate(draftContext)
         startTimelineRefresh(coordinator: coordinator, room: room)
     }
 
@@ -584,8 +586,10 @@ final class MatrixAppModel: ObservableObject {
                 }
                 guard let self, let coordinator else { return }
                 await coordinator.refreshOpenRoom()
+                guard coordinator === self.coordinator else { return }
+                guard case let .thread(openRoom, _, _) = coordinator.state,
+                      openRoom.id == room.id else { return }
                 self.applyState(from: coordinator)
-                guard case let .thread(openRoom, _, _) = self.state, openRoom.id == room.id else { return }
             }
         }
     }
@@ -597,12 +601,16 @@ final class MatrixAppModel: ObservableObject {
               room.id == activeContext.roomID,
               let submission = messageDraftStore.beginSend() else { return }
         let sent = await coordinator.send(submission.body)
-        applyState(from: coordinator)
         if sent {
             messageDraftStore.succeedSend(in: submission.context)
         } else {
-            messageDraftStore.failSend(in: submission.context, reason: sendFailureGuidance)
+            messageDraftStore.failSend(
+                in: submission.context,
+                reason: sendFailureGuidance(for: coordinator.state)
+            )
         }
+        guard coordinator === self.coordinator else { return }
+        applyState(from: coordinator)
     }
 
     private func draftContext(for room: MatrixRoomSummary) -> HyphaMessageDraftStore.Context {
@@ -616,7 +624,7 @@ final class MatrixAppModel: ObservableObject {
         )
     }
 
-    private var sendFailureGuidance: String {
+    private func sendFailureGuidance(for state: MatrixChatState) -> String {
         switch state {
         case .offline:
             "The homeserver is offline. Your draft is still here; reconnect, then retry."
@@ -1406,6 +1414,7 @@ private struct HyphaChatTimeline: View {
     let room: MatrixRoomSummary
     let events: [MatrixTimelineEvent]
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var liveEdgeState: HyphaChatLiveEdgePolicy.State?
 
     private var latestAnchor: String { "matrix.thread.latest.\(room.id)" }
@@ -1494,7 +1503,7 @@ private struct HyphaChatTimeline: View {
         guard shouldScroll else { return }
         Task { @MainActor in
             await Task.yield()
-            if animated {
+            if animated && !reduceMotion {
                 withAnimation { proxy.scrollTo(latestAnchor, anchor: .bottom) }
             } else {
                 proxy.scrollTo(latestAnchor, anchor: .bottom)
