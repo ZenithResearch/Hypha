@@ -22,6 +22,38 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .signedOut(message: nil))
     }
 
+    func testPasswordChangeReturnsSuccessWithoutMutatingChatState() async {
+        let room = MatrixRoomSummary(id: "room-1", name: "Design", isEncrypted: true, hasInvite: false)
+        let service = FakeMatrixChatService(restoredRooms: [room])
+        let coordinator = MatrixChatCoordinator(service: service)
+        await coordinator.restore()
+
+        let result = await coordinator.changePassword(
+            currentPassword: "current-not-recorded",
+            newPassword: "new-not-recorded",
+            logoutOtherDevices: false
+        )
+
+        XCTAssertEqual(result, .success)
+        XCTAssertEqual(coordinator.state, .rooms([room]))
+        XCTAssertEqual(service.passwordChangeRequests, 1)
+    }
+
+    func testPasswordChangeMapsRejectedCurrentPasswordWithoutExposingIt() async {
+        let service = FakeMatrixChatService()
+        service.passwordChangeError = .invalidCredentials
+        let coordinator = MatrixChatCoordinator(service: service)
+
+        let result = await coordinator.changePassword(
+            currentPassword: "wrong-not-recorded",
+            newPassword: "new-not-recorded",
+            logoutOtherDevices: true
+        )
+
+        XCTAssertEqual(result, .invalidCurrentPassword)
+        XCTAssertEqual(service.passwordChangeRequests, 1)
+    }
+
     func testRestoreTransitionsThroughRestoringToRooms() async {
         let room = MatrixRoomSummary(id: "room-1", name: "Design", isEncrypted: true, hasInvite: false)
         let service = FakeMatrixChatService(restoredRooms: [room])
@@ -942,6 +974,8 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     var roomRemovalRequests: [String] = []
     var sentBodies: [String] = []
     var roomRefreshRequests = 0
+    var passwordChangeRequests = 0
+    var passwordChangeError: MatrixChatServiceError?
     var timelineHandler: (@Sendable (String) async throws -> [MatrixTimelineEvent])?
     var sendTextHandler: (@Sendable (String, String) async throws -> Void)?
 
@@ -1001,6 +1035,15 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     func signIn(username: String, password: String) async throws -> [MatrixRoomSummary] {
         if let signInError { throw signInError }
         return restoredRooms
+    }
+
+    func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        logoutOtherDevices: Bool
+    ) async throws {
+        passwordChangeRequests += 1
+        if let passwordChangeError { throw passwordChangeError }
     }
 
     func refreshRooms() async throws -> [MatrixRoomSummary] {

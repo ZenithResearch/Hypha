@@ -48,6 +48,28 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(try vault.loadSession(accountKey: accountKey), refreshed)
     }
 
+    func testPasswordChangeForwardsCurrentAndNewPasswordsWithoutLoggingOutOtherDevices() async throws {
+        let client = FakeLiveClient()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: client),
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+
+        try await service.changePassword(
+            currentPassword: "current-not-recorded",
+            newPassword: "new-not-recorded",
+            logoutOtherDevices: false
+        )
+
+        let request = await client.observedPasswordChange()
+        XCTAssertEqual(request?.currentPassword, "current-not-recorded")
+        XCTAssertEqual(request?.newPassword, "new-not-recorded")
+        XCTAssertEqual(request?.logoutOtherDevices, false)
+    }
+
     func testPasswordReauthenticationRejectsAReplacementDeviceBeforeOpeningTheStore() async throws {
         let accountKey = MatrixRustSDKChatService.accountKey(
             username: "alice",
@@ -685,6 +707,12 @@ private final class MemorySessionVault: MatrixSDKSessionVault, @unchecked Sendab
 }
 
 private actor FakeLiveClient: MatrixLiveClient {
+    struct PasswordChangeRequest: Sendable {
+        let currentPassword: String
+        let newPassword: String
+        let logoutOtherDevices: Bool
+    }
+
     private var rooms: [MatrixRoomSummary] = []
     private var logins = 0
     private var syncs = 0
@@ -697,6 +725,7 @@ private actor FakeLiveClient: MatrixLiveClient {
     private var bootstrapContinuations = 0
     private var recoverySetups = 0
     private var recoveryKeys: [String] = []
+    private var passwordChange: PasswordChangeRequest?
     private var restored: [MatrixSDKSessionRecord] = []
     private var roomCreationRequests: [MatrixRoomCreationRequest] = []
     private var roomRemovalRequests: [String] = []
@@ -790,6 +819,17 @@ private actor FakeLiveClient: MatrixLiveClient {
         return "not-a-real-generated-key"
     }
     func restoreEncryption(recoveryKey: String) async throws { recoveryKeys.append(recoveryKey) }
+    func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        logoutOtherDevices: Bool
+    ) async throws {
+        passwordChange = PasswordChangeRequest(
+            currentPassword: currentPassword,
+            newPassword: newPassword,
+            logoutOtherDevices: logoutOtherDevices
+        )
+    }
     func deviceTrustState() async throws -> MatrixDeviceTrustState { trustState }
     func peerVerificationEligibility() async throws -> MatrixPeerVerificationEligibility {
         if let peerVerificationEligibilityError { throw peerVerificationEligibilityError }
@@ -834,6 +874,7 @@ private actor FakeLiveClient: MatrixLiveClient {
     func bootstrapContinuationCount() -> Int { bootstrapContinuations }
     func recoverySetupCount() -> Int { recoverySetups }
     func observedRecoveryKeys() -> [String] { recoveryKeys }
+    func observedPasswordChange() -> PasswordChangeRequest? { passwordChange }
     func observedRoomCreationRequests() -> [MatrixRoomCreationRequest] { roomCreationRequests }
     func observedRoomRemovalRequests() -> [String] { roomRemovalRequests }
     func sentBodies() -> [String] { sends }

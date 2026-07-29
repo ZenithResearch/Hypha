@@ -19,7 +19,7 @@ struct HyphaSecurityBanner: View {
         VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
             HStack(alignment: .top, spacing: ZenithDesign.Space.x3) {
                 Image(systemName: severitySymbol)
-                    .font(.title3)
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(severityColor)
                     .accessibilityHidden(true)
 
@@ -27,7 +27,7 @@ struct HyphaSecurityBanner: View {
                     Text(severityTitle)
                         .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
                     Text(severityMessage)
-                        .font(ZenithDesign.Typography.corporate(.caption))
+                        .font(ZenithDesign.Typography.corporate(.callout))
                         .foregroundStyle(ZenithDesign.Palette.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -139,6 +139,7 @@ struct HyphaSecurityBanner: View {
     private var refreshButton: some View {
         if presentation.indicatorSeverity != .secure {
             Button("Refresh", action: onRefresh)
+                .buttonStyle(HyphaButtonStyle(.quiet))
                 .disabled(isLocalOperationActive)
                 .accessibilityIdentifier("matrix.security.refresh")
         }
@@ -158,6 +159,7 @@ struct HyphaSecurityBanner: View {
                 progressRow("Waiting for another Hypha device…")
                 Spacer()
                 Button("Cancel", action: onDeclineVerification)
+                    .buttonStyle(HyphaButtonStyle(.quiet))
                     .accessibilityIdentifier("matrix.verification.decline")
             }
         case let .comparingWithAnotherHyphaDevice(challenge):
@@ -184,7 +186,7 @@ struct HyphaSecurityBanner: View {
                     Text("Server signature present: \(receipt.postUploadServerSignaturePresent ? "yes" : "no")")
                     Text("Backup repair: \(diagnosticBackupLabel(receipt.backupRepair))")
                 }
-                .font(.caption)
+                .font(ZenithDesign.Typography.technical(.caption2))
                 .foregroundStyle(ZenithDesign.Palette.muted)
                 Button("Try recovery again", action: onRestoreRecovery)
                     .accessibilityIdentifier("matrix.recovery.restore")
@@ -212,14 +214,17 @@ struct HyphaSecurityBanner: View {
         switch presentation.primaryDeviceAction {
         case .setUpThisDevice:
             Button("Set up this device", action: onSetUpDevice)
+                .buttonStyle(HyphaButtonStyle(.primary))
                 .keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier("matrix.first-device.bootstrap")
         case .verifyWithAnotherHyphaDevice:
             Button("Verify with another Hypha device", action: onRequestVerification)
+                .buttonStyle(HyphaButtonStyle(.primary))
                 .keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier("matrix.verification.request")
         case .continueDeviceSetupWithPassword:
             Button("Continue device setup", action: onContinueDeviceSetup)
+                .buttonStyle(HyphaButtonStyle(.primary))
                 .keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier("matrix.first-device.continue")
         case nil:
@@ -232,10 +237,12 @@ struct HyphaSecurityBanner: View {
         switch presentation.recoveryAction {
         case .setUpRecovery:
             Button("Set up recovery", action: onSetUpRecovery)
+                .buttonStyle(HyphaButtonStyle(.secondary))
                 .disabled(isLocalOperationActive)
                 .accessibilityIdentifier("matrix.recovery.setup")
         case .restoreEncryption:
             Button("Restore encryption", action: onRestoreRecovery)
+                .buttonStyle(HyphaButtonStyle(.secondary))
                 .disabled(isLocalOperationActive)
                 .accessibilityIdentifier("matrix.recovery.restore")
         case nil:
@@ -283,6 +290,7 @@ struct HyphaSecurityBanner: View {
                 .foregroundStyle(ZenithDesign.Palette.error)
             Spacer()
             Button(retryTitle, action: action)
+                .buttonStyle(HyphaButtonStyle(.secondary))
         }
     }
 

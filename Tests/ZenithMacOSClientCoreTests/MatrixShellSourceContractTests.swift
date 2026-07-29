@@ -2,6 +2,51 @@ import Foundation
 import XCTest
 
 final class MatrixShellSourceContractTests: XCTestCase {
+    func testPasswordChangeFlowClearsSecretsAndLivesInSecurityCenter() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        for marker in [
+            "MatrixChangePasswordSheet",
+            ".sheet(isPresented: $showsPasswordChange)",
+            "Change Password…",
+            "matrix.password.current",
+            "matrix.password.new",
+            "matrix.password.confirmation",
+            "matrix.password.submit",
+            "clearSecrets()",
+            "logoutOtherDevices",
+            "No saved sign-in credential was changed.",
+        ] {
+            XCTAssertTrue(source.contains(marker), "Missing password-change contract: \(marker)")
+        }
+    }
+
+    func testSidebarUsesCompactCorporateRoomTypographyAndSmallTechnicalSecuritySymbols() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("ZenithDesign.Typography.corporate(.callout, weight: .medium)"))
+        XCTAssertTrue(source.contains("ZenithDesign.Typography.technical(.caption2, weight: .semibold)"))
+        XCTAssertTrue(source.contains(".accessibilityLabel(\"Open \\(room.name)\")"))
+        XCTAssertTrue(source.contains(".menuIndicator(.hidden)"))
+        XCTAssertTrue(source.contains("Image(systemName: securityToolbarSymbol)"))
+    }
+
     func testSecurityActionsLiveInToolbarAndOnlyCriticalTrustOccupiesChatSurface() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
@@ -525,7 +570,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "MatrixRustSDKChatService(",
             "MatrixEncryptedSessionVault()",
             "MatrixRustLiveClientFactory(",
-            ".navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 380)",
+            ".navigationSplitViewColumnWidth(min: 230, ideal: 268, max: 340)",
             "private var detailTitle",
             ".keyboardShortcut(.defaultAction)"
         ]

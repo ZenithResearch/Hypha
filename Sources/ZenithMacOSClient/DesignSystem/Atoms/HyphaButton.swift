@@ -34,10 +34,10 @@ private struct HyphaInteractiveButtonBody: View {
 
     var body: some View {
         configuration.label
-            .font(ZenithDesign.Typography.technical(size: 13, weight: .semibold))
+            .font(ZenithDesign.Typography.corporate(.callout, weight: .semibold))
             .foregroundStyle(foregroundColor)
-            .padding(.horizontal, ZenithDesign.Space.x5)
-            .frame(minHeight: 40)
+            .padding(.horizontal, ZenithDesign.Space.x4)
+            .frame(minHeight: 36)
             .background(backgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.control, style: .continuous))
             .overlay {

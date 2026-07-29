@@ -44,6 +44,14 @@ enum HomeserverOnboardingState: Equatable {
     case failed(String)
 }
 
+fileprivate enum MatrixAppPasswordChangeOutcome: Equatable {
+    case success
+    case successWithCredentialUpdate
+    case successWithCredentialWarning
+    case invalidCurrentPassword
+    case failed(String)
+}
+
 @MainActor
 final class MatrixAppModel: ObservableObject {
     typealias ServiceFactory = (MatrixProductConfiguration) -> any MatrixChatService
@@ -496,6 +504,47 @@ final class MatrixAppModel: ObservableObject {
         return recoveryKey
     }
 
+    fileprivate func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        logoutOtherDevices: Bool
+    ) async -> MatrixAppPasswordChangeOutcome {
+        guard let coordinator else {
+            return .failed("No active Matrix session is available.")
+        }
+        let result = await coordinator.changePassword(
+            currentPassword: currentPassword,
+            newPassword: newPassword,
+            logoutOtherDevices: logoutOtherDevices
+        )
+        switch result {
+        case .success:
+            guard let accountKey = activeSessionAccountKey,
+                  let existingCredential = savedCredentials.first(where: { $0.id == accountKey }),
+                  let configuration = activeConfiguration else {
+                return .success
+            }
+            do {
+                let saved = try credentialStore.savePassword(
+                    newPassword,
+                    username: existingCredential.username,
+                    homeserver: configuration.homeserver
+                )
+                guard saved.id == existingCredential.id else {
+                    return .successWithCredentialWarning
+                }
+                refreshSavedCredentials(configuration: configuration)
+                return .successWithCredentialUpdate
+            } catch {
+                return .successWithCredentialWarning
+            }
+        case .invalidCurrentPassword:
+            return .invalidCurrentPassword
+        case let .failed(message):
+            return .failed(message)
+        }
+    }
+
     private func applySecurityState(from coordinator: MatrixChatCoordinator) {
         trustState = coordinator.trustState
         verificationFlowState = coordinator.verificationFlowState
@@ -643,6 +692,7 @@ private struct MatrixCompanionShell: View {
     @State private var showsNewRoom = false
     @State private var showsFirstDevicePassword = false
     @State private var showsSecurityCenter = false
+    @State private var showsPasswordChange = false
     @State private var roomPendingRemoval: MatrixRoomSummary?
     @State private var authRoute: HyphaAuthRoute = .landing
 
@@ -652,7 +702,7 @@ private struct MatrixCompanionShell: View {
                 NavigationSplitView {
                     sidebar
                         .navigationTitle("Hypha")
-                        .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 380)
+                        .navigationSplitViewColumnWidth(min: 230, ideal: 268, max: 340)
                         .scrollContentBackground(.hidden)
                         .background(ZenithDesign.Palette.baseSubtle)
                 } detail: {
@@ -674,6 +724,9 @@ private struct MatrixCompanionShell: View {
         }
         .sheet(isPresented: $showsFirstDevicePassword) {
             MatrixFirstDevicePasswordSheet(model: model, isPresented: $showsFirstDevicePassword)
+        }
+        .sheet(isPresented: $showsPasswordChange) {
+            MatrixChangePasswordSheet(model: model, isPresented: $showsPasswordChange)
         }
         .sheet(isPresented: $showsSecurityCenter) {
             NavigationStack {
@@ -755,7 +808,7 @@ private struct MatrixCompanionShell: View {
 
     private func roomList(_ rooms: [MatrixRoomSummary]) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+            LazyVStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
                 if !model.savedSessions.isEmpty || !model.savedCredentials.isEmpty {
                     accountSwitcher
                 }
@@ -765,6 +818,7 @@ private struct MatrixCompanionShell: View {
                         showsNewRoom = true
                     } label: {
                         Label("New encrypted room", systemImage: "plus.message.fill")
+                            .font(ZenithDesign.Typography.corporate(.callout, weight: .semibold))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.borderless)
@@ -779,6 +833,7 @@ private struct MatrixCompanionShell: View {
                                 .accessibilityLabel("Syncing rooms")
                         } else {
                             Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 12, weight: .medium))
                                 .accessibilityLabel("Sync rooms")
                         }
                     }
@@ -912,7 +967,8 @@ private struct MatrixCompanionShell: View {
 
     private func sidebarSectionTitle(_ title: String) -> some View {
         Text(title.uppercased())
-            .font(ZenithDesign.Typography.technical(size: 11, weight: .semibold))
+            .font(ZenithDesign.Typography.technical(.caption2, weight: .semibold))
+            .tracking(0.8)
             .foregroundStyle(ZenithDesign.Palette.muted)
             .padding(.horizontal, ZenithDesign.Space.x2)
             .padding(.bottom, ZenithDesign.Space.x1)
@@ -925,13 +981,14 @@ private struct MatrixCompanionShell: View {
             } label: {
                 HStack(spacing: ZenithDesign.Space.x2) {
                     Image(systemName: room.isEncrypted ? "lock.fill" : "lock.open.fill")
-                        .font(.caption)
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(
                             room.isEncrypted
                                 ? ZenithDesign.Palette.brand
                                 : ZenithDesign.Palette.warning
                         )
                     Text(room.name)
+                        .font(ZenithDesign.Typography.corporate(.callout, weight: .medium))
                         .lineLimit(2)
                         .foregroundStyle(ZenithDesign.Palette.content)
                     Spacer(minLength: 0)
@@ -939,6 +996,8 @@ private struct MatrixCompanionShell: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Open \(room.name)")
+            .accessibilityHint(room.isEncrypted ? "Encrypted room" : "Unencrypted room")
             .accessibilityIdentifier("matrix.room.row")
 
             if room.isCreatedByCurrentUser {
@@ -947,17 +1006,19 @@ private struct MatrixCompanionShell: View {
                         roomPendingRemoval = room
                     }
                 } label: {
-                    Image(systemName: "ellipsis.circle")
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(ZenithDesign.Palette.muted)
                         .accessibilityLabel("Room actions for \(room.name)")
                 }
                 .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 .fixedSize()
                 .accessibilityIdentifier("matrix.room.remove")
             }
         }
-        .padding(.horizontal, ZenithDesign.Space.x3)
-        .padding(.vertical, ZenithDesign.Space.x2)
+        .padding(.horizontal, ZenithDesign.Space.x2)
+        .padding(.vertical, ZenithDesign.Space.x1)
         .background(
             isSelected(room)
                 ? ZenithDesign.Palette.baseRaised
@@ -1076,6 +1137,14 @@ private struct MatrixCompanionShell: View {
         }
     }
 
+    private func openPasswordChange() {
+        showsSecurityCenter = false
+        Task {
+            await Task.yield()
+            showsPasswordChange = true
+        }
+    }
+
     private var securityPresentation: HyphaSecurityPresentationState {
         HyphaSecurityPresentationPolicy.presentation(
             trustState: model.trustState,
@@ -1101,8 +1170,32 @@ private struct MatrixCompanionShell: View {
     }
 
     private var securityCenter: some View {
-        securityBanner
+        ScrollView {
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x5) {
+                securityBanner
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+                    Text("ACCOUNT SECURITY")
+                        .font(ZenithDesign.Typography.technical(.caption2, weight: .semibold))
+                        .tracking(0.8)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                    Text("Password")
+                        .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
+                    Text("Change the password used to sign in to this Hypha account.")
+                        .font(ZenithDesign.Typography.corporate(.callout))
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                    Button("Change Password…", action: openPasswordChange)
+                        .buttonStyle(HyphaButtonStyle(.secondary))
+                        .accessibilityIdentifier("matrix.password.open")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, ZenithDesign.Space.x5)
+                .padding(.bottom, ZenithDesign.Space.x5)
+            }
             .padding(.top, ZenithDesign.Space.x2)
+        }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(ZenithDesign.Palette.base)
     }
@@ -1136,6 +1229,7 @@ private struct MatrixCompanionShell: View {
                 }
 
                 Divider()
+                Button("Change Password…", action: openPasswordChange)
                 Button("Refresh Security Status") {
                     Task { await model.refreshDeviceVerification() }
                 }
@@ -1144,7 +1238,12 @@ private struct MatrixCompanionShell: View {
                 }
                 .accessibilityIdentifier("matrix.security.center.open")
             } label: {
-                Label("Security", systemImage: securityToolbarSymbol)
+                Label {
+                    Text("Security")
+                } icon: {
+                    Image(systemName: securityToolbarSymbol)
+                        .font(.system(size: 12, weight: .medium))
+                }
             }
             .help("Device verification and encryption recovery")
             .accessibilityIdentifier("matrix.security.menu")
@@ -1642,6 +1741,190 @@ private struct ZenithMessageComposer: View {
     private func submitIfReady() {
         guard canSend else { return }
         send()
+    }
+}
+
+private struct MatrixChangePasswordSheet: View {
+    private enum CredentialResult: Equatable {
+        case noneStored
+        case updated
+        case updateFailed
+    }
+
+    private enum SubmissionState: Equatable {
+        case idle
+        case submitting
+        case succeeded(CredentialResult)
+        case failed(String)
+    }
+
+    @ObservedObject var model: MatrixAppModel
+    @Binding var isPresented: Bool
+    @State private var currentPassword = ""
+    @State private var newPassword = ""
+    @State private var confirmation = ""
+    @State private var logoutOtherDevices = false
+    @State private var submissionState: SubmissionState = .idle
+
+    private var isSubmitting: Bool { submissionState == .submitting }
+    private var passwordsMatch: Bool { !confirmation.isEmpty && newPassword == confirmation }
+    private var canSubmit: Bool {
+        !currentPassword.isEmpty
+            && !newPassword.isEmpty
+            && passwordsMatch
+            && newPassword != currentPassword
+            && !isSubmitting
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x4) {
+            Text("Change password")
+                .font(ZenithDesign.Typography.corporate(.title2, weight: .semibold))
+
+            switch submissionState {
+            case let .succeeded(credentialResult):
+                Label("Password changed", systemImage: "checkmark.circle.fill")
+                    .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
+                    .foregroundStyle(ZenithDesign.Palette.success)
+                Text(successMessage(for: credentialResult))
+                .font(ZenithDesign.Typography.corporate(.callout))
+                .foregroundStyle(
+                    credentialResult == .updateFailed
+                        ? ZenithDesign.Palette.warning
+                        : ZenithDesign.Palette.muted
+                )
+                .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Spacer()
+                    Button("Done") { isPresented = false }
+                        .buttonStyle(HyphaButtonStyle(.primary))
+                        .keyboardShortcut(.defaultAction)
+                }
+
+            case .idle, .submitting, .failed:
+                Text("Use the current account password to authorize this change. Hypha never logs or displays either password.")
+                    .font(ZenithDesign.Typography.corporate(.callout))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                SecureField("Current password", text: $currentPassword)
+                    .textFieldStyle(ZenithInputStyle())
+                    .privacySensitive()
+                    .disabled(isSubmitting)
+                    .accessibilityIdentifier("matrix.password.current")
+                SecureField("New password", text: $newPassword)
+                    .textFieldStyle(ZenithInputStyle())
+                    .privacySensitive()
+                    .disabled(isSubmitting)
+                    .accessibilityIdentifier("matrix.password.new")
+                SecureField("Confirm new password", text: $confirmation)
+                    .textFieldStyle(ZenithInputStyle())
+                    .privacySensitive()
+                    .disabled(isSubmitting)
+                    .accessibilityIdentifier("matrix.password.confirmation")
+
+                if !confirmation.isEmpty && !passwordsMatch {
+                    Text("The new passwords do not match.")
+                        .font(ZenithDesign.Typography.corporate(.caption))
+                        .foregroundStyle(ZenithDesign.Palette.error)
+                } else if !newPassword.isEmpty && newPassword == currentPassword {
+                    Text("Choose a password different from the current password.")
+                        .font(ZenithDesign.Typography.corporate(.caption))
+                        .foregroundStyle(ZenithDesign.Palette.error)
+                }
+
+                Toggle("Sign out other Hypha devices after changing the password", isOn: $logoutOtherDevices)
+                    .font(ZenithDesign.Typography.corporate(.callout))
+                    .disabled(isSubmitting)
+
+                if case let .failed(message) = submissionState {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .font(ZenithDesign.Typography.corporate(.callout))
+                        .foregroundStyle(ZenithDesign.Palette.error)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityElement(children: .combine)
+                }
+
+                HStack {
+                    Button("Cancel") {
+                        clearSecrets()
+                        isPresented = false
+                    }
+                    .buttonStyle(HyphaButtonStyle(.secondary))
+                    .disabled(isSubmitting)
+
+                    Spacer()
+
+                    Button {
+                        submit()
+                    } label: {
+                        if isSubmitting {
+                            HStack(spacing: ZenithDesign.Space.x2) {
+                                ProgressView().controlSize(.small)
+                                Text("Changing…")
+                            }
+                        } else {
+                            Text("Change Password")
+                        }
+                    }
+                    .buttonStyle(HyphaButtonStyle(.primary))
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!canSubmit)
+                    .accessibilityIdentifier("matrix.password.submit")
+                }
+            }
+        }
+        .padding(ZenithDesign.Space.x6)
+        .frame(width: 500)
+        .interactiveDismissDisabled(isSubmitting)
+        .onDisappear { clearSecrets() }
+    }
+
+    private func submit() {
+        guard canSubmit else { return }
+        let request = (
+            currentPassword: currentPassword,
+            newPassword: newPassword,
+            logoutOtherDevices: logoutOtherDevices
+        )
+        clearSecrets()
+        submissionState = .submitting
+        Task {
+            let outcome = await model.changePassword(
+                currentPassword: request.currentPassword,
+                newPassword: request.newPassword,
+                logoutOtherDevices: request.logoutOtherDevices
+            )
+            switch outcome {
+            case .success:
+                submissionState = .succeeded(.noneStored)
+            case .successWithCredentialUpdate:
+                submissionState = .succeeded(.updated)
+            case .successWithCredentialWarning:
+                submissionState = .succeeded(.updateFailed)
+            case .invalidCurrentPassword:
+                submissionState = .failed("The current password was not accepted. Re-enter all password fields and try again.")
+            case let .failed(message):
+                submissionState = .failed(message)
+            }
+        }
+    }
+
+    private func clearSecrets() {
+        currentPassword = ""
+        newPassword = ""
+        confirmation = ""
+    }
+
+    private func successMessage(for result: CredentialResult) -> String {
+        switch result {
+        case .noneStored:
+            return "The homeserver accepted the new password. No saved sign-in credential was changed."
+        case .updated:
+            return "Hypha updated the saved account password in encrypted local storage."
+        case .updateFailed:
+            return "The homeserver accepted the new password, but Hypha could not update the saved local credential. Enter the new password the next time you sign in."
+        }
     }
 }
 
