@@ -16,7 +16,7 @@ AGPL_SHA256 = "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
 SDK_SHA256 = "ca8796d0f065ade3787de2f18693afd940914ce2e35f807ccf479d2f14c5c565"
 THIRD_PARTY_LICENSES_SHA256 = "f1e427b7af156b275595b0dbc78c0dcf1c85aee0240a9b92f856e07d5f55ed61"
 LICENSE_INVENTORY_SHA256 = "898a66bde0576256aaec51d98f517484bed57e32600f676d7169f37944f68309"
-THIRD_PARTY_NOTICES_SHA256 = "b6bed55f72684e47af3277525965bc2a5861ddf2b2754e5aebee376916b94c94"
+THIRD_PARTY_NOTICES_SHA256 = "c72184ef1e27d760a6f6a5bae99b7873c3ea49dc554db411ec499cd31e822450"
 PRIVATE_PATH_PREFIXES = ("/" + "Users/", "/" + "Volumes/" + "home/", "/" + "home/")
 LICENSE_HASHES = {
     "0BSD": "e3f18c71e10d673590eb9856c1d79dd3b4b0d65404efb5e8584dbede7edd608b",
@@ -37,7 +37,7 @@ LICENSE_HASHES = {
 }
 ALLOWED_SPDX_IDS = set(LICENSE_HASHES) | {"MPL-2.0-or-later"}
 BINARY_HASHES = {
-    "Resources/ZenithOSIcon.icns": "61ad8afdb2674ba035cdfbab4a850e327a872fbc1ba940c76469d0349d3e5342",
+    "Resources/ZenithOSIcon.icns": "59f627b5e8996335d8be81b5fcc6092088b9c1915ed9b2cd82e49e0b9a348a78",
     "docs/evidence/issue-2/native-shell.png": "7e88b4366551f923c2e12b33eea737cef01558899484060b37a5ce2a37a0b84b",
     "Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip": SDK_SHA256,
 }
@@ -46,8 +46,8 @@ CRITICAL_POLICY_HASHES = {
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
     "build-app.sh": "cf0fb549796569ca366080f42cac92b83ae9aeccf6bca686c29bd78d6b1452c0",
     "scripts/verify_app_licenses.py": "62cedfdd0c4590c79ec3d66d1f38fe61caee767403d5629c13107697190823ce",
-    "scripts/generate_hypha_icon.py": "1925269ceb71635b9ad66a2ea8e7bafcce954b92f63ba68eace30e099f095342",
-    "Resources/HyphaIconSource.svg": "3ed8f9878335d2cf9199577b0ec4dbf981a35d8195f8999b7fe16db6cfcfad92",
+    "scripts/generate_zenith_icon.py": "f91f71cdf8309fe9217e06cafd0477c32faa380c66b4f31feedc8d0944250b18",
+    "Resources/ZenithOSIcon.svg": "b553714e443d6ab856295676f92ee363d9b9ccfb8a0a6711e73ce9780fe2ac78",
 }
 TEXT_SUFFIXES = {"", ".entitlements", ".hbs", ".html", ".json", ".md", ".plist", ".py", ".sh", ".svg", ".swift", ".toml", ".txt", ".yml", ".yaml"}
 BINARY_MAGIC_PREFIXES = (b"PK\x03\x04", b"\x89PNG\r\n\x1a\n", b"icns", b"\x7fELF", b"%PDF", b"\x1f\x8b")

@@ -2,13 +2,13 @@
 
 ## `Resources/ZenithOSIcon.icns`
 
-- SHA-256: `61ad8afdb2674ba035cdfbab4a850e327a872fbc1ba940c76469d0349d3e5342`
-- Canonical editable source and reproducible renderer: `scripts/generate_hypha_icon.py`, which encodes the vector geometry and rasterizes each macOS icon size.
-- Generated editable SVG companion: `Resources/HyphaIconSource.svg` (SHA-256 `3ed8f9878335d2cf9199577b0ec4dbf981a35d8195f8999b7fe16db6cfcfad92`). The generator writes this matching representation for reuse and inspection; the `.icns` renderer does not read it as an input.
-- Creation record: designed and generated in-repository for Hypha as an original branching-hypha mark; it does not incorporate the superseded icon or third-party artwork.
+- SHA-256: `59f627b5e8996335d8be81b5fcc6092088b9c1915ed9b2cd82e49e0b9a348a78`
+- Canonical editable source: `Resources/ZenithOSIcon.svg` (SHA-256 `b553714e443d6ab856295676f92ee363d9b9ccfb8a0a6711e73ce9780fe2ac78`).
+- Reproducible renderer: `scripts/generate_zenith_icon.py`, which encodes the same vector geometry and rasterizes each required macOS icon size.
+- Creation record: restored from the project-owned ZenithOS icon at commit `bc78d05` so Hypha uses the established Zenith product mark rather than the short-lived branching-hypha variant.
 - License: AGPL-3.0-or-later with the repository.
 
-Regenerate both outputs from the repository root with `python3 scripts/generate_hypha_icon.py`. The generator creates the SVG companion, all required macOS iconset sizes, and the `.icns` with Apple's `iconutil`.
+Regenerate the `.icns` from the repository root with `python3 scripts/generate_zenith_icon.py`. The generator creates all required macOS iconset sizes and packages them with Apple's `iconutil`.
 
 ## `docs/evidence/issue-2/native-shell.png`
 

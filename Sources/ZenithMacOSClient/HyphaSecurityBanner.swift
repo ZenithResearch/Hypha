@@ -105,6 +105,8 @@ struct HyphaSecurityBanner: View {
             return "\(severityTitle). \(severityMessage)"
         case .settingUpThisDevice:
             return "Setting up this device."
+        case let .deviceSetupFailed(reason):
+            return reason
         case .requestingVerificationFromAnotherHyphaDevice:
             return "Waiting for another Hypha device."
         case .comparingWithAnotherHyphaDevice:
@@ -149,6 +151,8 @@ struct HyphaSecurityBanner: View {
             EmptyView()
         case .settingUpThisDevice:
             progressRow("Setting up this device…")
+        case let .deviceSetupFailed(reason):
+            failureRow(reason, retryTitle: "Try device setup again", action: onSetUpDevice)
         case .requestingVerificationFromAnotherHyphaDevice:
             HStack {
                 progressRow("Waiting for another Hypha device…")

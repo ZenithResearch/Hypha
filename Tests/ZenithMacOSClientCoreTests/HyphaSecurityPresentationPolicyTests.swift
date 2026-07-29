@@ -64,6 +64,21 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
         XCTAssertEqual(presentation.localOperation, .settingUpThisDevice)
     }
 
+    func testFailedDeviceSetupIsVisibleAndOffersTheSameAuthoritativeRetryPath() {
+        let presentation = makePresentation(
+            trust: .unsigned,
+            bootstrap: .failed(reason: "Device security setup failed. Try again."),
+            peerEligibility: .noEligiblePeer
+        )
+
+        XCTAssertNil(presentation.primaryDeviceAction)
+        XCTAssertEqual(
+            presentation.localOperation,
+            .deviceSetupFailed(reason: "Device security setup failed. Try again.")
+        )
+        XCTAssertFalse(presentation.requiresPersistentCriticalBanner)
+    }
+
     func testVerifiedTrustIsTheOnlyHealthySuccessState() {
         let presentation = makePresentation(
             trust: .verifiedByCurrentSelfSigningKey,
@@ -138,7 +153,8 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
             .passwordRequired,
             .verifiedByCurrentSelfSigningKey,
             .invalidSignature,
-            .unavailable
+            .unavailable,
+            .failed(reason: "Unavailable")
         ]
         let activeVerificationStates: [MatrixVerificationFlowState] = [
             .requesting,
@@ -176,7 +192,8 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
             .passwordRequired,
             .verifiedByCurrentSelfSigningKey,
             .invalidSignature,
-            .unavailable
+            .unavailable,
+            .failed(reason: "Unavailable")
         ]
 
         for trust in trustStates {

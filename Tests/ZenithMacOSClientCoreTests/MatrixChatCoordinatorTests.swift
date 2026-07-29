@@ -132,6 +132,23 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.trustState, .unavailable)
     }
 
+    func testBootstrapTransportFailureIsVisibleWithoutErasingUnsignedAuthority() async {
+        let service = FakeMatrixChatService(
+            trustState: .unsigned,
+            bootstrapError: .offline
+        )
+        let coordinator = MatrixChatCoordinator(service: service)
+        await coordinator.signIn(username: "alice", password: "not-recorded")
+
+        await coordinator.bootstrapFirstDeviceTrust()
+
+        XCTAssertEqual(
+            coordinator.firstDeviceTrustBootstrapState,
+            .failed(reason: "Device security setup failed. Try again.")
+        )
+        XCTAssertEqual(coordinator.trustState, .unsigned)
+    }
+
     func testBootstrapInvalidSignatureFailsClosed() async {
         let service = FakeMatrixChatService(
             trustState: .unsigned,
@@ -901,6 +918,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     var trustStateError: MatrixChatServiceError?
     var peerVerificationEligibility: MatrixPeerVerificationEligibility
     var bootstrapResult: MatrixFirstDeviceTrustBootstrapState
+    var bootstrapError: MatrixChatServiceError?
     var bootstrapContinuationResult: MatrixFirstDeviceTrustBootstrapState
     var trustStateAfterApproval: MatrixDeviceTrustState?
     var verificationChallenge: MatrixVerificationChallenge
@@ -939,6 +957,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
         trustStateError: MatrixChatServiceError? = nil,
         peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable,
         bootstrapResult: MatrixFirstDeviceTrustBootstrapState = .unavailable,
+        bootstrapError: MatrixChatServiceError? = nil,
         bootstrapContinuationResult: MatrixFirstDeviceTrustBootstrapState = .unavailable,
         trustStateAfterApproval: MatrixDeviceTrustState? = nil,
         verificationChallenge: MatrixVerificationChallenge = .decimals([111, 222, 333]),
@@ -961,6 +980,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
         self.trustStateError = trustStateError
         self.peerVerificationEligibility = peerVerificationEligibility
         self.bootstrapResult = bootstrapResult
+        self.bootstrapError = bootstrapError
         self.bootstrapContinuationResult = bootstrapContinuationResult
         self.trustStateAfterApproval = trustStateAfterApproval
         self.verificationChallenge = verificationChallenge
@@ -1012,6 +1032,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
 
     func bootstrapFirstDeviceTrust() async throws -> MatrixFirstDeviceTrustBootstrapState {
         bootstrapRequests += 1
+        if let bootstrapError { throw bootstrapError }
         return bootstrapResult
     }
 

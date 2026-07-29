@@ -177,13 +177,14 @@ public enum MatrixPeerVerificationEligibility: Equatable, Sendable {
     case unavailable
 }
 
-public enum MatrixFirstDeviceTrustBootstrapState: Equatable, Sendable {
+public enum MatrixFirstDeviceTrustBootstrapState: Equatable, Hashable, Sendable {
     case notBootstrapped
     case bootstrapping
     case passwordRequired
     case verifiedByCurrentSelfSigningKey
     case invalidSignature
     case unavailable
+    case failed(reason: String)
 }
 
 public enum MatrixVerificationFlowState: Equatable, Sendable {
@@ -581,7 +582,9 @@ public final class MatrixChatCoordinator {
         do {
             applyFirstDeviceTrustBootstrapState(try await service.bootstrapFirstDeviceTrust())
         } catch {
-            applyFirstDeviceTrustBootstrapState(.unavailable)
+            firstDeviceTrustBootstrapState = .failed(
+                reason: "Device security setup failed. Try again."
+            )
         }
         await refreshRecoveryState()
     }
@@ -614,7 +617,7 @@ public final class MatrixChatCoordinator {
             trustState = .unavailable
         case .notBootstrapped:
             trustState = .unsigned
-        case .bootstrapping, .passwordRequired:
+        case .bootstrapping, .passwordRequired, .failed:
             break
         }
     }
