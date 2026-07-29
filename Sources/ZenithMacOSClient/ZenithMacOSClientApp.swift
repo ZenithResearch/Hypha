@@ -59,6 +59,7 @@ final class MatrixAppModel: ObservableObject {
     @Published var verificationFlowState: MatrixVerificationFlowState = .idle
     @Published var recoveryState: MatrixRecoveryState = .unknown
     @Published var firstDeviceTrustBootstrapState: MatrixFirstDeviceTrustBootstrapState = .notBootstrapped
+    @Published var peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable
     @Published var registrationAvailability: MatrixRegistrationAvailability = .unavailable
     @Published var registrationError: String?
     @Published var showsFirstRunGuidance = false
@@ -134,10 +135,7 @@ final class MatrixAppModel: ObservableObject {
                 await coordinator.restore()
             }
             applyState(from: coordinator)
-            trustState = coordinator.trustState
-            verificationFlowState = coordinator.verificationFlowState
-            recoveryState = coordinator.recoveryState
-            firstDeviceTrustBootstrapState = coordinator.firstDeviceTrustBootstrapState
+            applySecurityState(from: coordinator)
             let registrationClient = MatrixInviteRegistrationClient(homeserver: configuration.homeserver)
             self.registrationClient = registrationClient
             registrationAvailability = await registrationClient.availability()
@@ -150,10 +148,7 @@ final class MatrixAppModel: ObservableObject {
             savedCredentials = []
             activeSessionAccountKey = nil
             rooms = []
-            trustState = .unknown
-            verificationFlowState = .idle
-            recoveryState = .unknown
-            firstDeviceTrustBootstrapState = .notBootstrapped
+            resetSecurityState()
             let message = (error as? LocalizedError)?.errorDescription ?? "The homeserver could not be checked."
             homeserverState = .failed(message)
         }
@@ -191,10 +186,7 @@ final class MatrixAppModel: ObservableObject {
         username = ""
         password = ""
         state = .signedOut(message: nil)
-        trustState = .unknown
-        verificationFlowState = .idle
-        recoveryState = .unknown
-        firstDeviceTrustBootstrapState = .notBootstrapped
+        resetSecurityState()
         homeserverState = .awaitingInput
     }
 
@@ -214,10 +206,7 @@ final class MatrixAppModel: ObservableObject {
             self.username = username
             await coordinator.signIn(username: username, password: password)
             applyState(from: coordinator)
-            trustState = coordinator.trustState
-            verificationFlowState = coordinator.verificationFlowState
-            recoveryState = coordinator.recoveryState
-            firstDeviceTrustBootstrapState = coordinator.firstDeviceTrustBootstrapState
+            applySecurityState(from: coordinator)
             if let configuration = activeConfiguration {
                 refreshSavedSessions(configuration: configuration)
                 if case .rooms = state {
@@ -287,10 +276,7 @@ final class MatrixAppModel: ObservableObject {
         password = ""
         await coordinator.signIn(username: username, password: passwordForRequest)
         applyState(from: coordinator)
-        trustState = coordinator.trustState
-        verificationFlowState = coordinator.verificationFlowState
-        recoveryState = coordinator.recoveryState
-        firstDeviceTrustBootstrapState = coordinator.firstDeviceTrustBootstrapState
+        applySecurityState(from: coordinator)
         if let configuration = activeConfiguration {
             refreshSavedSessions(configuration: configuration)
             if case .rooms = state {
@@ -331,10 +317,7 @@ final class MatrixAppModel: ObservableObject {
             password = ""
             await coordinator.signIn(username: credential.username, password: savedPassword)
             applyState(from: coordinator)
-            trustState = coordinator.trustState
-            verificationFlowState = coordinator.verificationFlowState
-            recoveryState = coordinator.recoveryState
-            firstDeviceTrustBootstrapState = coordinator.firstDeviceTrustBootstrapState
+            applySecurityState(from: coordinator)
             refreshSavedSessions(configuration: configuration)
             if case .rooms = state {
                 do {
@@ -366,10 +349,7 @@ final class MatrixAppModel: ObservableObject {
             self.coordinator = coordinator
             await coordinator.restore()
             applyState(from: coordinator)
-            trustState = coordinator.trustState
-            verificationFlowState = coordinator.verificationFlowState
-            recoveryState = coordinator.recoveryState
-            firstDeviceTrustBootstrapState = coordinator.firstDeviceTrustBootstrapState
+            applySecurityState(from: coordinator)
             refreshSavedSessions(configuration: configuration)
         } catch {
             state = .unavailable(reason: "Saved Matrix session could not be opened")
@@ -386,10 +366,7 @@ final class MatrixAppModel: ObservableObject {
         username = ""
         password = ""
         rooms = []
-        trustState = .unknown
-        verificationFlowState = .idle
-        recoveryState = .unknown
-        firstDeviceTrustBootstrapState = .notBootstrapped
+        resetSecurityState()
         state = .signedOut(message: nil)
     }
 
@@ -458,7 +435,7 @@ final class MatrixAppModel: ObservableObject {
             coordinator = MatrixChatCoordinator(service: serviceFactory(configuration))
         }
         state = .signedOut(message: message)
-        firstDeviceTrustBootstrapState = .notBootstrapped
+        resetSecurityState()
     }
 
     func bootstrapFirstDeviceTrust() async {
@@ -466,9 +443,7 @@ final class MatrixAppModel: ObservableObject {
         guard firstDeviceTrustBootstrapState != .bootstrapping else { return }
         firstDeviceTrustBootstrapState = .bootstrapping
         await coordinator.bootstrapFirstDeviceTrust()
-        firstDeviceTrustBootstrapState = coordinator.firstDeviceTrustBootstrapState
-        trustState = coordinator.trustState
-        recoveryState = coordinator.recoveryState
+        applySecurityState(from: coordinator)
     }
 
     func continueFirstDeviceTrust(password: String) async {
@@ -476,46 +451,38 @@ final class MatrixAppModel: ObservableObject {
         guard firstDeviceTrustBootstrapState != .bootstrapping else { return }
         firstDeviceTrustBootstrapState = .bootstrapping
         await coordinator.continueFirstDeviceTrust(password: password)
-        firstDeviceTrustBootstrapState = coordinator.firstDeviceTrustBootstrapState
-        trustState = coordinator.trustState
-        recoveryState = coordinator.recoveryState
+        applySecurityState(from: coordinator)
     }
 
     func requestDeviceVerification() async {
         guard let coordinator else { return }
         verificationFlowState = .requesting
         await coordinator.requestDeviceVerification()
-        trustState = coordinator.trustState
-        verificationFlowState = coordinator.verificationFlowState
+        applySecurityState(from: coordinator)
     }
 
     func approveDeviceVerification() async {
         guard let coordinator else { return }
         await coordinator.approveDeviceVerification()
-        trustState = coordinator.trustState
-        verificationFlowState = coordinator.verificationFlowState
+        applySecurityState(from: coordinator)
     }
 
     func declineDeviceVerification() async {
         guard let coordinator else { return }
         await coordinator.declineDeviceVerification()
-        trustState = coordinator.trustState
-        verificationFlowState = coordinator.verificationFlowState
+        applySecurityState(from: coordinator)
     }
 
     func refreshDeviceVerification() async {
         guard let coordinator else { return }
         await coordinator.refreshTrustState()
-        trustState = coordinator.trustState
-        verificationFlowState = coordinator.verificationFlowState
+        applySecurityState(from: coordinator)
     }
 
     func restoreEncryption(recoveryKey: String) async {
         guard let coordinator else { return }
         await coordinator.restoreEncryption(recoveryKey: recoveryKey)
-        recoveryState = coordinator.recoveryState
-        trustState = coordinator.trustState
-        verificationFlowState = coordinator.verificationFlowState
+        applySecurityState(from: coordinator)
         if case .ready = recoveryState {
             await coordinator.refreshOpenRoom()
             applyState(from: coordinator)
@@ -525,10 +492,24 @@ final class MatrixAppModel: ObservableObject {
     func setupEncryptionRecovery() async -> String? {
         guard let coordinator else { return nil }
         let recoveryKey = await coordinator.setupEncryptionRecovery()
-        recoveryState = coordinator.recoveryState
+        applySecurityState(from: coordinator)
+        return recoveryKey
+    }
+
+    private func applySecurityState(from coordinator: MatrixChatCoordinator) {
         trustState = coordinator.trustState
         verificationFlowState = coordinator.verificationFlowState
-        return recoveryKey
+        recoveryState = coordinator.recoveryState
+        firstDeviceTrustBootstrapState = coordinator.firstDeviceTrustBootstrapState
+        peerVerificationEligibility = coordinator.peerVerificationEligibility
+    }
+
+    private func resetSecurityState() {
+        trustState = .unknown
+        verificationFlowState = .idle
+        recoveryState = .unknown
+        firstDeviceTrustBootstrapState = .notBootstrapped
+        peerVerificationEligibility = .unavailable
     }
 
     func createEncryptedRoom(name: String, topic: String, invitees: String) async {
@@ -917,9 +898,6 @@ private struct MatrixCompanionShell: View {
                                     .foregroundStyle(ZenithDesign.Palette.muted)
                             }
                             Spacer()
-                            Button("Set up device security") { beginFirstDeviceSetup() }
-                                .accessibilityIdentifier("matrix.first-device.bootstrap")
-                            Button("Set up recovery") { showsRecoverySetup = true }
                             Button("Not now") {
                                 model.dismissFirstRunGuidance()
                             }
@@ -928,15 +906,7 @@ private struct MatrixCompanionShell: View {
                         .background(.blue.opacity(0.08))
                         .accessibilityIdentifier("matrix.registration.first-run")
                     }
-                    Text("Verification and recovery are optional security tools. Encrypted chat remains available unless Hypha detects an identity violation.")
-                        .font(.caption)
-                        .foregroundStyle(ZenithDesign.Palette.muted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 14)
-                        .padding(.top, 8)
-                        .accessibilityIdentifier("matrix.security.guidance")
-                    verificationPanel
-                    recoveryPanel
+                    securityBanner
                 }
                 chatDetail
             }
@@ -961,226 +931,28 @@ private struct MatrixCompanionShell: View {
         }
     }
 
-    @ViewBuilder
-    private var verificationPanel: some View {
-        switch model.verificationFlowState {
-        case .idle:
-            trustPanel
-        case .requesting:
-            HStack {
-                ProgressView().controlSize(.small)
-                Text("Accept the verification request on your other Matrix device…")
-                Spacer()
-                Button("Cancel") { Task { await model.declineDeviceVerification() } }
-                    .accessibilityIdentifier("matrix.verification.decline")
-            }
-            .verificationBannerStyle()
-        case let .challenge(challenge):
-            challengePanel(challenge)
-                .accessibilityIdentifier("matrix.verification.challenge")
-        case .approving:
-            HStack {
-                ProgressView().controlSize(.small)
-                Text("Confirming device trust with the homeserver…")
-                Spacer()
-            }
-            .verificationBannerStyle()
-        case let .failed(reason):
-            HStack {
-                Label(reason, systemImage: "xmark.shield.fill")
-                    .foregroundStyle(ZenithDesign.Palette.error)
-                Spacer()
-                Button("Try again") { Task { await model.requestDeviceVerification() } }
-                    .accessibilityIdentifier("matrix.verification.request")
-            }
-            .verificationBannerStyle()
-        }
+    private var securityPresentation: HyphaSecurityPresentationState {
+        HyphaSecurityPresentationPolicy.presentation(
+            trustState: model.trustState,
+            firstDeviceTrustBootstrapState: model.firstDeviceTrustBootstrapState,
+            verificationFlowState: model.verificationFlowState,
+            recoveryState: model.recoveryState,
+            peerVerificationEligibility: model.peerVerificationEligibility
+        )
     }
 
-    @ViewBuilder
-    private var trustPanel: some View {
-        switch model.trustState {
-        case .unknown:
-            HStack {
-                Label("Checking device trust…", systemImage: "questionmark.shield")
-                Spacer()
-                Button("Refresh") { Task { await model.refreshDeviceVerification() } }
-            }
-            .verificationBannerStyle()
-        case .unsigned:
-            HStack {
-                Label("This Matrix device is not verified", systemImage: "exclamationmark.shield.fill")
-                    .foregroundStyle(ZenithDesign.Palette.warning)
-                Spacer()
-                if model.firstDeviceTrustBootstrapState == .bootstrapping {
-                    ProgressView().controlSize(.small)
-                } else if model.firstDeviceTrustBootstrapState == .passwordRequired {
-                    Button("Continue setup") { showsFirstDevicePassword = true }
-                        .accessibilityIdentifier("matrix.first-device.continue")
-                } else {
-                    Button("Set up this device") { beginFirstDeviceSetup() }
-                        .accessibilityIdentifier("matrix.first-device.bootstrap")
-                }
-                Button("Verify this device") { Task { await model.requestDeviceVerification() } }
-                    .accessibilityIdentifier("matrix.verification.request")
-            }
-            .verificationBannerStyle()
-        case .invalidSignature:
-            HStack {
-                Label("This Matrix device has an invalid trust signature", systemImage: "xmark.shield.fill")
-                    .foregroundStyle(ZenithDesign.Palette.error)
-                Spacer()
-                Button("Refresh") { Task { await model.refreshDeviceVerification() } }
-            }
-            .verificationBannerStyle()
-        case .verifiedByCurrentSelfSigningKey:
-            HStack {
-                Label("This device is signed by your current Matrix identity", systemImage: "checkmark.shield.fill")
-                    .foregroundStyle(ZenithDesign.Palette.success)
-                Spacer()
-                Button("Verify with another device") {
-                    Task { await model.requestDeviceVerification() }
-                }
-                .accessibilityIdentifier("matrix.verification.request")
-            }
-            .verificationBannerStyle()
-        case .unavailable:
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Label(
-                        "Peer verification is not available right now",
-                        systemImage: "person.crop.circle.badge.checkmark"
-                    )
-                    Text("If Hypha is your only Matrix client, this is expected and is not by itself a security failure.")
-                        .font(.caption)
-                        .foregroundStyle(ZenithDesign.Palette.muted)
-                }
-                Spacer()
-                if model.firstDeviceTrustBootstrapState == .unavailable {
-                    Button("Set up device security") { beginFirstDeviceSetup() }
-                        .accessibilityIdentifier("matrix.first-device.bootstrap")
-                }
-                Button("Refresh") { Task { await model.refreshDeviceVerification() } }
-            }
-            .verificationBannerStyle()
-        }
-    }
-
-    @ViewBuilder
-    private var recoveryPanel: some View {
-        switch model.recoveryState {
-        case .unknown:
-            EmptyView()
-        case .unavailable:
-            HStack {
-                Label("Secure Backup is not configured for this account", systemImage: "key.slash")
-                    .foregroundStyle(ZenithDesign.Palette.muted)
-                Spacer()
-                Button("Set up recovery") { showsRecoverySetup = true }
-                    .accessibilityIdentifier("matrix.recovery.setup")
-            }
-            .verificationBannerStyle()
-        case .available, .incomplete:
-            HStack {
-                Label("Restore encryption identity and backed-up room keys", systemImage: "key.horizontal.fill")
-                Spacer()
-                Button("Restore encryption") { showsRecovery = true }
-                    .accessibilityIdentifier("matrix.recovery.restore")
-            }
-            .verificationBannerStyle()
-        case .restoring:
-            HStack {
-                ProgressView().controlSize(.small)
-                Text("Preparing encryption recovery…")
-                Spacer()
-            }
-            .verificationBannerStyle()
-        case .ready:
-            HStack {
-                Label("Encryption recovery is ready", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(ZenithDesign.Palette.success)
-                Spacer()
-            }
-            .verificationBannerStyle()
-        case let .diagnostic(receipt):
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Label("Cross-signing diagnostic \(receipt.stableCode)", systemImage: "stethoscope")
-                        .foregroundStyle(ZenithDesign.Palette.error)
-                    Spacer()
-                    Button("Try recovery again") { showsRecovery = true }
-                        .accessibilityIdentifier("matrix.recovery.restore")
-                }
-                Text("Identity key matches: \(receipt.privateSelfSigningKeyMatchesCurrentPublicIdentity ? "yes" : "no")")
-                Text("Device key matches: \(receipt.localOwnDeviceKeyMatchesServerDeviceKey ? "yes" : "no")")
-                Text("Signed object matches: \(receipt.signedObjectMatchesFreshServerDeviceObject ? "yes" : "no")")
-                Text("Local signature valid: \(receipt.generatedSignatureValidLocally ? "yes" : "no")")
-                Text("Upload transport: \(receipt.uploadTransport == .accepted ? "accepted" : "failed")")
-                Text("Upload processing: \(diagnosticUploadLabel(receipt.uploadProcessing))")
-                Text("Server signature present: \(receipt.postUploadServerSignaturePresent ? "yes" : "no")")
-                Text("Backup repair: \(diagnosticBackupLabel(receipt.backupRepair))")
-                    .foregroundStyle(ZenithDesign.Palette.muted)
-            }
-            .font(.callout)
-            .verificationBannerStyle()
-        case let .failed(reason):
-            HStack {
-                Label(reason, systemImage: "key.slash.fill")
-                    .foregroundStyle(ZenithDesign.Palette.error)
-                Spacer()
-                Button("Try recovery again") { showsRecovery = true }
-                    .accessibilityIdentifier("matrix.recovery.restore")
-            }
-            .verificationBannerStyle()
-        }
-    }
-
-    private func diagnosticUploadLabel(_ value: MatrixDiagnosticUploadProcessing) -> String {
-        switch value {
-        case .accepted: "accepted"
-        case .keyMismatch: "key does not match server object"
-        case .invalidSignature: "invalid signature"
-        case .otherFailure: "other failure"
-        }
-    }
-
-    private func diagnosticBackupLabel(_ value: MatrixDiagnosticBackupRepair) -> String {
-        switch value {
-        case .notAttempted: "not attempted"
-        case .completed: "completed"
-        case .failed: "failed"
-        }
-    }
-
-    private func challengePanel(_ challenge: MatrixVerificationChallenge) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Do these match your other device?")
-                .font(.headline)
-            switch challenge {
-            case let .emojis(emojis):
-                HStack(spacing: 14) {
-                    ForEach(emojis) { emoji in
-                        VStack(spacing: 2) {
-                            Text(emoji.symbol).font(.title)
-                            Text(emoji.description).font(.caption)
-                        }
-                    }
-                }
-            case let .decimals(values):
-                Text(values.map(String.init).joined(separator: "   "))
-                    .font(.title2.monospacedDigit())
-            }
-            HStack {
-                Button("They do not match") { Task { await model.declineDeviceVerification() } }
-                    .accessibilityIdentifier("matrix.verification.decline")
-                Spacer()
-                Button("They match") { Task { await model.approveDeviceVerification() } }
-                    .buttonStyle(ZenithPrimaryButtonStyle())
-                    .accessibilityIdentifier("matrix.verification.approve")
-            }
-        }
-        .padding(14)
-        .background(.orange.opacity(0.1))
+    private var securityBanner: some View {
+        HyphaSecurityBanner(
+            presentation: securityPresentation,
+            onSetUpDevice: beginFirstDeviceSetup,
+            onContinueDeviceSetup: { showsFirstDevicePassword = true },
+            onRequestVerification: { Task { await model.requestDeviceVerification() } },
+            onApproveVerification: { Task { await model.approveDeviceVerification() } },
+            onDeclineVerification: { Task { await model.declineDeviceVerification() } },
+            onRefresh: { Task { await model.refreshDeviceVerification() } },
+            onSetUpRecovery: { showsRecoverySetup = true },
+            onRestoreRecovery: { showsRecovery = true }
+        )
     }
 
     @ViewBuilder
@@ -1889,20 +1661,5 @@ private struct MatrixNewRoomSheet: View {
             isSubmitting = false
             if case .thread = model.state { isPresented = false }
         }
-    }
-}
-
-private extension View {
-    func verificationBannerStyle() -> some View {
-        self
-            .font(ZenithDesign.Typography.corporate(size: 14))
-            .padding(.horizontal, ZenithDesign.Space.x4)
-            .padding(.vertical, ZenithDesign.Space.x3)
-            .background(ZenithDesign.Palette.baseSubtle)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(ZenithDesign.Palette.border)
-                    .frame(height: 1)
-            }
     }
 }
