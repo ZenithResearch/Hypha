@@ -494,7 +494,10 @@ public final class MatrixChatCoordinator {
     public func removeRoom(_ room: MatrixRoomSummary) async -> Bool {
         guard room.isCreatedByCurrentUser else { return false }
         do {
-            state = .rooms(try await service.removeRoom(roomID: room.id))
+            let remainingRooms = try await service.removeRoom(roomID: room.id)
+            roomOperationGeneration &+= 1
+            timelineOperationGeneration &+= 1
+            state = .rooms(remainingRooms)
             return true
         } catch {
             return false

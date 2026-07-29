@@ -722,6 +722,32 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         XCTAssertEqual(service.sentBodies, ["accepted"])
     }
 
+    func testRemovedRoomCannotBeResurrectedByLateSendCompletion() async {
+        let room = MatrixRoomSummary(
+            id: "room-1",
+            name: "Design",
+            isEncrypted: true,
+            hasInvite: false,
+            isCreatedByCurrentUser: true
+        )
+        let gate = VoidRequestGate()
+        let service = FakeMatrixChatService(restoredRooms: [room])
+        service.refreshedRooms = []
+        service.sendTextHandler = { _, _ in await gate.wait() }
+        let coordinator = MatrixChatCoordinator(service: service)
+        await coordinator.open(room: room)
+
+        let send = Task { await coordinator.send("accepted") }
+        await gate.waitUntilPending()
+        let removed = await coordinator.removeRoom(room)
+        await gate.resume()
+        let sent = await send.value
+
+        XCTAssertTrue(removed)
+        XCTAssertTrue(sent)
+        XCTAssertEqual(coordinator.state, .rooms([]))
+    }
+
     func testTrustViolationBlocksSendWithoutPlaintextFallback() async {
         let room = MatrixRoomSummary(id: "room-1", name: "Design", isEncrypted: true, hasInvite: false)
         let service = FakeMatrixChatService(restoredRooms: [room], sendError: .trustViolation)
@@ -804,6 +830,29 @@ private actor TimelineSequenceGate {
     }
 }
 
+private actor VoidRequestGate {
+    private var request: CheckedContinuation<Void, Never>?
+    private var observer: CheckedContinuation<Void, Never>?
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            request = continuation
+            observer?.resume()
+            observer = nil
+        }
+    }
+
+    func waitUntilPending() async {
+        if request != nil { return }
+        await withCheckedContinuation { observer = $0 }
+    }
+
+    func resume() {
+        request?.resume()
+        request = nil
+    }
+}
+
 private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendable {
     var restoredRooms: [MatrixRoomSummary]
     var refreshedRooms: [MatrixRoomSummary]?
@@ -840,6 +889,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     var sentBodies: [String] = []
     var roomRefreshRequests = 0
     var timelineHandler: (@Sendable (String) async throws -> [MatrixTimelineEvent])?
+    var sendTextHandler: (@Sendable (String, String) async throws -> Void)?
 
     init(
         restoredRooms: [MatrixRoomSummary] = [],
@@ -908,6 +958,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
 
     func sendText(_ body: String, to roomID: String) async throws {
         sentBodies.append(body)
+        if let sendTextHandler { try await sendTextHandler(body, roomID) }
         if let sendError { throw sendError }
         if let eventsAfterSend { events = eventsAfterSend }
     }

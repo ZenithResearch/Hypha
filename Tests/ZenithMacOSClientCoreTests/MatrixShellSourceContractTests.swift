@@ -604,6 +604,22 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(source.contains("if animated && !reduceMotion"))
     }
 
+    func testChatAsyncStatusChangesPostVoiceOverAnnouncements() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("AccessibilityNotification.Announcement"))
+        XCTAssertTrue(source.contains("New messages are available. Jump to latest is now available."))
+        XCTAssertTrue(source.contains("Draft preserved; press Send to retry."))
+    }
+
     func testRecoverySheetShowsSafeRecoveryFailureFeedback() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile

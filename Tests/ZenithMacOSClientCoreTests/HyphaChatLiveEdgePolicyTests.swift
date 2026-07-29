@@ -89,12 +89,45 @@ final class HyphaChatLiveEdgePolicyTests: XCTestCase {
         XCTAssertEqual(state, openedRoom())
     }
 
+    func testSameCountSlidingWindowDetectsNewLatestEvent() {
+        var state: HyphaChatLiveEdgePolicy.State?
+        _ = HyphaChatLiveEdgePolicy.reduce(
+            state: &state,
+            event: .roomOpenedWithEvents(roomID: "room-a", eventIDs: ["1", "2", "3"])
+        )
+        _ = HyphaChatLiveEdgePolicy.reduce(state: &state, event: .liveEdgeChanged(false))
+
+        let decision = HyphaChatLiveEdgePolicy.reduce(
+            state: &state,
+            event: .eventsUpdatedWithEvents(roomID: "room-a", eventIDs: ["2", "3", "4"])
+        )
+
+        XCTAssertEqual(decision, .init(autoScrollToLatest: false, showsNewMessageAffordance: true))
+    }
+
+    func testPrependedHistoryDoesNotTriggerLiveEdgeBehavior() {
+        var state: HyphaChatLiveEdgePolicy.State?
+        _ = HyphaChatLiveEdgePolicy.reduce(
+            state: &state,
+            event: .roomOpenedWithEvents(roomID: "room-a", eventIDs: ["1", "2", "3"])
+        )
+
+        let decision = HyphaChatLiveEdgePolicy.reduce(
+            state: &state,
+            event: .eventsUpdatedWithEvents(roomID: "room-a", eventIDs: ["0", "1", "2", "3"])
+        )
+
+        XCTAssertEqual(decision, .init(autoScrollToLatest: false, showsNewMessageAffordance: false))
+    }
+
     func testEmptyStateUsesDesignTokensAndAccessibleEncryptedRoomCopy() throws {
         let sourceURL = repositoryRoot
             .appendingPathComponent("Sources/ZenithMacOSClient/Chat/HyphaChatEmptyState.swift")
         let source = try String(contentsOf: sourceURL, encoding: .utf8)
 
         XCTAssertTrue(source.contains("Your encrypted room is ready"))
+        XCTAssertTrue(source.contains("This room is not encrypted"))
+        XCTAssertTrue(source.contains("if isEncrypted"))
         XCTAssertTrue(source.contains("Start the conversation"))
         XCTAssertTrue(source.contains("ZenithDesign.Typography"))
         XCTAssertTrue(source.contains("ZenithDesign.Palette"))

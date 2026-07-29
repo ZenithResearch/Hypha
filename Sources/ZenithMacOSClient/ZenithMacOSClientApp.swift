@@ -1,3 +1,4 @@
+import Accessibility
 import SwiftUI
 import ZenithMacOSClientCore
 
@@ -1424,7 +1425,7 @@ private struct HyphaChatTimeline: View {
             ZStack(alignment: .bottomTrailing) {
                 List {
                     if events.isEmpty {
-                        HyphaChatEmptyState()
+                        HyphaChatEmptyState(isEncrypted: room.isEncrypted)
                             .frame(maxWidth: .infinity)
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
@@ -1452,7 +1453,9 @@ private struct HyphaChatTimeline: View {
                 .accessibilityIdentifier("matrix.thread.timeline")
                 .onAppear { openRoom(at: proxy) }
                 .onChange(of: room.id) { _, _ in openRoom(at: proxy) }
-                .onChange(of: events.count) { _, _ in eventsUpdated(at: proxy) }
+                .onChange(of: events.map(\.id)) { _, eventIDs in
+                    eventsUpdated(eventIDs: eventIDs, at: proxy)
+                }
                 .onScrollGeometryChange(for: Bool.self) { geometry in
                     geometry.contentSize.height <= geometry.containerSize.height
                         || geometry.visibleRect.maxY >= geometry.contentSize.height - 80
@@ -1480,21 +1483,27 @@ private struct HyphaChatTimeline: View {
                     .accessibilityIdentifier("matrix.thread.jump-to-latest")
                 }
             }
+            .onChange(of: liveEdgeState?.showsNewMessageAffordance) { previous, current in
+                guard previous != true, current == true else { return }
+                AccessibilityNotification.Announcement(
+                    "New messages are available. Jump to latest is now available."
+                ).post()
+            }
         }
     }
 
     private func openRoom(at proxy: ScrollViewProxy) {
         let decision = HyphaChatLiveEdgePolicy.reduce(
             state: &liveEdgeState,
-            event: .roomOpened(roomID: room.id, eventCount: events.count)
+            event: .roomOpenedWithEvents(roomID: room.id, eventIDs: events.map(\.id))
         )
         scrollToLatest(if: decision.autoScrollToLatest, proxy: proxy, animated: false)
     }
 
-    private func eventsUpdated(at proxy: ScrollViewProxy) {
+    private func eventsUpdated(eventIDs: [String], at proxy: ScrollViewProxy) {
         let decision = HyphaChatLiveEdgePolicy.reduce(
             state: &liveEdgeState,
-            event: .eventsUpdated(roomID: room.id, eventCount: events.count)
+            event: .eventsUpdatedWithEvents(roomID: room.id, eventIDs: eventIDs)
         )
         scrollToLatest(if: decision.autoScrollToLatest, proxy: proxy, animated: true)
     }
@@ -1530,7 +1539,7 @@ private struct ZenithMessageComposer: View {
             HStack(spacing: ZenithDesign.Space.x3) {
                 TextField("Message \(roomName)", text: $text, axis: .vertical)
                     .textFieldStyle(.plain)
-                    .font(ZenithDesign.Typography.corporate(size: 15, weight: .medium))
+                    .font(ZenithDesign.Typography.corporate(.body, weight: .medium))
                     .foregroundStyle(ZenithDesign.Palette.content)
                     .lineLimit(1...5)
                     .focused($isFocused)
@@ -1572,6 +1581,23 @@ private struct ZenithMessageComposer: View {
         .padding(.horizontal, ZenithDesign.Space.x6)
         .padding(.vertical, ZenithDesign.Space.x4)
         .background(ZenithDesign.Palette.base)
+        .onChange(of: statusAnnouncement) { _, announcement in
+            guard let announcement else { return }
+            AccessibilityNotification.Announcement(announcement).post()
+        }
+    }
+
+    private var statusAnnouncement: String? {
+        if isSending {
+            return "Sending message."
+        }
+        if let failureReason {
+            return "Message failed to send. \(failureReason) Draft preserved; press Send to retry."
+        }
+        if let disabledReason {
+            return "Message composer unavailable. \(disabledReason)"
+        }
+        return nil
     }
 
     @ViewBuilder
@@ -1581,19 +1607,19 @@ private struct ZenithMessageComposer: View {
                 ProgressView().controlSize(.small)
                 Text("Sending…")
             }
-            .font(ZenithDesign.Typography.technical(size: 12, weight: .semibold))
+            .font(ZenithDesign.Typography.technical(.caption, weight: .semibold))
             .foregroundStyle(ZenithDesign.Palette.muted)
             .accessibilityIdentifier("matrix.thread.sending")
         } else if let failureReason {
             Label(failureReason, systemImage: "exclamationmark.arrow.triangle.2.circlepath")
-                .font(ZenithDesign.Typography.technical(size: 12, weight: .semibold))
+                .font(ZenithDesign.Typography.technical(.caption, weight: .semibold))
                 .foregroundStyle(ZenithDesign.Palette.error)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityHint("Review the preserved draft and press Send to retry.")
                 .accessibilityIdentifier("matrix.thread.send-failure")
         } else if let disabledReason {
             Label(disabledReason, systemImage: "lock.fill")
-                .font(ZenithDesign.Typography.technical(size: 12, weight: .semibold))
+                .font(ZenithDesign.Typography.technical(.caption, weight: .semibold))
                 .foregroundStyle(ZenithDesign.Palette.muted)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("matrix.thread.composer-disabled")
