@@ -66,6 +66,41 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.verificationFlowState, .idle)
     }
 
+    func testSignInPublishesAuthoritativePeerVerificationEligibility() async {
+        for eligibility in [
+            MatrixPeerVerificationEligibility.eligiblePeer,
+            .noEligiblePeer,
+            .unavailable,
+        ] {
+            let service = FakeMatrixChatService(
+                trustState: .unsigned,
+                peerVerificationEligibility: eligibility
+            )
+            let coordinator = MatrixChatCoordinator(service: service)
+
+            await coordinator.signIn(username: "alice", password: "not-recorded")
+
+            XCTAssertEqual(coordinator.peerVerificationEligibility, eligibility)
+            XCTAssertEqual(coordinator.securityGuidance.peerVerificationEligibility, eligibility)
+        }
+    }
+
+    func testPeerEligibilityRefreshCannotWeakenProvenInvalidTrust() async {
+        let service = FakeMatrixChatService(
+            trustState: .invalidSignature,
+            peerVerificationEligibility: .noEligiblePeer
+        )
+        let coordinator = MatrixChatCoordinator(service: service)
+        await coordinator.signIn(username: "alice", password: "not-recorded")
+
+        service.peerVerificationEligibility = .eligiblePeer
+        await coordinator.refreshPeerVerificationEligibility()
+
+        XCTAssertEqual(coordinator.peerVerificationEligibility, .eligiblePeer)
+        XCTAssertEqual(coordinator.trustState, .invalidSignature)
+        XCTAssertEqual(coordinator.chatAuthority, .blockedByProvenIdentityViolation)
+    }
+
     func testFirstClientBootstrapsWithoutRequestingSAS() async {
         let service = FakeMatrixChatService(
             trustState: .unsigned,
@@ -864,6 +899,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     var sendError: MatrixChatServiceError?
     var trustState: MatrixDeviceTrustState
     var trustStateError: MatrixChatServiceError?
+    var peerVerificationEligibility: MatrixPeerVerificationEligibility
     var bootstrapResult: MatrixFirstDeviceTrustBootstrapState
     var bootstrapContinuationResult: MatrixFirstDeviceTrustBootstrapState
     var trustStateAfterApproval: MatrixDeviceTrustState?
@@ -901,6 +937,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
         sendError: MatrixChatServiceError? = nil,
         trustState: MatrixDeviceTrustState = .unknown,
         trustStateError: MatrixChatServiceError? = nil,
+        peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable,
         bootstrapResult: MatrixFirstDeviceTrustBootstrapState = .unavailable,
         bootstrapContinuationResult: MatrixFirstDeviceTrustBootstrapState = .unavailable,
         trustStateAfterApproval: MatrixDeviceTrustState? = nil,
@@ -922,6 +959,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
         self.sendError = sendError
         self.trustState = trustState
         self.trustStateError = trustStateError
+        self.peerVerificationEligibility = peerVerificationEligibility
         self.bootstrapResult = bootstrapResult
         self.bootstrapContinuationResult = bootstrapContinuationResult
         self.trustStateAfterApproval = trustStateAfterApproval
@@ -966,6 +1004,10 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     func deviceTrustState() async throws -> MatrixDeviceTrustState {
         if let trustStateError { throw trustStateError }
         return trustState
+    }
+
+    func peerVerificationEligibility() async -> MatrixPeerVerificationEligibility {
+        peerVerificationEligibility
     }
 
     func bootstrapFirstDeviceTrust() async throws -> MatrixFirstDeviceTrustBootstrapState {

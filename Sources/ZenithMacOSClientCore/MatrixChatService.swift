@@ -171,6 +171,12 @@ public enum MatrixDeviceTrustState: Equatable, Sendable {
     case unavailable
 }
 
+public enum MatrixPeerVerificationEligibility: Equatable, Sendable {
+    case eligiblePeer
+    case noEligiblePeer
+    case unavailable
+}
+
 public enum MatrixFirstDeviceTrustBootstrapState: Equatable, Sendable {
     case notBootstrapped
     case bootstrapping
@@ -192,15 +198,18 @@ public struct MatrixSecurityGuidance: Equatable, Sendable {
     public let trustState: MatrixDeviceTrustState
     public let verificationFlowState: MatrixVerificationFlowState
     public let recoveryState: MatrixRecoveryState
+    public let peerVerificationEligibility: MatrixPeerVerificationEligibility
 
     public init(
         trustState: MatrixDeviceTrustState,
         verificationFlowState: MatrixVerificationFlowState,
-        recoveryState: MatrixRecoveryState
+        recoveryState: MatrixRecoveryState,
+        peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable
     ) {
         self.trustState = trustState
         self.verificationFlowState = verificationFlowState
         self.recoveryState = recoveryState
+        self.peerVerificationEligibility = peerVerificationEligibility
     }
 }
 
@@ -243,6 +252,7 @@ public protocol MatrixChatService: Sendable {
     func setupEncryptionRecovery() async throws -> String
     func restoreEncryption(recoveryKey: String) async throws
     func deviceTrustState() async throws -> MatrixDeviceTrustState
+    func peerVerificationEligibility() async -> MatrixPeerVerificationEligibility
     func bootstrapFirstDeviceTrust() async throws -> MatrixFirstDeviceTrustBootstrapState
     func continueFirstDeviceTrust(password: String) async throws -> MatrixFirstDeviceTrustBootstrapState
     func requestDeviceVerification() async throws -> MatrixVerificationChallenge
@@ -270,6 +280,7 @@ public extension MatrixChatService {
         throw MatrixChatServiceError.unavailable(reason: "Encryption recovery is unavailable")
     }
     func deviceTrustState() async throws -> MatrixDeviceTrustState { .unknown }
+    func peerVerificationEligibility() async -> MatrixPeerVerificationEligibility { .unavailable }
     func bootstrapFirstDeviceTrust() async throws -> MatrixFirstDeviceTrustBootstrapState {
         throw MatrixChatServiceError.unavailable(reason: "First-device security setup is unavailable")
     }
@@ -317,12 +328,14 @@ public final class MatrixChatCoordinator {
     public private(set) var verificationFlowState: MatrixVerificationFlowState = .idle
     public private(set) var recoveryState: MatrixRecoveryState = .unknown
     public private(set) var firstDeviceTrustBootstrapState: MatrixFirstDeviceTrustBootstrapState = .notBootstrapped
+    public private(set) var peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable
 
     public var securityGuidance: MatrixSecurityGuidance {
         MatrixSecurityGuidance(
             trustState: trustState,
             verificationFlowState: verificationFlowState,
-            recoveryState: recoveryState
+            recoveryState: recoveryState,
+            peerVerificationEligibility: peerVerificationEligibility
         )
     }
 
@@ -643,7 +656,12 @@ public final class MatrixChatCoordinator {
                 trustState = .unavailable
             }
         }
+        await refreshPeerVerificationEligibility()
         await refreshRecoveryState()
+    }
+
+    public func refreshPeerVerificationEligibility() async {
+        peerVerificationEligibility = await service.peerVerificationEligibility()
     }
 
     public func suspend() async {
@@ -653,6 +671,7 @@ public final class MatrixChatCoordinator {
     public func logout() async {
         do {
             try await service.logout()
+            peerVerificationEligibility = .unavailable
             state = .signedOut(message: .signedOut)
         } catch {
             state = map(error, room: nil)

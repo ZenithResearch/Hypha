@@ -7,6 +7,7 @@ public enum HyphaSecurityIndicatorSeverity: Equatable, Sendable {
 
 public enum HyphaSecurityPrimaryDeviceAction: Equatable, Sendable {
     case setUpThisDevice
+    case verifyWithAnotherHyphaDevice
     case continueDeviceSetupWithPassword
 }
 
@@ -54,7 +55,8 @@ public enum HyphaSecurityPresentationPolicy {
         trustState: MatrixDeviceTrustState,
         firstDeviceTrustBootstrapState: MatrixFirstDeviceTrustBootstrapState,
         verificationFlowState: MatrixVerificationFlowState,
-        recoveryState: MatrixRecoveryState
+        recoveryState: MatrixRecoveryState,
+        peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable
     ) -> HyphaSecurityPresentationState {
         let requiresPersistentCriticalBanner =
             trustState == .invalidSignature ||
@@ -69,6 +71,7 @@ public enum HyphaSecurityPresentationPolicy {
                 trustState: trustState,
                 firstDeviceTrustBootstrapState: firstDeviceTrustBootstrapState,
                 verificationFlowState: verificationFlowState,
+                peerVerificationEligibility: peerVerificationEligibility,
                 requiresPersistentCriticalBanner: requiresPersistentCriticalBanner
             ),
             recoveryAction: recoveryAction(for: recoveryState),
@@ -105,6 +108,7 @@ public enum HyphaSecurityPresentationPolicy {
         trustState: MatrixDeviceTrustState,
         firstDeviceTrustBootstrapState: MatrixFirstDeviceTrustBootstrapState,
         verificationFlowState: MatrixVerificationFlowState,
+        peerVerificationEligibility: MatrixPeerVerificationEligibility,
         requiresPersistentCriticalBanner: Bool
     ) -> HyphaSecurityPrimaryDeviceAction? {
         guard verificationFlowState == .idle,
@@ -115,7 +119,14 @@ public enum HyphaSecurityPresentationPolicy {
 
         switch firstDeviceTrustBootstrapState {
         case .notBootstrapped:
-            return .setUpThisDevice
+            switch peerVerificationEligibility {
+            case .eligiblePeer:
+                return .verifyWithAnotherHyphaDevice
+            case .noEligiblePeer:
+                return .setUpThisDevice
+            case .unavailable:
+                return nil
+            }
         case .passwordRequired:
             return .continueDeviceSetupWithPassword
         case .bootstrapping,

@@ -55,6 +55,22 @@ final class MatrixRustSDKCompatibilityTests: XCTestCase {
         XCTAssertEqual(MatrixRustLiveClient.mapAuthoritativeDeviceVerificationState(.unavailable), .unavailable)
     }
 
+    func testLivePeerEligibilityUsesPinnedSDKAuthority() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClientCore/MatrixRustSDKChatService.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("client.encryption().hasDevicesToVerifyAgainst()"))
+        XCTAssertTrue(source.contains("? .eligiblePeer"))
+        XCTAssertTrue(source.contains(": .noEligiblePeer"))
+    }
+
     func testLiveRecoveryStateMappingUsesAuthoritativeTrust() {
         XCTAssertEqual(MatrixRustLiveClient.mapRecoveryState(.unknown, trustState: .unknown), .unknown)
         XCTAssertEqual(MatrixRustLiveClient.mapRecoveryState(.enabled, trustState: .unsigned), .available)

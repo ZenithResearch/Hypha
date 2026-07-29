@@ -17,12 +17,37 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
     }
 
     func testUnsignedFirstDeviceOffersOnlyAuthoritativeSetupAction() {
-        let presentation = makePresentation(trust: .unsigned, bootstrap: .notBootstrapped)
+        let presentation = makePresentation(
+            trust: .unsigned,
+            bootstrap: .notBootstrapped,
+            peerEligibility: .noEligiblePeer
+        )
 
         XCTAssertEqual(presentation.indicatorSeverity, .recommended)
         XCTAssertEqual(presentation.primaryDeviceAction, .setUpThisDevice)
         XCTAssertEqual(presentation.localOperation, .idle)
         XCTAssertFalse(presentation.requiresPersistentCriticalBanner)
+    }
+
+    func testUnsignedDeviceOffersPeerVerificationOnlyWhenEligibilityIsProven() {
+        let presentation = makePresentation(
+            trust: .unsigned,
+            bootstrap: .notBootstrapped,
+            peerEligibility: .eligiblePeer
+        )
+
+        XCTAssertEqual(presentation.primaryDeviceAction, .verifyWithAnotherHyphaDevice)
+    }
+
+    func testUnavailablePeerEligibilityDoesNotGuessFirstDeviceOrExposePeerVerification() {
+        let presentation = makePresentation(
+            trust: .unsigned,
+            bootstrap: .notBootstrapped,
+            peerEligibility: .unavailable
+        )
+
+        XCTAssertNil(presentation.primaryDeviceAction)
+        XCTAssertEqual(presentation.indicatorSeverity, .recommended)
     }
 
     func testPasswordRequirementOffersContinuationInsteadOfStartingAnotherAction() {
@@ -231,13 +256,15 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
         trust: MatrixDeviceTrustState = .unknown,
         bootstrap: MatrixFirstDeviceTrustBootstrapState = .notBootstrapped,
         verification: MatrixVerificationFlowState = .idle,
-        recovery: MatrixRecoveryState = .unknown
+        recovery: MatrixRecoveryState = .unknown,
+        peerEligibility: MatrixPeerVerificationEligibility = .unavailable
     ) -> HyphaSecurityPresentationState {
         HyphaSecurityPresentationPolicy.presentation(
             trustState: trust,
             firstDeviceTrustBootstrapState: bootstrap,
             verificationFlowState: verification,
-            recoveryState: recovery
+            recoveryState: recovery,
+            peerVerificationEligibility: peerEligibility
         )
     }
 

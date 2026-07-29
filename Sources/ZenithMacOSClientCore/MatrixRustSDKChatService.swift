@@ -125,6 +125,7 @@ public protocol MatrixLiveClient: Sendable {
     func setupEncryptionRecovery() async throws -> String
     func restoreEncryption(recoveryKey: String) async throws
     func deviceTrustState() async throws -> MatrixDeviceTrustState
+    func peerVerificationEligibility() async throws -> MatrixPeerVerificationEligibility
     func bootstrapFirstDeviceTrust() async throws -> MatrixFirstDeviceTrustBootstrapState
     func continueFirstDeviceTrust(password: String) async throws -> MatrixFirstDeviceTrustBootstrapState
     func requestDeviceVerification() async throws -> MatrixVerificationChallenge
@@ -148,6 +149,7 @@ public extension MatrixLiveClient {
         throw MatrixChatServiceError.unavailable(reason: "Matrix Rust SDK client is unavailable")
     }
     func deviceTrustState() async throws -> MatrixDeviceTrustState { .unavailable }
+    func peerVerificationEligibility() async throws -> MatrixPeerVerificationEligibility { .unavailable }
     func bootstrapFirstDeviceTrust() async throws -> MatrixFirstDeviceTrustBootstrapState { .unavailable }
     func continueFirstDeviceTrust(password: String) async throws -> MatrixFirstDeviceTrustBootstrapState { .unavailable }
     func requestDeviceVerification() async throws -> MatrixVerificationChallenge {
@@ -392,6 +394,15 @@ public actor MatrixRustSDKChatService: MatrixChatService {
             return try await client.deviceTrustState()
         } catch {
             throw mapRuntimeError(error, fallbackReason: "Device trust state unavailable")
+        }
+    }
+
+    public func peerVerificationEligibility() async -> MatrixPeerVerificationEligibility {
+        guard let client else { return .unavailable }
+        do {
+            return try await client.peerVerificationEligibility()
+        } catch {
+            return .unavailable
         }
     }
 
@@ -1729,6 +1740,12 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
         Self.mapAuthoritativeDeviceVerificationState(
             try await client.encryption().authoritativeDeviceVerificationState()
         )
+    }
+
+    public func peerVerificationEligibility() async throws -> MatrixPeerVerificationEligibility {
+        try await client.encryption().hasDevicesToVerifyAgainst()
+            ? .eligiblePeer
+            : .noEligiblePeer
     }
 
     public func bootstrapFirstDeviceTrust() async throws -> MatrixFirstDeviceTrustBootstrapState {
