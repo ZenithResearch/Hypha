@@ -52,6 +52,16 @@ final class HyphaChatMessagePresentationTests: XCTestCase {
         XCTAssertFalse(presentation.isGroupedWithPrevious)
     }
 
+    func testPeersWithSameDisplayNameButDifferentStableIDsDoNotGroup() {
+        let previous = makeEvent(id: "$previous", sender: "Alex", senderID: "@alex-one:example.org")
+        let event = makeEvent(sender: "Alex", senderID: "@alex-two:example.org")
+
+        let presentation = HyphaChatMessagePresentation(event: event, previousEvent: previous)
+
+        XCTAssertTrue(presentation.showsSender)
+        XCTAssertFalse(presentation.isGroupedWithPrevious)
+    }
+
     func testTimestampLabelUsesInjectedLocaleAndTimeZone() {
         let event = makeEvent(timestamp: 0)
         let losAngeles = TimeZone(secondsFromGMT: -8 * 60 * 60)!
@@ -126,6 +136,7 @@ final class HyphaChatMessagePresentationTests: XCTestCase {
     private func makeEvent(
         id: String = "$event",
         sender: String = "Alice",
+        senderID: String? = nil,
         content: MatrixTimelineEvent.Content = .text("Hello"),
         isOwn: Bool = false,
         authenticity: MatrixEventAuthenticity = .noWarning,
@@ -134,6 +145,7 @@ final class HyphaChatMessagePresentationTests: XCTestCase {
         MatrixTimelineEvent(
             id: id,
             senderDisplayName: sender,
+            senderID: senderID,
             content: content,
             isOwn: isOwn,
             authenticity: authenticity,

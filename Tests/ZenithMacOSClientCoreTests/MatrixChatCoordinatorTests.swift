@@ -604,6 +604,33 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .thread(room: room, events: [initial, latest], composer: .ready))
     }
 
+    func testLateRoomOpenCannotOverwriteNewerSelection() async {
+        let roomA = MatrixRoomSummary(id: "room-a", name: "A", isEncrypted: true, hasInvite: false)
+        let roomB = MatrixRoomSummary(id: "room-b", name: "B", isEncrypted: true, hasInvite: false)
+        let eventA = MatrixTimelineEvent(id: "$a", senderDisplayName: "Alice", content: .text("A"))
+        let eventB = MatrixTimelineEvent(id: "$b", senderDisplayName: "Bob", content: .text("B"))
+        let gate = TimelineRequestGate()
+        let service = FakeMatrixChatService(restoredRooms: [roomA, roomB])
+        service.timelineHandler = { roomID in
+            if roomID == roomA.id {
+                return try await gate.wait(roomID: roomID)
+            }
+            return [eventB]
+        }
+        let coordinator = MatrixChatCoordinator(service: service)
+
+        let staleOpen = Task { await coordinator.open(room: roomA) }
+        await gate.waitUntilPending(roomID: roomA.id)
+        await coordinator.open(room: roomB)
+        await gate.resume(roomID: roomA.id, events: [eventA])
+        await staleOpen.value
+
+        XCTAssertEqual(
+            coordinator.state,
+            .thread(room: roomB, events: [eventB], composer: .ready)
+        )
+    }
+
     func testSendReloadsSDKTimelineInsteadOfCreatingSyntheticEcho() async {
         let room = MatrixRoomSummary(id: "room-1", name: "Design", isEncrypted: true, hasInvite: false)
         let delivered = MatrixTimelineEvent(id: "$server", senderDisplayName: "You", content: .text("hello"))
@@ -692,6 +719,29 @@ final class MatrixChatCoordinatorTests: XCTestCase {
     }
 }
 
+private actor TimelineRequestGate {
+    private var requests: [String: CheckedContinuation<[MatrixTimelineEvent], Error>] = [:]
+    private var observers: [String: [CheckedContinuation<Void, Never>]] = [:]
+
+    func wait(roomID: String) async throws -> [MatrixTimelineEvent] {
+        return try await withCheckedThrowingContinuation { continuation in
+            requests[roomID] = continuation
+            observers.removeValue(forKey: roomID)?.forEach { $0.resume() }
+        }
+    }
+
+    func waitUntilPending(roomID: String) async {
+        if requests[roomID] != nil { return }
+        await withCheckedContinuation { continuation in
+            observers[roomID, default: []].append(continuation)
+        }
+    }
+
+    func resume(roomID: String, events: [MatrixTimelineEvent]) {
+        requests.removeValue(forKey: roomID)?.resume(returning: events)
+    }
+}
+
 private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendable {
     var restoredRooms: [MatrixRoomSummary]
     var refreshedRooms: [MatrixRoomSummary]?
@@ -727,6 +777,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     var roomRemovalRequests: [String] = []
     var sentBodies: [String] = []
     var roomRefreshRequests = 0
+    var timelineHandler: (@Sendable (String) async throws -> [MatrixTimelineEvent])?
 
     init(
         restoredRooms: [MatrixRoomSummary] = [],
@@ -788,6 +839,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     }
 
     func timeline(for roomID: String) async throws -> [MatrixTimelineEvent] {
+        if let timelineHandler { return try await timelineHandler(roomID) }
         if let roomError { throw roomError }
         return events
     }

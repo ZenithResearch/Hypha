@@ -78,7 +78,7 @@ public struct HyphaChatMessagePresentation: Equatable, Sendable {
     ) -> Bool {
         guard let adjacentEvent else { return false }
         return event.isOwn == adjacentEvent.isOwn
-            && event.senderDisplayName == adjacentEvent.senderDisplayName
+            && event.senderID == adjacentEvent.senderID
     }
 
     private static func authenticityPresentation(

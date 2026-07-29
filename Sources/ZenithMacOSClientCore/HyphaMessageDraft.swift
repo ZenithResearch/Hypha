@@ -49,3 +49,70 @@ public struct HyphaMessageDraft: Equatable, Sendable {
         failureReason = reason
     }
 }
+
+public struct HyphaMessageDraftStore: Equatable, Sendable {
+    public struct Context: Hashable, Sendable {
+        public let accountID: String
+        public let roomID: String
+
+        public init(accountID: String, roomID: String) {
+            self.accountID = accountID
+            self.roomID = roomID
+        }
+    }
+
+    public struct Submission: Equatable, Sendable {
+        public let context: Context
+        public let body: String
+
+        public init(context: Context, body: String) {
+            self.context = context
+            self.body = body
+        }
+    }
+
+    public private(set) var activeContext: Context?
+    private var drafts: [Context: HyphaMessageDraft]
+
+    public var activeDraft: HyphaMessageDraft {
+        guard let activeContext else { return HyphaMessageDraft() }
+        return drafts[activeContext] ?? HyphaMessageDraft()
+    }
+
+    public init() {
+        activeContext = nil
+        drafts = [:]
+    }
+
+    public mutating func activate(_ context: Context) {
+        activeContext = context
+        if drafts[context] == nil {
+            drafts[context] = HyphaMessageDraft()
+        }
+    }
+
+    public mutating func edit(_ text: String) {
+        guard let activeContext else { return }
+        drafts[activeContext, default: HyphaMessageDraft()].edit(text)
+    }
+
+    public mutating func beginSend() -> Submission? {
+        guard let activeContext,
+              let body = drafts[activeContext, default: HyphaMessageDraft()].beginSend() else {
+            return nil
+        }
+        return Submission(context: activeContext, body: body)
+    }
+
+    public mutating func succeedSend(in context: Context) {
+        guard var draft = drafts[context] else { return }
+        draft.succeedSend()
+        drafts[context] = draft
+    }
+
+    public mutating func failSend(in context: Context, reason: String) {
+        guard var draft = drafts[context] else { return }
+        draft.failSend(reason: reason)
+        drafts[context] = draft
+    }
+}
