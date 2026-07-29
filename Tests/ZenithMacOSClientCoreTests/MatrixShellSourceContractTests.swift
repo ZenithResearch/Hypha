@@ -2,6 +2,42 @@ import Foundation
 import XCTest
 
 final class MatrixShellSourceContractTests: XCTestCase {
+    func testSecurityActionsLiveInToolbarAndOnlyCriticalTrustOccupiesChatSurface() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("private var securityToolbarMenu"))
+        XCTAssertTrue(source.contains(".sheet(isPresented: $showsSecurityCenter)"))
+        XCTAssertTrue(source.contains("Security Center…"))
+        XCTAssertTrue(source.contains("if securityPresentation.requiresPersistentCriticalBanner"))
+        XCTAssertTrue(source.contains("maxHeight: .infinity, alignment: .top"))
+        XCTAssertFalse(source.contains("                    securityBanner\n"))
+    }
+
+    func testSidebarUsesExplicitVisibleRoomRowsInsteadOfImplicitListStyling() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("ScrollView {"))
+        XCTAssertTrue(source.contains("LazyVStack(alignment: .leading"))
+        XCTAssertTrue(source.contains(".foregroundStyle(ZenithDesign.Palette.content)"))
+        XCTAssertTrue(source.contains("matrix.rooms.sidebar"))
+    }
+
     func testSecurityBannerConsumesTypedPolicyWithoutInventingPeerAvailability() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
@@ -464,7 +500,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "restoreSavedHomeserverIfAvailable",
             "await coordinator.restore()",
             "UserDefaults.standard",
-            "matrix.rooms.list",
+            "matrix.rooms.sidebar",
             "matrix.rooms.sync",
             "matrix.session.switcher",
             "matrix.session.add",
@@ -474,7 +510,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "savePassword(",
             "signIn(with credential:",
             "storedSessions()",
-            "Section(\"Invites\")",
+            "sidebarSectionTitle(\"Invites\")",
             "rooms.filter(\\.hasInvite)",
             "matrix.thread.timeline",
             "matrix.thread.composer",

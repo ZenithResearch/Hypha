@@ -19,6 +19,7 @@ public enum HyphaSecurityRecoveryAction: Equatable, Sendable {
 public enum HyphaSecurityLocalOperation: Equatable, Sendable {
     case idle
     case settingUpThisDevice
+    case deviceSetupFailed(reason: String)
     case requestingVerificationFromAnotherHyphaDevice
     case comparingWithAnotherHyphaDevice(MatrixVerificationChallenge)
     case approvingAnotherHyphaDevice
@@ -132,7 +133,8 @@ public enum HyphaSecurityPresentationPolicy {
         case .bootstrapping,
              .verifiedByCurrentSelfSigningKey,
              .invalidSignature,
-             .unavailable:
+             .unavailable,
+             .failed:
             return nil
         }
     }
@@ -170,6 +172,9 @@ public enum HyphaSecurityPresentationPolicy {
 
         if firstDeviceTrustBootstrapState == .bootstrapping {
             return .settingUpThisDevice
+        }
+        if case let .failed(reason) = firstDeviceTrustBootstrapState {
+            return .deviceSetupFailed(reason: reason)
         }
 
         switch recoveryState {

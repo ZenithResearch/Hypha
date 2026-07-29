@@ -642,6 +642,7 @@ private struct MatrixCompanionShell: View {
     @State private var showsRecoverySetup = false
     @State private var showsNewRoom = false
     @State private var showsFirstDevicePassword = false
+    @State private var showsSecurityCenter = false
     @State private var roomPendingRemoval: MatrixRoomSummary?
     @State private var authRoute: HyphaAuthRoute = .landing
 
@@ -673,6 +674,18 @@ private struct MatrixCompanionShell: View {
         }
         .sheet(isPresented: $showsFirstDevicePassword) {
             MatrixFirstDevicePasswordSheet(model: model, isPresented: $showsFirstDevicePassword)
+        }
+        .sheet(isPresented: $showsSecurityCenter) {
+            NavigationStack {
+                securityCenter
+                    .navigationTitle("Security")
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showsSecurityCenter = false }
+                        }
+                    }
+            }
+            .frame(minWidth: 580, idealWidth: 640, minHeight: 320)
         }
     }
 
@@ -707,7 +720,13 @@ private struct MatrixCompanionShell: View {
             }
             detail
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(ZenithDesign.Palette.base)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                securityToolbarMenu
+            }
+        }
     }
 
     private var detailTitle: String {
@@ -735,132 +754,97 @@ private struct MatrixCompanionShell: View {
     }
 
     private func roomList(_ rooms: [MatrixRoomSummary]) -> some View {
-        List {
-            if !model.savedSessions.isEmpty || !model.savedCredentials.isEmpty {
-                Menu {
-                    ForEach(model.savedSessions, id: \.accountKey) { session in
-                        Button {
-                            Task { await model.switchSession(session) }
-                        } label: {
-                            if model.activeSessionAccountKey == session.accountKey {
-                                Label(session.userId, systemImage: "checkmark")
-                            } else {
-                                Text(session.userId)
-                            }
-                        }
-                        .disabled(model.activeSessionAccountKey == session.accountKey)
-                    }
-                    if !model.savedCredentials.isEmpty {
-                        Divider()
-                        ForEach(model.savedCredentials) { credential in
-                            Button {
-                                Task { await model.signIn(with: credential) }
-                            } label: {
-                                Label(
-                                    "Sign in as \(credential.username)",
-                                    systemImage: "key.fill"
-                                )
-                            }
-                        }
-                    }
-                    Divider()
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+                if !model.savedSessions.isEmpty || !model.savedCredentials.isEmpty {
+                    accountSwitcher
+                }
+
+                HStack(spacing: ZenithDesign.Space.x2) {
                     Button {
-                        Task {
-                            await model.beginAddingAccount()
-                            authRoute = .landing
-                        }
+                        showsNewRoom = true
                     } label: {
-                        Label("Sign in another account", systemImage: "person.badge.plus")
+                        Label("New encrypted room", systemImage: "plus.message.fill")
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .accessibilityIdentifier("matrix.session.add")
-                } label: {
-                    Label("Switch account", systemImage: "person.2.fill")
-                }
-                .accessibilityIdentifier("matrix.session.switcher")
-            }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("matrix.room.create")
 
-            HStack {
-                Button {
-                    showsNewRoom = true
-                } label: {
-                    Label("New encrypted room", systemImage: "plus.message.fill")
-                }
-                .accessibilityIdentifier("matrix.room.create")
-
-                Spacer()
-
-                Button {
-                    Task { await model.refreshRooms() }
-                } label: {
-                    if model.isSyncingRooms {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Label("Sync rooms", systemImage: "arrow.clockwise")
+                    Button {
+                        Task { await model.refreshRooms() }
+                    } label: {
+                        if model.isSyncingRooms {
+                            ProgressView()
+                                .controlSize(.small)
+                                .accessibilityLabel("Syncing rooms")
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                                .accessibilityLabel("Sync rooms")
+                        }
                     }
+                    .buttonStyle(.borderless)
+                    .disabled(model.isSyncingRooms)
+                    .accessibilityIdentifier("matrix.rooms.sync")
                 }
-                .disabled(model.isSyncingRooms)
-                .accessibilityIdentifier("matrix.rooms.sync")
-            }
+                .padding(.bottom, ZenithDesign.Space.x2)
 
-            if let roomSyncMessage = model.roomSyncMessage {
-                Text(roomSyncMessage)
-                    .font(.caption)
-                    .foregroundStyle(ZenithDesign.Palette.error)
-            }
+                if let roomSyncMessage = model.roomSyncMessage {
+                    Text(roomSyncMessage)
+                        .font(.caption)
+                        .foregroundStyle(ZenithDesign.Palette.error)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-            let invitations = rooms.filter(\.hasInvite)
-            if !invitations.isEmpty {
-                Section("Invites") {
+                let invitations = rooms.filter(\.hasInvite)
+                if !invitations.isEmpty {
+                    sidebarSectionTitle("Invites")
                     ForEach(invitations) { room in
-                        HStack {
+                        HStack(spacing: ZenithDesign.Space.x2) {
                             Image(systemName: "envelope.badge.fill")
-                            VStack(alignment: .leading) {
+                                .foregroundStyle(ZenithDesign.Palette.brand)
+                            VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
                                 Text(room.name)
                                     .lineLimit(2)
                                 Text("Invitation")
                                     .font(.caption)
                                     .foregroundStyle(ZenithDesign.Palette.muted)
                             }
+                            Spacer()
                         }
+                        .padding(.horizontal, ZenithDesign.Space.x3)
+                        .padding(.vertical, ZenithDesign.Space.x2)
+                        .background(ZenithDesign.Palette.baseRaised.opacity(0.55))
+                        .clipShape(
+                            RoundedRectangle(
+                                cornerRadius: ZenithDesign.Radius.control,
+                                style: .continuous
+                            )
+                        )
                         .accessibilityIdentifier("matrix.room.invite")
                     }
                 }
-            }
 
-            Section("Rooms") {
-                ForEach(rooms.filter { !$0.hasInvite }) { room in
-                    HStack(spacing: 8) {
-                        Button {
-                            Task { await model.open(room) }
-                        } label: {
-                            HStack {
-                                Image(systemName: room.isEncrypted ? "lock.fill" : "lock.open.fill")
-                                Text(room.name)
-                                    .lineLimit(2)
-                                Spacer()
-                            }
-                        }
-                        .buttonStyle(.plain)
+                sidebarSectionTitle("Rooms")
+                    .padding(.top, invitations.isEmpty ? 0 : ZenithDesign.Space.x2)
 
-                        if room.isCreatedByCurrentUser {
-                            Menu {
-                                Button("Delete room from this account…", role: .destructive) {
-                                    roomPendingRemoval = room
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
-                                    .accessibilityLabel("Room actions for \(room.name)")
-                            }
-                            .menuStyle(.borderlessButton)
-                            .fixedSize()
-                            .accessibilityIdentifier("matrix.room.remove")
-                        }
+                let joinedRooms = rooms.filter { !$0.hasInvite }
+                if joinedRooms.isEmpty {
+                    Text("No joined rooms yet.")
+                        .font(.caption)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .padding(.horizontal, ZenithDesign.Space.x2)
+                } else {
+                    ForEach(joinedRooms) { room in
+                        roomRow(room)
                     }
                 }
             }
+            .padding(ZenithDesign.Space.x3)
+            .foregroundStyle(ZenithDesign.Palette.content)
         }
-        .accessibilityIdentifier("matrix.rooms.list")
+        .background(ZenithDesign.Palette.baseSubtle)
+        .accessibilityIdentifier("matrix.rooms.sidebar")
+        .accessibilityElement(children: .contain)
         .confirmationDialog(
             "Delete room from this account?",
             isPresented: Binding(
@@ -878,6 +862,133 @@ private struct MatrixCompanionShell: View {
             Button("Cancel", role: .cancel) { roomPendingRemoval = nil }
         } message: { room in
             Text("This removes \(room.name) from the active account by leaving and forgetting it. Matrix does not erase copies held by other members or servers.")
+        }
+    }
+
+    private var accountSwitcher: some View {
+        Menu {
+            ForEach(model.savedSessions, id: \.accountKey) { session in
+                Button {
+                    Task { await model.switchSession(session) }
+                } label: {
+                    if model.activeSessionAccountKey == session.accountKey {
+                        Label(session.userId, systemImage: "checkmark")
+                    } else {
+                        Text(session.userId)
+                    }
+                }
+                .disabled(model.activeSessionAccountKey == session.accountKey)
+            }
+            if !model.savedCredentials.isEmpty {
+                Divider()
+                ForEach(model.savedCredentials) { credential in
+                    Button {
+                        Task { await model.signIn(with: credential) }
+                    } label: {
+                        Label(
+                            "Sign in as \(credential.username)",
+                            systemImage: "key.fill"
+                        )
+                    }
+                }
+            }
+            Divider()
+            Button {
+                Task {
+                    await model.beginAddingAccount()
+                    authRoute = .landing
+                }
+            } label: {
+                Label("Sign in another account", systemImage: "person.badge.plus")
+            }
+            .accessibilityIdentifier("matrix.session.add")
+        } label: {
+            Label("Switch account", systemImage: "person.2.fill")
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .menuStyle(.borderlessButton)
+        .accessibilityIdentifier("matrix.session.switcher")
+    }
+
+    private func sidebarSectionTitle(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(ZenithDesign.Typography.technical(size: 11, weight: .semibold))
+            .foregroundStyle(ZenithDesign.Palette.muted)
+            .padding(.horizontal, ZenithDesign.Space.x2)
+            .padding(.bottom, ZenithDesign.Space.x1)
+    }
+
+    private func roomRow(_ room: MatrixRoomSummary) -> some View {
+        HStack(spacing: ZenithDesign.Space.x2) {
+            Button {
+                Task { await model.open(room) }
+            } label: {
+                HStack(spacing: ZenithDesign.Space.x2) {
+                    Image(systemName: room.isEncrypted ? "lock.fill" : "lock.open.fill")
+                        .font(.caption)
+                        .foregroundStyle(
+                            room.isEncrypted
+                                ? ZenithDesign.Palette.brand
+                                : ZenithDesign.Palette.warning
+                        )
+                    Text(room.name)
+                        .lineLimit(2)
+                        .foregroundStyle(ZenithDesign.Palette.content)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("matrix.room.row")
+
+            if room.isCreatedByCurrentUser {
+                Menu {
+                    Button("Delete room from this account…", role: .destructive) {
+                        roomPendingRemoval = room
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .accessibilityLabel("Room actions for \(room.name)")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityIdentifier("matrix.room.remove")
+            }
+        }
+        .padding(.horizontal, ZenithDesign.Space.x3)
+        .padding(.vertical, ZenithDesign.Space.x2)
+        .background(
+            isSelected(room)
+                ? ZenithDesign.Palette.baseRaised
+                : ZenithDesign.Palette.base.opacity(0.34)
+        )
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: ZenithDesign.Radius.control,
+                style: .continuous
+            )
+        )
+        .overlay {
+            RoundedRectangle(
+                cornerRadius: ZenithDesign.Radius.control,
+                style: .continuous
+            )
+            .stroke(
+                isSelected(room)
+                    ? ZenithDesign.Palette.borderStrong
+                    : ZenithDesign.Palette.border,
+                lineWidth: 1
+            )
+        }
+    }
+
+    private func isSelected(_ room: MatrixRoomSummary) -> Bool {
+        switch model.state {
+        case let .thread(selectedRoom, _, _), let .trustBlocked(selectedRoom):
+            return selectedRoom.id == room.id
+        default:
+            return false
         }
     }
 
@@ -906,7 +1017,9 @@ private struct MatrixCompanionShell: View {
                         .background(.blue.opacity(0.08))
                         .accessibilityIdentifier("matrix.registration.first-run")
                     }
-                    securityBanner
+                    if securityPresentation.requiresPersistentCriticalBanner {
+                        criticalSecurityStrip
+                    }
                 }
                 chatDetail
             }
@@ -923,11 +1036,43 @@ private struct MatrixCompanionShell: View {
     }
 
     private func beginFirstDeviceSetup() {
+        showsSecurityCenter = true
         Task {
             await model.bootstrapFirstDeviceTrust()
             if model.firstDeviceTrustBootstrapState == .passwordRequired {
+                showsSecurityCenter = false
+                await Task.yield()
                 showsFirstDevicePassword = true
             }
+        }
+    }
+
+    private func continueFirstDeviceSetup() {
+        showsSecurityCenter = false
+        Task {
+            await Task.yield()
+            showsFirstDevicePassword = true
+        }
+    }
+
+    private func beginPeerVerification() {
+        showsSecurityCenter = true
+        Task { await model.requestDeviceVerification() }
+    }
+
+    private func openRecoverySetup() {
+        showsSecurityCenter = false
+        Task {
+            await Task.yield()
+            showsRecoverySetup = true
+        }
+    }
+
+    private func openRecoveryRestore() {
+        showsSecurityCenter = false
+        Task {
+            await Task.yield()
+            showsRecovery = true
         }
     }
 
@@ -945,14 +1090,110 @@ private struct MatrixCompanionShell: View {
         HyphaSecurityBanner(
             presentation: securityPresentation,
             onSetUpDevice: beginFirstDeviceSetup,
-            onContinueDeviceSetup: { showsFirstDevicePassword = true },
-            onRequestVerification: { Task { await model.requestDeviceVerification() } },
+            onContinueDeviceSetup: continueFirstDeviceSetup,
+            onRequestVerification: beginPeerVerification,
             onApproveVerification: { Task { await model.approveDeviceVerification() } },
             onDeclineVerification: { Task { await model.declineDeviceVerification() } },
             onRefresh: { Task { await model.refreshDeviceVerification() } },
-            onSetUpRecovery: { showsRecoverySetup = true },
-            onRestoreRecovery: { showsRecovery = true }
+            onSetUpRecovery: openRecoverySetup,
+            onRestoreRecovery: openRecoveryRestore
         )
+    }
+
+    private var securityCenter: some View {
+        securityBanner
+            .padding(.top, ZenithDesign.Space.x2)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(ZenithDesign.Palette.base)
+    }
+
+    @ViewBuilder
+    private var securityToolbarMenu: some View {
+        if isAuthenticated {
+            Menu {
+                switch securityPresentation.primaryDeviceAction {
+                case .setUpThisDevice:
+                    Button("Set Up This Device", action: beginFirstDeviceSetup)
+                case .verifyWithAnotherHyphaDevice:
+                    Button("Verify with Another Hypha Device", action: beginPeerVerification)
+                case .continueDeviceSetupWithPassword:
+                    Button("Continue Device Setup…", action: continueFirstDeviceSetup)
+                case nil:
+                    EmptyView()
+                }
+
+                if case .deviceSetupFailed = securityPresentation.localOperation {
+                    Button("Try Device Setup Again", action: beginFirstDeviceSetup)
+                }
+
+                switch securityPresentation.recoveryAction {
+                case .setUpRecovery:
+                    Button("Set Up Recovery…", action: openRecoverySetup)
+                case .restoreEncryption:
+                    Button("Restore Encryption…", action: openRecoveryRestore)
+                case nil:
+                    EmptyView()
+                }
+
+                Divider()
+                Button("Refresh Security Status") {
+                    Task { await model.refreshDeviceVerification() }
+                }
+                Button("Security Center…") {
+                    showsSecurityCenter = true
+                }
+                .accessibilityIdentifier("matrix.security.center.open")
+            } label: {
+                Label("Security", systemImage: securityToolbarSymbol)
+            }
+            .help("Device verification and encryption recovery")
+            .accessibilityIdentifier("matrix.security.menu")
+        }
+    }
+
+    private var securityToolbarSymbol: String {
+        switch securityPresentation.indicatorSeverity {
+        case .unknown:
+            return "questionmark.shield"
+        case .recommended:
+            return "exclamationmark.shield.fill"
+        case .secure:
+            return "checkmark.shield.fill"
+        case .critical:
+            return "xmark.shield.fill"
+        }
+    }
+
+    private var criticalSecurityStrip: some View {
+        Button {
+            showsSecurityCenter = true
+        } label: {
+            HStack(spacing: ZenithDesign.Space.x2) {
+                Image(systemName: "xmark.shield.fill")
+                    .foregroundStyle(ZenithDesign.Palette.error)
+                VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                    Text("Device identity verification failed")
+                        .font(.headline)
+                    Text("Security-sensitive chat actions remain blocked. Open Security Center for details.")
+                        .font(.caption)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                }
+                Spacer()
+                Text("Review")
+                    .foregroundStyle(ZenithDesign.Palette.brand)
+            }
+            .padding(.horizontal, ZenithDesign.Space.x4)
+            .padding(.vertical, ZenithDesign.Space.x2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(ZenithDesign.Palette.error.opacity(0.11))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(ZenithDesign.Palette.error.opacity(0.5))
+                .frame(height: 2)
+        }
+        .accessibilityIdentifier("matrix.security.critical")
     }
 
     @ViewBuilder
