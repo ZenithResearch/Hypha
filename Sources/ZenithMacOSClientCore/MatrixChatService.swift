@@ -396,18 +396,31 @@ public final class MatrixChatCoordinator {
         state = .thread(room: room, events: events, composer: .sending)
         do {
             try await service.sendText(body, to: room.id)
+        } catch {
+            applySendFailure(error, room: room, events: events)
+            return false
+        }
+
+        do {
             let refreshedEvents = try await service.timeline(for: room.id)
             state = .thread(room: room, events: refreshedEvents, composer: .ready)
-            return true
         } catch {
-            let failureState = map(error, room: room)
-            switch failureState {
-            case .offline, .unavailable:
-                state = .thread(room: room, events: events, composer: .ready)
-            default:
-                state = failureState
-            }
-            return false
+            applySendFailure(error, room: room, events: events)
+        }
+        return true
+    }
+
+    private func applySendFailure(
+        _ error: Error,
+        room: MatrixRoomSummary,
+        events: [MatrixTimelineEvent]
+    ) {
+        let failureState = map(error, room: room)
+        switch failureState {
+        case .offline, .unavailable:
+            state = .thread(room: room, events: events, composer: .ready)
+        default:
+            state = failureState
         }
     }
 
