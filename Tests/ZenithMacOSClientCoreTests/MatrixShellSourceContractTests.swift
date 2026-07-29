@@ -571,6 +571,39 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(faq.contains("proven invalid-signature identity violation"))
     }
 
+    func testAsyncChatOperationsRejectObsoleteAccountCoordinatorResults() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        let identityGuards = source.components(
+            separatedBy: "guard coordinator === self.coordinator else { return }"
+        ).count - 1
+        XCTAssertGreaterThanOrEqual(identityGuards, 3)
+        XCTAssertTrue(source.contains("let draftContext = draftContext(for: room)"))
+    }
+
+    func testChatTimelineHonorsReducedMotion() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("@Environment(\\.accessibilityReduceMotion)"))
+        XCTAssertTrue(source.contains("if animated && !reduceMotion"))
+    }
+
     func testRecoverySheetShowsSafeRecoveryFailureFeedback() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
