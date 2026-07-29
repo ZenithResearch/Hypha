@@ -381,15 +381,16 @@ public final class MatrixChatCoordinator {
         }
     }
 
-    public func send(_ body: String) async {
+    @discardableResult
+    public func send(_ body: String) async -> Bool {
         guard case let .thread(room, events, composer) = state,
               composer == .ready,
               !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return
+            return false
         }
         guard chatAuthority == .available else {
             state = .trustBlocked(room: room)
-            return
+            return false
         }
 
         state = .thread(room: room, events: events, composer: .sending)
@@ -397,8 +398,16 @@ public final class MatrixChatCoordinator {
             try await service.sendText(body, to: room.id)
             let refreshedEvents = try await service.timeline(for: room.id)
             state = .thread(room: room, events: refreshedEvents, composer: .ready)
+            return true
         } catch {
-            state = map(error, room: room)
+            let failureState = map(error, room: room)
+            switch failureState {
+            case .offline, .unavailable:
+                state = .thread(room: room, events: events, composer: .ready)
+            default:
+                state = failureState
+            }
+            return false
         }
     }
 

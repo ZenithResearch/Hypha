@@ -612,9 +612,32 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         await coordinator.restore()
         await coordinator.open(room: room)
 
-        await coordinator.send("hello")
+        let sent = await coordinator.send("hello")
 
+        XCTAssertTrue(sent)
         XCTAssertEqual(coordinator.state, .thread(room: room, events: [delivered], composer: .ready))
+    }
+
+    func testOrdinarySendFailurePreservesConversationContextForRetry() async {
+        let room = MatrixRoomSummary(id: "room-1", name: "Design", isEncrypted: true, hasInvite: false)
+        let existing = MatrixTimelineEvent(id: "$existing", senderDisplayName: "Alice", content: .text("Earlier"))
+        let service = FakeMatrixChatService(
+            restoredRooms: [room],
+            events: [existing],
+            sendError: .offline
+        )
+        let coordinator = MatrixChatCoordinator(service: service)
+        await coordinator.restore()
+        await coordinator.open(room: room)
+
+        let sent = await coordinator.send("retry me")
+
+        XCTAssertFalse(sent)
+        XCTAssertEqual(
+            coordinator.state,
+            .thread(room: room, events: [existing], composer: .ready)
+        )
+        XCTAssertEqual(service.sentBodies, ["retry me"])
     }
 
     func testTrustViolationBlocksSendWithoutPlaintextFallback() async {
@@ -624,8 +647,9 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         await coordinator.restore()
         await coordinator.open(room: room)
 
-        await coordinator.send("hello")
+        let sent = await coordinator.send("hello")
 
+        XCTAssertFalse(sent)
         XCTAssertEqual(coordinator.state, .trustBlocked(room: room))
         XCTAssertEqual(service.sentBodies, ["hello"])
     }
