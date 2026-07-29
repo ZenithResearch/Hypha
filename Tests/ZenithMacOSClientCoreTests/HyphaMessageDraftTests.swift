@@ -86,3 +86,58 @@ final class HyphaMessageDraftTests: XCTestCase {
 
     private func requireSendable<T: Sendable>(_: T) {}
 }
+
+final class HyphaMessageDraftStoreTests: XCTestCase {
+    private let roomA = HyphaMessageDraftStore.Context(accountID: "account-a", roomID: "room-a")
+    private let roomB = HyphaMessageDraftStore.Context(accountID: "account-a", roomID: "room-b")
+    private let otherAccount = HyphaMessageDraftStore.Context(accountID: "account-b", roomID: "room-a")
+
+    func testDraftsAreScopedByAccountAndRoom() {
+        var store = HyphaMessageDraftStore()
+
+        store.activate(roomA)
+        store.edit("draft for A")
+        store.activate(roomB)
+        XCTAssertEqual(store.activeDraft.text, "")
+        store.edit("draft for B")
+        store.activate(otherAccount)
+        XCTAssertEqual(store.activeDraft.text, "")
+
+        store.activate(roomA)
+        XCTAssertEqual(store.activeDraft.text, "draft for A")
+        store.activate(roomB)
+        XCTAssertEqual(store.activeDraft.text, "draft for B")
+    }
+
+    func testSendCompletionMutatesOnlyItsOriginatingContext() {
+        var store = HyphaMessageDraftStore()
+        store.activate(roomA)
+        store.edit("send from A")
+        let submission = store.beginSend()
+        XCTAssertEqual(submission?.context, roomA)
+        XCTAssertEqual(submission?.body, "send from A")
+
+        store.activate(roomB)
+        store.edit("keep B")
+        store.succeedSend(in: roomA)
+
+        XCTAssertEqual(store.activeDraft.text, "keep B")
+        store.activate(roomA)
+        XCTAssertEqual(store.activeDraft.text, "")
+    }
+
+    func testSendFailureMutatesOnlyItsOriginatingContext() {
+        var store = HyphaMessageDraftStore()
+        store.activate(roomA)
+        store.edit("retry A")
+        let submission = store.beginSend()!
+        store.activate(roomB)
+
+        store.failSend(in: submission.context, reason: "Offline")
+
+        XCTAssertNil(store.activeDraft.failureReason)
+        store.activate(roomA)
+        XCTAssertEqual(store.activeDraft.text, "retry A")
+        XCTAssertEqual(store.activeDraft.failureReason, "Offline")
+    }
+}

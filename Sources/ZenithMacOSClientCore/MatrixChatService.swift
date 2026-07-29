@@ -48,6 +48,7 @@ public struct MatrixTimelineEvent: Identifiable, Equatable, Sendable {
 
     public let id: String
     public let senderDisplayName: String
+    public let senderID: String
     public let content: Content
     public let isOwn: Bool
     public let authenticity: MatrixEventAuthenticity
@@ -56,6 +57,7 @@ public struct MatrixTimelineEvent: Identifiable, Equatable, Sendable {
     public init(
         id: String,
         senderDisplayName: String,
+        senderID: String? = nil,
         content: Content,
         isOwn: Bool = false,
         authenticity: MatrixEventAuthenticity = .noWarning,
@@ -63,6 +65,7 @@ public struct MatrixTimelineEvent: Identifiable, Equatable, Sendable {
     ) {
         self.id = id
         self.senderDisplayName = senderDisplayName
+        self.senderID = senderID ?? senderDisplayName
         self.content = content
         self.isOwn = isOwn
         self.authenticity = authenticity
@@ -328,6 +331,7 @@ public final class MatrixChatCoordinator {
     }
 
     private let service: any MatrixChatService
+    private var roomOperationGeneration: UInt64 = 0
 
     public init(service: any MatrixChatService) {
         self.service = service
@@ -364,19 +368,31 @@ public final class MatrixChatCoordinator {
     }
 
     public func open(room: MatrixRoomSummary) async {
+        roomOperationGeneration &+= 1
+        let operationGeneration = roomOperationGeneration
         do {
             let events = try await service.timeline(for: room.id)
+            guard operationGeneration == roomOperationGeneration else { return }
             state = .thread(room: room, events: events, composer: room.isEncrypted ? .ready : .disabled(reason: "Encrypted rooms only"))
         } catch {
+            guard operationGeneration == roomOperationGeneration else { return }
             state = map(error, room: room)
         }
     }
 
     public func refreshOpenRoom() async {
-        guard case let .thread(room, _, composer) = state else { return }
+        guard case let .thread(room, _, _) = state else { return }
+        let operationGeneration = roomOperationGeneration
         do {
-            state = .thread(room: room, events: try await service.timeline(for: room.id), composer: composer)
+            let events = try await service.timeline(for: room.id)
+            guard operationGeneration == roomOperationGeneration,
+                  case let .thread(currentRoom, _, currentComposer) = state,
+                  currentRoom.id == room.id else { return }
+            state = .thread(room: room, events: events, composer: currentComposer)
         } catch {
+            guard operationGeneration == roomOperationGeneration,
+                  case let .thread(currentRoom, _, _) = state,
+                  currentRoom.id == room.id else { return }
             state = map(error, room: room)
         }
     }
@@ -393,19 +409,29 @@ public final class MatrixChatCoordinator {
             return false
         }
 
+        let operationGeneration = roomOperationGeneration
         state = .thread(room: room, events: events, composer: .sending)
         do {
             try await service.sendText(body, to: room.id)
         } catch {
-            applySendFailure(error, room: room, events: events)
+            if operationGeneration == roomOperationGeneration {
+                applySendFailure(error, room: room, events: events)
+            }
             return false
         }
 
+        guard operationGeneration == roomOperationGeneration else { return true }
+
         do {
             let refreshedEvents = try await service.timeline(for: room.id)
+            guard operationGeneration == roomOperationGeneration,
+                  case let .thread(currentRoom, _, _) = state,
+                  currentRoom.id == room.id else { return true }
             state = .thread(room: room, events: refreshedEvents, composer: .ready)
         } catch {
-            applySendFailure(error, room: room, events: events)
+            if operationGeneration == roomOperationGeneration {
+                applySendFailure(error, room: room, events: events)
+            }
         }
         return true
     }

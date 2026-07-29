@@ -114,13 +114,20 @@ final class MatrixRustSDKCompatibilityTests: XCTestCase {
 
         XCTAssertEqual(
             MatrixRustLiveClient.mapTimelineEvent(text),
-            MatrixTimelineEvent(id: "$text", senderDisplayName: "Alice", content: .text("hello"), timestamp: 1)
+            MatrixTimelineEvent(
+                id: "$text",
+                senderDisplayName: "Alice",
+                senderID: "@alice:example.org",
+                content: .text("hello"),
+                timestamp: 1
+            )
         )
         XCTAssertEqual(
             MatrixRustLiveClient.mapTimelineEvent(unableToDecrypt),
             MatrixTimelineEvent(
                 id: "$utd",
                 senderDisplayName: "Alice",
+                senderID: "@alice:example.org",
                 content: .undecryptable(reason: "Waiting for Matrix room keys"),
                 timestamp: 1
             )

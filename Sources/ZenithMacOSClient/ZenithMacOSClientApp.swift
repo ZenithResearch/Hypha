@@ -52,7 +52,7 @@ final class MatrixAppModel: ObservableObject {
     @Published var homeserverState: HomeserverOnboardingState = .awaitingInput
     @Published var username = ""
     @Published var password = ""
-    @Published var messageDraft = HyphaMessageDraft()
+    @Published var messageDraftStore = HyphaMessageDraftStore()
     @Published var rooms: [MatrixRoomSummary] = []
     @Published var trustState: MatrixDeviceTrustState = .unknown
     @Published var verificationFlowState: MatrixVerificationFlowState = .idle
@@ -105,9 +105,11 @@ final class MatrixAppModel: ObservableObject {
     var isCheckingHomeserver: Bool { homeserverState == .checking }
 
     var composer: String {
-        get { messageDraft.text }
-        set { messageDraft.edit(newValue) }
+        get { messageDraftStore.activeDraft.text }
+        set { messageDraftStore.edit(newValue) }
     }
+
+    var messageDraft: HyphaMessageDraft { messageDraftStore.activeDraft }
 
     func connectHomeserver() async {
         timelineRefreshTask?.cancel()
@@ -540,6 +542,7 @@ final class MatrixAppModel: ObservableObject {
         if case let .thread(room, _, _) = state {
             if !rooms.contains(where: { $0.id == room.id }) { rooms.append(room) }
             rooms.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            messageDraftStore.activate(draftContext(for: room))
             startTimelineRefresh(coordinator: coordinator, room: room)
         }
     }
@@ -565,7 +568,8 @@ final class MatrixAppModel: ObservableObject {
         timelineRefreshTask?.cancel()
         await coordinator.open(room: room)
         applyState(from: coordinator)
-        guard case .thread = state else { return }
+        guard case let .thread(openRoom, _, _) = state, openRoom.id == room.id else { return }
+        messageDraftStore.activate(draftContext(for: room))
         startTimelineRefresh(coordinator: coordinator, room: room)
     }
 
@@ -588,14 +592,28 @@ final class MatrixAppModel: ObservableObject {
 
     func send() async {
         guard let coordinator,
-              let body = messageDraft.beginSend() else { return }
-        let sent = await coordinator.send(body)
+              case let .thread(room, _, _) = state,
+              let activeContext = messageDraftStore.activeContext,
+              room.id == activeContext.roomID,
+              let submission = messageDraftStore.beginSend() else { return }
+        let sent = await coordinator.send(submission.body)
         applyState(from: coordinator)
         if sent {
-            messageDraft.succeedSend()
+            messageDraftStore.succeedSend(in: submission.context)
         } else {
-            messageDraft.failSend(reason: sendFailureGuidance)
+            messageDraftStore.failSend(in: submission.context, reason: sendFailureGuidance)
         }
+    }
+
+    private func draftContext(for room: MatrixRoomSummary) -> HyphaMessageDraftStore.Context {
+        let fallbackAccountID = [
+            activeConfiguration?.homeserver.absoluteString ?? "unconfigured",
+            username,
+        ].joined(separator: "|")
+        return HyphaMessageDraftStore.Context(
+            accountID: activeSessionAccountKey ?? fallbackAccountID,
+            roomID: room.id
+        )
     }
 
     private var sendFailureGuidance: String {
