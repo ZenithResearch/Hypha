@@ -46,6 +46,7 @@ struct HyphaChatMessageRow: View {
                             .font(ZenithDesign.Typography.technical(size: 11))
                             .foregroundStyle(authenticityColor(for: authenticity))
                             .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("matrix.timeline.authenticity")
                     }
                 }
                 .padding(.horizontal, ZenithDesign.Space.x3)
@@ -98,6 +99,7 @@ struct HyphaChatMessageRow: View {
                 symbol: "lock.trianglebadge.exclamationmark",
                 color: ZenithDesign.Palette.warning
             )
+            .accessibilityIdentifier("matrix.timeline.undecryptable")
 
         case let .unsupported(type):
             guidanceContent(
@@ -106,6 +108,7 @@ struct HyphaChatMessageRow: View {
                 symbol: "doc.questionmark",
                 color: ZenithDesign.Palette.muted
             )
+            .accessibilityIdentifier("matrix.timeline.unsupported")
         }
     }
 
