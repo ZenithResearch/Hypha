@@ -53,6 +53,14 @@ enum ZenithDesign {
         static func corporate(size: CGFloat, weight: Font.Weight = .regular) -> Font {
             .system(size: size, weight: weight, design: .default)
         }
+
+        static func technical(_ style: Font.TextStyle, weight: Font.Weight = .medium) -> Font {
+            .system(style, design: .monospaced, weight: weight)
+        }
+
+        static func corporate(_ style: Font.TextStyle, weight: Font.Weight = .regular) -> Font {
+            .system(style, design: .default, weight: weight)
+        }
     }
 }
 

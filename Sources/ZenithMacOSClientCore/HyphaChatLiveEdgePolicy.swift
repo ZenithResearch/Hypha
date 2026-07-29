@@ -3,17 +3,20 @@ public enum HyphaChatLiveEdgePolicy {
     public struct State: Equatable, Sendable {
         public var roomID: String
         public var eventCount: Int
+        public var latestEventID: String?
         public var isAtLiveEdge: Bool
         public var showsNewMessageAffordance: Bool
 
         public init(
             roomID: String,
             eventCount: Int,
+            latestEventID: String? = nil,
             isAtLiveEdge: Bool,
             showsNewMessageAffordance: Bool
         ) {
             self.roomID = roomID
             self.eventCount = eventCount
+            self.latestEventID = latestEventID
             self.isAtLiveEdge = isAtLiveEdge
             self.showsNewMessageAffordance = showsNewMessageAffordance
         }
@@ -22,6 +25,8 @@ public enum HyphaChatLiveEdgePolicy {
     public enum Event: Equatable, Sendable {
         case roomOpened(roomID: String, eventCount: Int)
         case eventsUpdated(roomID: String, eventCount: Int)
+        case roomOpenedWithEvents(roomID: String, eventIDs: [String])
+        case eventsUpdatedWithEvents(roomID: String, eventIDs: [String])
         case liveEdgeChanged(Bool)
         case jumpToLatest
     }
@@ -48,6 +53,16 @@ public enum HyphaChatLiveEdgePolicy {
             )
             return Decision(autoScrollToLatest: true, showsNewMessageAffordance: false)
 
+        case let .roomOpenedWithEvents(roomID, eventIDs):
+            state = State(
+                roomID: roomID,
+                eventCount: eventIDs.count,
+                latestEventID: eventIDs.last,
+                isAtLiveEdge: true,
+                showsNewMessageAffordance: false
+            )
+            return Decision(autoScrollToLatest: true, showsNewMessageAffordance: false)
+
         case let .eventsUpdated(roomID, eventCount):
             guard var current = state, current.roomID == roomID else {
                 return Decision(autoScrollToLatest: false, showsNewMessageAffordance: false)
@@ -63,6 +78,31 @@ public enum HyphaChatLiveEdgePolicy {
             }
 
             if receivedNewEvents {
+                current.showsNewMessageAffordance = true
+            }
+            state = current
+            return Decision(
+                autoScrollToLatest: false,
+                showsNewMessageAffordance: current.showsNewMessageAffordance
+            )
+
+        case let .eventsUpdatedWithEvents(roomID, eventIDs):
+            guard var current = state, current.roomID == roomID else {
+                return Decision(autoScrollToLatest: false, showsNewMessageAffordance: false)
+            }
+
+            let latestEventID = eventIDs.last
+            let receivedNewLiveEvent = latestEventID != nil && latestEventID != current.latestEventID
+            current.eventCount = eventIDs.count
+            current.latestEventID = latestEventID
+
+            if receivedNewLiveEvent, current.isAtLiveEdge {
+                current.showsNewMessageAffordance = false
+                state = current
+                return Decision(autoScrollToLatest: true, showsNewMessageAffordance: false)
+            }
+
+            if receivedNewLiveEvent {
                 current.showsNewMessageAffordance = true
             }
             state = current

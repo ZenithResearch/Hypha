@@ -33,7 +33,7 @@ struct HyphaChatMessageRow: View {
             ) {
                 if presentation.showsSender {
                     Text(presentation.senderDisplayName)
-                        .font(ZenithDesign.Typography.technical(size: 11, weight: .semibold))
+                        .font(ZenithDesign.Typography.technical(.caption, weight: .semibold))
                         .foregroundStyle(ZenithDesign.Palette.muted)
                         .padding(.horizontal, ZenithDesign.Space.x2)
                 }
@@ -42,11 +42,16 @@ struct HyphaChatMessageRow: View {
                     messageContent
 
                     if let authenticity = presentation.authenticity {
-                        Label(authenticity.label, systemImage: authenticitySymbol(for: authenticity))
-                            .font(ZenithDesign.Typography.technical(size: 11))
-                            .foregroundStyle(authenticityColor(for: authenticity))
-                            .fixedSize(horizontal: false, vertical: true)
-                            .accessibilityIdentifier("matrix.timeline.authenticity")
+                        VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                            Label(authenticity.label, systemImage: authenticitySymbol(for: authenticity))
+                                .font(ZenithDesign.Typography.technical(.caption, weight: .semibold))
+                                .foregroundStyle(authenticityColor(for: authenticity))
+                            Text(authenticityGuidance(for: authenticity))
+                                .font(ZenithDesign.Typography.corporate(.caption))
+                                .foregroundStyle(ZenithDesign.Palette.muted)
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("matrix.timeline.authenticity")
                     }
                 }
                 .padding(.horizontal, ZenithDesign.Space.x3)
@@ -67,7 +72,7 @@ struct HyphaChatMessageRow: View {
                 }
 
                 Text(presentation.timestampLabel)
-                    .font(ZenithDesign.Typography.technical(size: 10, weight: .regular))
+                    .font(ZenithDesign.Typography.technical(.caption2, weight: .regular))
                     .foregroundStyle(ZenithDesign.Palette.muted)
                     .padding(.horizontal, ZenithDesign.Space.x2)
             }
@@ -88,14 +93,14 @@ struct HyphaChatMessageRow: View {
         switch presentation.displayContent {
         case let .text(body):
             Text(body)
-                .font(ZenithDesign.Typography.corporate)
+                .font(ZenithDesign.Typography.corporate(.body))
                 .foregroundStyle(ZenithDesign.Palette.content)
                 .textSelection(.enabled)
 
         case let .undecryptable(reason):
             guidanceContent(
                 title: "Unable to decrypt this message",
-                detail: reason,
+                detail: "\(reason) Wait for room keys, then retry. If this persists, verify this session before trusting the event.",
                 symbol: "lock.trianglebadge.exclamationmark",
                 color: ZenithDesign.Palette.warning
             )
@@ -123,10 +128,10 @@ struct HyphaChatMessageRow: View {
                 .foregroundStyle(color)
             VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
                 Text(title)
-                    .font(ZenithDesign.Typography.corporate(size: 14, weight: .semibold))
+                    .font(ZenithDesign.Typography.corporate(.body, weight: .semibold))
                     .foregroundStyle(ZenithDesign.Palette.content)
                 Text(detail)
-                    .font(ZenithDesign.Typography.technical(size: 11, weight: .regular))
+                    .font(ZenithDesign.Typography.technical(.caption, weight: .regular))
                     .foregroundStyle(ZenithDesign.Palette.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -173,6 +178,17 @@ struct HyphaChatMessageRow: View {
         }
     }
 
+    private func authenticityGuidance(
+        for authenticity: HyphaChatMessagePresentation.Authenticity
+    ) -> String {
+        switch authenticity.severity {
+        case .warning:
+            "Verify the sender or device before relying on this message."
+        case .critical:
+            "Do not trust this message until the sender or session identity is verified."
+        }
+    }
+
     private var accessibilityLabel: String {
         var parts = [
             presentation.direction == .own
@@ -183,6 +199,7 @@ struct HyphaChatMessageRow: View {
         ]
         if let authenticity = presentation.authenticity {
             parts.append(authenticity.label)
+            parts.append(authenticityGuidance(for: authenticity))
         }
         return parts.joined(separator: ", ")
     }
@@ -192,7 +209,7 @@ struct HyphaChatMessageRow: View {
         case let .text(body):
             body
         case let .undecryptable(reason):
-            "Unable to decrypt this message. \(reason)"
+            "Unable to decrypt this message. \(reason) Wait for room keys, then retry. If this persists, verify this session before trusting the event."
         case let .unsupported(type):
             "Unsupported message type. \(type)"
         }
