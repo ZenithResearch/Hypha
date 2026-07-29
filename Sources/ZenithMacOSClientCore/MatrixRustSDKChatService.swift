@@ -112,6 +112,11 @@ public struct MatrixPasswordSessionReauthenticator: MatrixPasswordSessionReauthe
 public protocol MatrixLiveClient: Sendable {
     func login(username: String, password: String) async throws
     func restore(session: MatrixSDKSessionRecord) async throws
+    func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        logoutOtherDevices: Bool
+    ) async throws
     func sessionRecord(accountKey: String) async throws -> MatrixSDKSessionRecord
     func syncOnce() async throws
     func startContinuousSync() async
@@ -135,6 +140,14 @@ public protocol MatrixLiveClient: Sendable {
 }
 
 public extension MatrixLiveClient {
+    func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        logoutOtherDevices: Bool
+    ) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Password change is unavailable")
+    }
+
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary {
         throw MatrixChatServiceError.unavailable(reason: "Room creation is unavailable")
     }
@@ -385,6 +398,25 @@ public actor MatrixRustSDKChatService: MatrixChatService {
             try await client.restoreEncryption(recoveryKey: recoveryKey)
         } catch {
             throw mapRuntimeError(error, fallbackReason: "Encryption recovery failed")
+        }
+    }
+
+    public func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        logoutOtherDevices: Bool
+    ) async throws {
+        guard let client else { throw MatrixChatServiceError.sessionExpired }
+        do {
+            try await client.changePassword(
+                currentPassword: currentPassword,
+                newPassword: newPassword,
+                logoutOtherDevices: logoutOtherDevices
+            )
+        } catch let error as MatrixChatServiceError {
+            throw error
+        } catch {
+            throw mapRuntimeError(error, fallbackReason: "Password change failed")
         }
     }
 
@@ -1408,6 +1440,36 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
             oauthData: session.oauthData,
             slidingSyncVersion: version
         ))
+    }
+
+    public func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        logoutOtherDevices: Bool
+    ) async throws {
+        let initial = try await client.changePassword(
+            newPassword: newPassword,
+            logoutDevices: logoutOtherDevices,
+            currentPassword: nil,
+            session: nil
+        )
+        switch initial {
+        case .success:
+            return
+        case let .authenticationRequired(challenge):
+            guard let session = challenge.session else {
+                throw MatrixChatServiceError.invalidCredentials
+            }
+            let authenticated = try await client.changePassword(
+                newPassword: newPassword,
+                logoutDevices: logoutOtherDevices,
+                currentPassword: currentPassword,
+                session: session
+            )
+            guard authenticated == .success else {
+                throw MatrixChatServiceError.invalidCredentials
+            }
+        }
     }
 
     public func sessionRecord(accountKey: String) async throws -> MatrixSDKSessionRecord {

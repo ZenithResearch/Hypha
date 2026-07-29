@@ -241,9 +241,20 @@ public enum MatrixChatServiceError: Error, Equatable, Sendable {
     case unavailable(reason: String)
 }
 
+public enum MatrixPasswordChangeResult: Equatable, Sendable {
+    case success
+    case invalidCurrentPassword
+    case failed(message: String)
+}
+
 public protocol MatrixChatService: Sendable {
     func restore() async throws -> [MatrixRoomSummary]
     func signIn(username: String, password: String) async throws -> [MatrixRoomSummary]
+    func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        logoutOtherDevices: Bool
+    ) async throws
     func refreshRooms() async throws -> [MatrixRoomSummary]
     func timeline(for roomID: String) async throws -> [MatrixTimelineEvent]
     func sendText(_ body: String, to roomID: String) async throws
@@ -264,6 +275,14 @@ public protocol MatrixChatService: Sendable {
 }
 
 public extension MatrixChatService {
+    func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        logoutOtherDevices: Bool
+    ) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Password change is unavailable")
+    }
+
     func refreshRooms() async throws -> [MatrixRoomSummary] {
         throw MatrixChatServiceError.unavailable(reason: "Room sync is unavailable")
     }
@@ -371,6 +390,32 @@ public final class MatrixChatCoordinator {
             await refreshRecoveryState()
         } catch {
             state = map(error, room: nil)
+        }
+    }
+
+    public func changePassword(
+        currentPassword: String,
+        newPassword: String,
+        logoutOtherDevices: Bool
+    ) async -> MatrixPasswordChangeResult {
+        guard !currentPassword.isEmpty, !newPassword.isEmpty else {
+            return .failed(message: "Current and new passwords are required.")
+        }
+        do {
+            try await service.changePassword(
+                currentPassword: currentPassword,
+                newPassword: newPassword,
+                logoutOtherDevices: logoutOtherDevices
+            )
+            return .success
+        } catch MatrixChatServiceError.invalidCredentials {
+            return .invalidCurrentPassword
+        } catch MatrixChatServiceError.sessionExpired {
+            return .failed(message: "Your session expired. Sign in again before changing the password.")
+        } catch MatrixChatServiceError.offline {
+            return .failed(message: "Hypha is offline. Reconnect and try again.")
+        } catch {
+            return .failed(message: "The password could not be changed. Try again.")
         }
     }
 
