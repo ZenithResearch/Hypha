@@ -2,6 +2,34 @@ import Foundation
 import XCTest
 
 final class MatrixShellSourceContractTests: XCTestCase {
+    func testSecurityBannerConsumesTypedPolicyWithoutInventingPeerAvailability() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let appSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+        let bannerSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/HyphaSecurityBanner.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(appSource.contains("@Published var peerVerificationEligibility"))
+        XCTAssertTrue(appSource.contains("peerVerificationEligibility = coordinator.peerVerificationEligibility"))
+        XCTAssertTrue(appSource.contains("HyphaSecurityPresentationPolicy.presentation("))
+        XCTAssertTrue(appSource.contains("peerVerificationEligibility: model.peerVerificationEligibility"))
+        XCTAssertTrue(appSource.contains("HyphaSecurityBanner("))
+        XCTAssertTrue(bannerSource.contains("case .verifyWithAnotherHyphaDevice"))
+        XCTAssertTrue(bannerSource.contains("matrix.security.banner"))
+        XCTAssertTrue(bannerSource.contains("@Environment(\\.accessibilityReduceMotion)"))
+        XCTAssertTrue(bannerSource.contains("AccessibilityNotification.Announcement"))
+        XCTAssertFalse(appSource.contains("private var trustPanel"))
+        XCTAssertFalse(appSource.contains("private var verificationPanel"))
+    }
+
     func testAuthenticationFlowsUseSeparateAtomicViewsWithInteractivePointerButtons() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
@@ -150,21 +178,20 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertFalse(appSource.contains("state = .unavailable(reason: \"The saved Hypha password"))
     }
 
-    func testOnlyMatrixClientTrustGuidanceIsInformationalWithoutClaimingWhyTrustIsUnavailable() throws {
+    func testUnavailablePeerGuidanceDoesNotInventWhyAuthorityIsUnavailable() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let appSource = try String(
-            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+        let bannerSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/HyphaSecurityBanner.swift"),
             encoding: .utf8
         )
 
-        XCTAssertTrue(appSource.contains("Peer verification is not available right now"))
-        XCTAssertTrue(appSource.contains("If Hypha is your only Matrix client, this is expected and is not by itself a security failure."))
-        XCTAssertFalse(appSource.contains("No other Matrix device is available for verification"))
-        XCTAssertFalse(appSource.contains("Device trust status is unavailable"))
+        XCTAssertTrue(bannerSource.contains("could not determine whether another Hypha device can verify this one"))
+        XCTAssertFalse(bannerSource.contains("No other Matrix device is available for verification"))
+        XCTAssertFalse(bannerSource.contains("Hypha is your only Matrix client"))
     }
 
     func testProductIdentityKeepsMatrixAsOneHyphaCapability() throws {
@@ -396,6 +423,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             .deletingLastPathComponent()
         let source = try [
             root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            root.appendingPathComponent("Sources/ZenithMacOSClient/HyphaSecurityBanner.swift"),
             root.appendingPathComponent("Sources/ZenithMacOSClient/Auth/HyphaAuthenticationViews.swift"),
             root.appendingPathComponent("Sources/ZenithMacOSClient/Chat/HyphaChatMessageRow.swift"),
             root.appendingPathComponent("Sources/ZenithMacOSClient/DesignSystem/Molecules/HyphaAccountChoiceCard.swift"),
@@ -481,14 +509,12 @@ final class MatrixShellSourceContractTests: XCTestCase {
         let source = try String(contentsOf: appSource, encoding: .utf8)
 
         guard let guidance = source.range(of: "if isAuthenticated {"),
-              let verification = source.range(of: "verificationPanel", range: guidance.lowerBound..<source.endIndex),
-              let recovery = source.range(of: "recoveryPanel", range: verification.upperBound..<source.endIndex),
-              let chat = source.range(of: "chatDetail", range: recovery.upperBound..<source.endIndex) else {
+              let banner = source.range(of: "securityBanner", range: guidance.lowerBound..<source.endIndex),
+              let chat = source.range(of: "chatDetail", range: banner.upperBound..<source.endIndex) else {
             return XCTFail("Authenticated security guidance and chat must share the detail surface")
         }
-        XCTAssertLessThan(guidance.lowerBound, verification.lowerBound)
-        XCTAssertLessThan(verification.lowerBound, recovery.lowerBound)
-        XCTAssertLessThan(recovery.lowerBound, chat.lowerBound)
+        XCTAssertLessThan(guidance.lowerBound, banner.lowerBound)
+        XCTAssertLessThan(banner.lowerBound, chat.lowerBound)
 
         let shellEnd = source.range(of: "private struct ZenithMessageComposer")?.lowerBound ?? source.endIndex
         let shellSource = String(source[..<shellEnd])
@@ -526,7 +552,10 @@ final class MatrixShellSourceContractTests: XCTestCase {
             encoding: .utf8
         )
         let source = [appSource, authSource, messageRowSource, messagePresentationSource]
-            .joined(separator: "\n")
+            .joined(separator: "\n") + "\n" + (try String(
+                contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/HyphaSecurityBanner.swift"),
+                encoding: .utf8
+            ))
 
         guard let submit = authSource.range(of: "private func submit()"),
               let clearSecrets = authSource.range(of: "clearSecrets()", range: submit.lowerBound..<authSource.endIndex),
@@ -543,7 +572,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(source.contains("firstDevicePassword = \"\""))
         XCTAssertTrue(source.contains("await model.continueFirstDeviceTrust(password: passwordForRequest)"))
         XCTAssertTrue(source.contains("guard firstDeviceTrustBootstrapState != .bootstrapping else { return }"))
-        XCTAssertTrue(source.contains("Verify with another device"))
+        XCTAssertTrue(source.contains("Verify with another Hypha device"))
         XCTAssertTrue(source.contains("matrix.timeline.authenticity"))
         XCTAssertTrue(source.contains("authenticityPresentation"))
         XCTAssertTrue(source.contains("private func clearSecrets() {\n        username = \"\""))
