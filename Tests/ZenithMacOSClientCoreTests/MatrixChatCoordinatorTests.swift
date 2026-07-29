@@ -640,6 +640,25 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         XCTAssertEqual(service.sentBodies, ["retry me"])
     }
 
+    func testAcceptedSendDoesNotBecomeRetryableWhenTimelineRefreshFails() async {
+        let room = MatrixRoomSummary(id: "room-1", name: "Design", isEncrypted: true, hasInvite: false)
+        let existing = MatrixTimelineEvent(id: "$existing", senderDisplayName: "Alice", content: .text("Earlier"))
+        let service = FakeMatrixChatService(restoredRooms: [room], events: [existing])
+        let coordinator = MatrixChatCoordinator(service: service)
+        await coordinator.restore()
+        await coordinator.open(room: room)
+        service.roomError = .offline
+
+        let sent = await coordinator.send("accepted")
+
+        XCTAssertTrue(sent)
+        XCTAssertEqual(
+            coordinator.state,
+            .thread(room: room, events: [existing], composer: .ready)
+        )
+        XCTAssertEqual(service.sentBodies, ["accepted"])
+    }
+
     func testTrustViolationBlocksSendWithoutPlaintextFallback() async {
         let room = MatrixRoomSummary(id: "room-1", name: "Design", isEncrypted: true, hasInvite: false)
         let service = FakeMatrixChatService(restoredRooms: [room], sendError: .trustViolation)
