@@ -37,13 +37,37 @@
       "selected_profile": true
     },
     {
+      "capability": "profile_aware_participant_device_snapshot",
+      "current_upstream": false,
+      "pinned_hypha": false,
+      "selected_profile": true
+    },
+    {
+      "capability": "notification_and_decline",
+      "current_upstream": true,
+      "pinned_hypha": true,
+      "selected_profile": true
+    },
+    {
       "capability": "sender_key_lifecycle",
       "current_upstream": false,
       "pinned_hypha": false,
       "selected_profile": true
     },
     {
+      "capability": "recipient_device_validation",
+      "current_upstream": false,
+      "pinned_hypha": false,
+      "selected_profile": true
+    },
+    {
       "capability": "bounded_transport_grant",
+      "current_upstream": false,
+      "pinned_hypha": false,
+      "selected_profile": true
+    },
+    {
+      "capability": "registered_transport_type_validation",
       "current_upstream": false,
       "pinned_hypha": false,
       "selected_profile": true
