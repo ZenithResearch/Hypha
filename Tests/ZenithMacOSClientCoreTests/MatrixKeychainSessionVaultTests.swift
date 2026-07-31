@@ -177,6 +177,27 @@ final class MatrixEncryptedSessionVaultTests: XCTestCase {
         XCTAssertEqual(try vault.loadStoreKey(accountKey: peach.accountKey), peachStoreKey)
     }
 
+    func testDeletingNamedInactiveSessionPreservesActiveSessionAndBothStoreKeys() throws {
+        let keychain = CountingMemoryKeychainStorage()
+        let directory = temporaryDirectory()
+        let vault = makeVault(storage: keychain, directory: directory)
+        let alice = fixtureRecord(accountKey: "account-alice", userID: "@alice:example.org")
+        let peach = fixtureRecord(accountKey: "account-peach", userID: "@peach:example.org")
+        let aliceStoreKey = Data(repeating: 0xA1, count: 32)
+        let peachStoreKey = Data(repeating: 0xB2, count: 32)
+        try vault.saveStoreKey(aliceStoreKey, accountKey: alice.accountKey)
+        try vault.saveSession(alice)
+        try vault.saveStoreKey(peachStoreKey, accountKey: peach.accountKey)
+        try vault.saveSession(peach)
+
+        try vault.deleteSession(accountKey: alice.accountKey)
+
+        XCTAssertEqual(try vault.loadSession(), peach)
+        XCTAssertEqual(try vault.storedSessions(), [peach])
+        XCTAssertEqual(try vault.loadStoreKey(accountKey: alice.accountKey), aliceStoreKey)
+        XCTAssertEqual(try vault.loadStoreKey(accountKey: peach.accountKey), peachStoreKey)
+    }
+
     func testAccountCiphertextCannotBeSubstitutedForAnotherAccount() throws {
         let keychain = CountingMemoryKeychainStorage()
         let directory = temporaryDirectory()

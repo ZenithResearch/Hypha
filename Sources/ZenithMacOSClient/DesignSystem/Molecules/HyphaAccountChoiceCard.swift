@@ -8,6 +8,8 @@ struct HyphaAccountChoiceCard: View {
     let isInteractionDisabled: Bool
     let continueSession: (MatrixSDKSessionRecord) -> Void
     let signInWithSavedPassword: (HyphaMatrixCredentialDescriptor) -> Void
+    let deleteLocalSession: (MatrixSDKSessionRecord) -> Void
+    let deleteSavedPassword: (HyphaMatrixCredentialDescriptor) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
@@ -35,12 +37,13 @@ struct HyphaAccountChoiceCard: View {
                 }
             }
 
-            HStack(spacing: ZenithDesign.Space.x2) {
+            VStack(spacing: ZenithDesign.Space.x2) {
                 if let session = choice.session {
                     HyphaButton(
                         title: "Continue existing session",
                         systemImage: "arrow.right.circle.fill",
-                        variant: .primary
+                        variant: .primary,
+                        fillsWidth: true
                     ) {
                         continueSession(session)
                     }
@@ -52,7 +55,8 @@ struct HyphaAccountChoiceCard: View {
                     HyphaButton(
                         title: "Sign in with saved password",
                         systemImage: "key.fill",
-                        variant: choice.session == nil ? .primary : .secondary
+                        variant: choice.session == nil ? .primary : .secondary,
+                        fillsWidth: true
                     ) {
                         signInWithSavedPassword(credential)
                     }
@@ -61,6 +65,36 @@ struct HyphaAccountChoiceCard: View {
                     .accessibilityIdentifier("matrix.password.saved.\(choice.id)")
                 }
             }
+
+            HStack(spacing: ZenithDesign.Space.x2) {
+                if let session = choice.session {
+                    HyphaButton(
+                        title: "Delete local session…",
+                        systemImage: "rectangle.portrait.and.arrow.right",
+                        variant: .quiet
+                    ) {
+                        deleteLocalSession(session)
+                    }
+                    .disabled(isInteractionDisabled)
+                    .accessibilityLabel("Delete local session for \(choice.displayAccount)")
+                    .accessibilityIdentifier("matrix.session.delete.\(choice.id)")
+                    .fixedSize(horizontal: true, vertical: false)
+                }
+                if let credential = choice.credential {
+                    HyphaButton(
+                        title: "Delete saved password…",
+                        systemImage: "key.slash",
+                        variant: .quiet
+                    ) {
+                        deleteSavedPassword(credential)
+                    }
+                    .disabled(isInteractionDisabled)
+                    .accessibilityLabel("Delete saved password for \(choice.displayAccount)")
+                    .accessibilityIdentifier("matrix.password.delete.\(choice.id)")
+                    .fixedSize(horizontal: true, vertical: false)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(ZenithDesign.Space.x4)
         .frame(maxWidth: .infinity, alignment: .leading)

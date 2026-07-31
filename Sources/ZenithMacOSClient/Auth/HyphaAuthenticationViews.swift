@@ -60,9 +60,13 @@ struct HyphaSavedAccountsView: View {
     let back: () -> Void
     let continueSession: (MatrixSDKSessionRecord) async -> Void
     let signInWithSavedPassword: (HyphaMatrixCredentialDescriptor) async -> Void
+    let deleteLocalSession: (MatrixSDKSessionRecord) async -> Void
+    let deleteSavedPassword: (HyphaMatrixCredentialDescriptor) async -> Void
     let usePassword: () -> Void
 
     @State private var pendingAccountChoiceID: String?
+    @State private var sessionPendingDeletion: MatrixSDKSessionRecord?
+    @State private var credentialPendingDeletion: HyphaMatrixCredentialDescriptor?
 
     var body: some View {
         HyphaAuthShell(
@@ -87,6 +91,12 @@ struct HyphaSavedAccountsView: View {
                             performAccountAction(choiceID: choice.id) {
                                 await signInWithSavedPassword(credential)
                             }
+                        },
+                        deleteLocalSession: { session in
+                            sessionPendingDeletion = session
+                        },
+                        deleteSavedPassword: { credential in
+                            credentialPendingDeletion = credential
                         }
                     )
                 }
@@ -100,6 +110,44 @@ struct HyphaSavedAccountsView: View {
                 .disabled(model.isAuthenticationOperationInFlight || pendingAccountChoiceID != nil)
             }
             .frame(maxWidth: 560)
+        }
+        .confirmationDialog(
+            "Delete this local session?",
+            isPresented: Binding(
+                get: { sessionPendingDeletion != nil },
+                set: { if !$0 { sessionPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: sessionPendingDeletion
+        ) { session in
+            Button("Delete local session", role: .destructive) {
+                sessionPendingDeletion = nil
+                performAccountAction(choiceID: session.accountKey) {
+                    await deleteLocalSession(session)
+                }
+            }
+            Button("Cancel", role: .cancel) { sessionPendingDeletion = nil }
+        } message: { session in
+            Text("This removes the access-token session for \(session.userId) from this Mac. It does not delete the account, encryption store, or saved password.")
+        }
+        .confirmationDialog(
+            "Delete this saved password?",
+            isPresented: Binding(
+                get: { credentialPendingDeletion != nil },
+                set: { if !$0 { credentialPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: credentialPendingDeletion
+        ) { credential in
+            Button("Delete saved password", role: .destructive) {
+                credentialPendingDeletion = nil
+                performAccountAction(choiceID: credential.id) {
+                    await deleteSavedPassword(credential)
+                }
+            }
+            Button("Cancel", role: .cancel) { credentialPendingDeletion = nil }
+        } message: { credential in
+            Text("This removes the saved password for \(credential.username) from Hypha on this Mac. It does not delete the Matrix account or encrypted session.")
         }
     }
 
@@ -132,12 +180,24 @@ struct HyphaPasswordSignInView: View {
         ) {
             VStack(spacing: ZenithDesign.Space.x3) {
                 TextField("Matrix username", text: $model.username)
+                    .textContentType(.username)
                     .textFieldStyle(HyphaTextFieldStyle())
                     .accessibilityIdentifier("matrix.login.username")
                 SecureField("Password", text: $model.password)
+                    .textContentType(.password)
                     .textFieldStyle(HyphaTextFieldStyle())
                     .accessibilityIdentifier("matrix.login.password")
                     .onSubmit { submitIfReady() }
+
+                if model.applePasswordsAvailable {
+                    Toggle("Save in Apple Passwords", isOn: $model.savePasswordToApplePasswords)
+                        .toggleStyle(.checkbox)
+                        .accessibilityIdentifier("matrix.login.save-apple-passwords")
+                    Text("Optional. Apple Passwords can sync this login through iCloud Keychain and offer it on your other Apple devices.")
+                        .font(ZenithDesign.Typography.corporate(size: 12))
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 if message == .invalidCredentials {
                     HyphaStatusMessage(message: "Invalid username or password")
@@ -163,7 +223,10 @@ struct HyphaPasswordSignInView: View {
             }
             .frame(maxWidth: 440)
         }
-        .onDisappear { model.password = "" }
+        .onDisappear {
+            model.password = ""
+            model.savePasswordToApplePasswords = false
+        }
     }
 
     private var canSubmit: Bool {
@@ -179,6 +242,7 @@ struct HyphaPasswordSignInView: View {
 
     private func leavePasswordSignIn() {
         model.password = ""
+        model.savePasswordToApplePasswords = false
         back()
     }
 }
@@ -191,6 +255,7 @@ struct HyphaRegistrationView: View {
     @State private var password = ""
     @State private var confirmation = ""
     @State private var inviteToken = ""
+    @State private var saveInApplePasswords = false
     @State private var localError: String?
     @State private var isSubmitting = false
 
@@ -223,12 +288,15 @@ struct HyphaRegistrationView: View {
     private var registrationForm: some View {
         VStack(spacing: ZenithDesign.Space.x3) {
             TextField("Username", text: $username)
+                .textContentType(.username)
                 .textFieldStyle(HyphaTextFieldStyle())
                 .accessibilityIdentifier("matrix.registration.username")
             SecureField("Password", text: $password)
+                .textContentType(.newPassword)
                 .textFieldStyle(HyphaTextFieldStyle())
                 .accessibilityIdentifier("matrix.registration.password")
             SecureField("Confirm password", text: $confirmation)
+                .textContentType(.newPassword)
                 .textFieldStyle(HyphaTextFieldStyle())
                 .accessibilityIdentifier("matrix.registration.confirmation")
             SecureField("Invite token", text: $inviteToken)
@@ -236,7 +304,15 @@ struct HyphaRegistrationView: View {
                 .accessibilityIdentifier("matrix.registration.token")
                 .onSubmit { submit() }
 
-            Text("The invite token is never saved. After account creation, Hypha stores the account password in its encrypted account vault.")
+            if model.applePasswordsAvailable {
+                Toggle("Save in Apple Passwords", isOn: $saveInApplePasswords)
+                    .toggleStyle(.checkbox)
+                    .accessibilityIdentifier("matrix.registration.save-apple-passwords")
+            }
+
+            Text(model.applePasswordsAvailable
+                 ? "The invite token is never saved. Password saving is optional; Apple Passwords can suggest a strong password and sync it through iCloud Keychain."
+                 : "The invite token and account password are not saved by Hypha.")
                 .font(ZenithDesign.Typography.corporate(size: 12))
                 .foregroundStyle(ZenithDesign.Palette.muted)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -283,13 +359,15 @@ struct HyphaRegistrationView: View {
         let usernameForRequest = username
         let passwordForRequest = password
         let tokenForRequest = inviteToken
+        let shouldSaveInApplePasswords = saveInApplePasswords
         clearSecrets()
         isSubmitting = true
         Task {
             let created = await model.createAccount(
                 username: usernameForRequest,
                 password: passwordForRequest,
-                registrationToken: tokenForRequest
+                registrationToken: tokenForRequest,
+                saveInApplePasswords: shouldSaveInApplePasswords
             )
             if !created { isSubmitting = false }
         }
@@ -300,6 +378,7 @@ struct HyphaRegistrationView: View {
         password = ""
         confirmation = ""
         inviteToken = ""
+        saveInApplePasswords = false
         localError = nil
     }
 }
