@@ -1,0 +1,27 @@
+{
+  "fixture_kind": "complete_authoritative",
+  "synthetic_test_only": true,
+  "profile_id": "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2",
+  "profile_digest_sha256": "b9c34cfd600fcc5bd9739cff8bdeb38d612bdf3d8337ea12598dbbc5dc6a8bc1",
+  "origin_digest_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "generation": 42,
+  "snapshot_integrity": "matched",
+  "server_advertisement": "supported",
+  "transport_evidence": "authenticated_supported",
+  "sdk_capabilities": [
+    "authenticated_transport_registry_without_fallback",
+    "sticky_event_ephemeral_map",
+    "slot_member_lifecycle",
+    "delayed_leave_lifecycle",
+    "profile_aware_participant_device_snapshot",
+    "notification_and_decline",
+    "per_member_sender_key_lifecycle",
+    "recipient_device_validation",
+    "bounded_transport_grant",
+    "registered_transport_type_validation",
+    "complete_native_session_surface"
+  ],
+  "legacy_well_known_focus_advertised": false,
+  "legacy_convenience_boolean_supported": false,
+  "expected_result": "available"
+}

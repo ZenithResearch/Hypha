@@ -1,0 +1,18 @@
+{
+  "fixture_kind": "sanitized_current_production_finding",
+  "synthetic_test_only": true,
+  "profile_id": "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2",
+  "profile_digest_sha256": "b9c34cfd600fcc5bd9739cff8bdeb38d612bdf3d8337ea12598dbbc5dc6a8bc1",
+  "origin_digest_sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+  "generation": 7,
+  "snapshot_integrity": "matched",
+  "server_advertisement": "missing",
+  "transport_evidence": "authenticated_unsupported",
+  "sdk_capabilities": [
+    "notification_and_decline"
+  ],
+  "legacy_well_known_focus_advertised": false,
+  "legacy_convenience_boolean_supported": false,
+  "qualifying_fallback_evidence": false,
+  "expected_result": "server_advertisement_missing"
+}
