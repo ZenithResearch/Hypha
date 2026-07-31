@@ -18,8 +18,8 @@ final class MatrixRTCQualificationTests: XCTestCase {
 
     func testMissingEvidenceIsUnavailable() throws {
         let selection = try makeSelection()
-        XCTAssertEqual(evaluate(selection: selection, evidence: .init(server: nil, sdk: nil)), .unavailable(.missingServerEvidence))
-        XCTAssertEqual(evaluate(selection: selection, evidence: makeEvidence(includeSDK: false)), .unavailable(.missingSDKEvidence))
+        XCTAssertEqual(try evaluate(selection: selection, evidence: .init(server: nil, sdk: nil)), .unavailable(.missingServerEvidence))
+        XCTAssertEqual(try evaluate(selection: selection, evidence: makeEvidence(includeSDK: false)), .unavailable(.missingSDKEvidence))
     }
 
     func testMissingSnapshotIsUnavailable() throws {
@@ -189,11 +189,11 @@ final class MatrixRTCQualificationTests: XCTestCase {
 
     func testQualificationReasonPrecedenceMatchesContract() throws {
         let selection = try makeSelection()
-        XCTAssertEqual(evaluate(selection: selection, evidence: .init(server: nil, sdk: nil)), .unavailable(.missingServerEvidence))
-        XCTAssertEqual(evaluate(selection: selection, evidence: makeEvidence(includeSDK: false, snapshot: .missing)), .unavailable(.missingSDKEvidence))
+        XCTAssertEqual(try evaluate(selection: selection, evidence: .init(server: nil, sdk: nil)), .unavailable(.missingServerEvidence))
+        XCTAssertEqual(try evaluate(selection: selection, evidence: makeEvidence(includeSDK: false, snapshot: .missing)), .unavailable(.missingSDKEvidence))
         XCTAssertEqual(try evaluate(evidence: makeEvidence(serverProfileID: "other", serverProfileDigest: String(repeating: "a", count: 64))), .unavailable(.mixedProfile))
         XCTAssertEqual(try evaluate(evidence: makeEvidence(serverProfileDigest: String(repeating: "a", count: 64), serverGeneration: Self.generation - 1)), .unavailable(.mixedProfileDigest))
-        XCTAssertEqual(try evaluate(evidence: makeEvidence(serverGeneration: Self.generation - 1, serverOriginDigest: Self.otherOriginDigest)), .unavailable(.mixedGeneration))
+        XCTAssertEqual(try evaluate(evidence: makeEvidence(serverOriginDigest: Self.otherOriginDigest, serverGeneration: Self.generation - 1)), .unavailable(.mixedGeneration))
         XCTAssertEqual(try evaluate(evidence: makeEvidence(serverOriginDigest: Self.otherOriginDigest, snapshot: .missing)), .unavailable(.mixedOrigin))
         XCTAssertEqual(try evaluate(evidence: makeEvidence(serverProfileID: "other", sdkProfileID: "other", snapshot: .missing)), .unavailable(.profileMismatch))
         XCTAssertEqual(try evaluate(evidence: makeEvidence(serverProfileDigest: String(repeating: "a", count: 64), sdkProfileDigest: String(repeating: "a", count: 64), snapshot: .missing)), .unavailable(.profileDigestMismatch))
