@@ -20,7 +20,7 @@ Recovery rule: preserve all commits and dirty files; never reset, clean, rewrite
 
 | Node | Issue | Branch/head | PR/base | Local gates | Hosted CI | Exact-head reviews | State |
 |---|---|---|---|---|---|---|---|
-| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` / `78dedde` + pending Commit 2 | [#11](https://github.com/ZenithResearch/Hypha/pull/11) / `main` | contract verifier + mutation suite; public-release suite; 217 Swift tests (3 skipped); build/package/codesign passed | pending repaired head | prior verdicts invalidated | local gates passed; push pending |
+| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` / implementation `81c7766a33f547f0113bb0d97eb3078349292c1d` | [#11](https://github.com/ZenithResearch/Hypha/pull/11) / `main` | contract verifier + mutation suite; public-release suite; 217 Swift tests (3 skipped); build/package/codesign passed | push [30621057356](https://github.com/ZenithResearch/Hypha/actions/runs/30621057356) PASS; PR [30621059965](https://github.com/ZenithResearch/Hypha/actions/runs/30621059965) PASS | fresh review checkpoint required after this ledger commit | hosted gates passed; reviews pending |
 | I02 | [#8](https://github.com/ZenithResearch/Hypha/issues/8) | `feat/matrixrtc-qualification-evaluator` / PENDING | PENDING / I01 | pending | pending | pending | blocked |
 | I03 | [#9](https://github.com/ZenithResearch/Hypha/issues/9) | `feat/matrixrtc-trust-origin-contract` / PENDING | PENDING / I02 | pending | pending | pending | blocked |
 | I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` / PENDING | PENDING / I03 | pending | pending | pending | blocked |
@@ -32,5 +32,6 @@ Recovery rule: preserve all commits and dirty files; never reset, clean, rewrite
 - The interrupted Commit 2 developer left no shared diff and is treated as failed; no partial work was adopted.
 - Additive repair `78dedde` pins MSC4354 and MSC4518, every selected MSC4140 unstable identifier, sticky-map requirements, and exact SDK source evidence without rewriting Commit 1.
 - Commit 2 local verification passed offline contract/source/static mutation gates plus the complete existing CI-equivalent package gate.
+- Commit 2 implementation head `81c7766a33f547f0113bb0d97eb3078349292c1d` passed both hosted push and pull-request CI. This ledger checkpoint changes the PR head, so all final review lanes and hosted checks bind to the resulting checkpoint head instead.
 - Master DAG and issue packets are authoritative for scope.
 - Open PRs do not authorize merge or ordinary downstream readiness; stacked execution is the explicit operator waiver only.
