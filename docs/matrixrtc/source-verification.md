@@ -21,3 +21,5 @@ Each source was downloaded over HTTPS from `raw.githubusercontent.com/matrix-org
 The manifest profile fingerprint is separately recomputed from canonical compact sorted-key JSON of the nested `profile` object. Proposal source hashes are inputs to that fingerprint; source verification does not imply proposal acceptance, SDK implementation, deployment support, or interoperability.
 
 The exact pinned MSC4195 source includes the authenticated federation API `POST /_matrix/federation/v1/rtc/livekit/get_token`; the authoritative manifest and human contract record that route alongside the client token and delegated-leave APIs.
+
+The SDK evidence matrix separately records pinned/current/selected values for every selected SDK requirement, including participant-device snapshots, notification/decline, recipient-device validation, registered transport validation, and bounded grants. This source classification remains an offline qualification contract and does not prove a runtime SDK session.

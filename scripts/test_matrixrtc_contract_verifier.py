@@ -271,6 +271,8 @@ manifest_sdk_capabilities = {
         "bounded_transport_grant", "complete_native_session_surface",
         "delayed_leave_lifecycle", "sender_key_lifecycle", "slot_member_lifecycle",
         "sticky_event_ephemeral_map_surface", "ffi_decline_surface",
+        "profile_aware_participant_device_snapshot", "notification_and_decline",
+        "recipient_device_validation", "registered_transport_type_validation",
         "ffi_legacy_active_call_observation", "ffi_notification_projection",
         "ffi_openid_token_surface",
     ),
@@ -278,11 +280,15 @@ manifest_sdk_capabilities = {
         "authenticated_transport_registry", "bounded_transport_grant",
         "complete_native_session_surface", "ffi_convenience_falls_back_to_well_known",
         "ffi_direct_authenticated_transport_registry", "sticky_event_ephemeral_map_surface",
+        "profile_aware_participant_device_snapshot", "notification_and_decline",
+        "recipient_device_validation", "registered_transport_type_validation",
     ),
     "selected_profile_requires": (
         "authenticated_transport_registry_without_fallback", "bounded_transport_grant",
         "complete_native_session_surface", "delayed_leave_lifecycle",
         "sender_key_lifecycle", "slot_member_lifecycle", "sticky_event_ephemeral_map_surface",
+        "profile_aware_participant_device_snapshot", "notification_and_decline",
+        "recipient_device_validation", "registered_transport_type_validation",
     ),
 }
 for column, capabilities in manifest_sdk_capabilities.items():
@@ -292,6 +298,12 @@ for column, capabilities in manifest_sdk_capabilities.items():
             ("profile", "sdk_matrix", column, capability),
             "SDK manifest capability matrix drift",
         )
+manifest_with_extra_requirement = json.loads(MANIFEST.read_text(encoding="utf-8"))
+manifest_with_extra_requirement["profile"]["sdk_matrix"]["selected_profile_requires"]["unexpected_capability"] = True
+must_reject_file(
+    "unexpected selected SDK requirement", MANIFEST,
+    json_bytes(manifest_with_extra_requirement), "selected profile SDK requirement closure drift",
+)
 
 sdk_document = json.loads(SDK_EVIDENCE.read_text(encoding="utf-8"))
 for index, entry in enumerate(sdk_document["comparison"]):

@@ -2,7 +2,7 @@
 
 Status: qualified contract snapshot; runtime availability unsupported
 Profile ID: `ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2`
-Canonical profile fingerprint: `b9c34cfd600fcc5bd9739cff8bdeb38d612bdf3d8337ea12598dbbc5dc6a8bc1`
+Canonical profile fingerprint: `630c781b782eb94965fb83767a39247f2d127ac31f0c89065f18711b375f8f6d`
 
 ## Boundary
 
@@ -30,9 +30,9 @@ The legacy `org.matrix.msc3401.call.member`, `m.rtc_foci`, the generated `isLive
 
 ## SDK capability gap
 
-The pinned Hypha artifact source is `f4889ec898e77d8b8c9013adadd77f3d0901fc2d`. It exposes useful earlier observation/notification/decline and OpenID surfaces, but its LiveKit boolean reads legacy well-known foci and it lacks direct authenticated no-fallback transport discovery plus the complete selected sticky-map/slot/member/delayed-leave/sender-key/grant/session surface. The manifest binds these claims to exact source-file and generated-binding digests.
+The pinned Hypha artifact source is `f4889ec898e77d8b8c9013adadd77f3d0901fc2d`. It exposes useful earlier observation/notification/decline and OpenID surfaces, but its LiveKit boolean reads legacy well-known foci and it lacks direct authenticated no-fallback transport discovery plus the complete selected sticky-map/slot/member/delayed-leave/participant-snapshot/recipient-validation/registered-transport/sender-key/grant/session surface. The manifest binds every selected SDK requirement to explicit pinned/current/selected matrix cells and to exact source-file and generated-binding digests.
 
-Current upstream at `43565c555072cc8002450ece96bd5a90e2b4a0b5` adds authenticated core transport discovery, but exposes no direct no-fallback FFI qualification surface: the FFI convenience method still falls back to well-known evidence. Upstream also lacks the selected sticky-map/session primitives and explicitly does not provide a complete native MatrixRTC session. The pinned artifact and current upstream both have `bounded_transport_grant = false`; the selected profile requires it as `true`. Neither source can currently qualify Hypha to join.
+Current upstream at `43565c555072cc8002450ece96bd5a90e2b4a0b5` adds authenticated core transport discovery and retains notification/decline support, but exposes no direct no-fallback FFI qualification surface: the FFI convenience method still falls back to well-known evidence. Upstream also lacks the selected sticky-map, participant-snapshot, recipient-validation, registered-transport-validation, grant, and session primitives and explicitly does not provide a complete native MatrixRTC session. The pinned artifact and current upstream both have `bounded_transport_grant = false`; the selected profile requires it as `true`. Neither source can currently qualify Hypha to join.
 
 ## Production-safe unsupported evidence
 

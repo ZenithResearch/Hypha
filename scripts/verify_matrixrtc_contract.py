@@ -18,7 +18,7 @@ CI_PATH = ROOT / ".github" / "workflows" / "ci.yml"
 PROFILE_ID = "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2"
 SCHEMA = "ca.hypha.matrixrtc.contract-profile-manifest.v1"
 GENERATED_SWIFT_SHA256 = "7d823dda5f112ebc60887fc0ff238129b49e0173870ad616978f17b3ace5bdbc"
-SDK_EVIDENCE_SHA256 = "03710b085e29d4a48c52279460a058de217de9e1109ddb520ae4401181cc39d3"
+SDK_EVIDENCE_SHA256 = "436e34ae7c10d7832b3de48b0f67913d3f9e4b415c2687e55303f1d26fb461de"
 SECTION_SHA256 = {
     "excluded_evidence": "9c2a0e9e264c2f359b67c835879e40e63edf286c7955fd45ccdf0c7ba1404d3b",
     "future_product_contract": "a68e785703677ab9464183d4eec365faca9a58309dfb3329baf00106e4125733",
@@ -27,7 +27,7 @@ SECTION_SHA256 = {
     "production_evidence": "b74537b1d62803306457d7591a79f569588ae01f8b33b24f254b411e8e8a7a5a",
     "protocol_requirements": "1555820b9a67b8942a0e8e32a2018e666db31e6c2918af0446a922b032059c3a",
     "required_capabilities": "9cb0a4ea31f35f6bd97a6139fb6aa2ede9ce1977bb2f5fb3a5e700182bf31b69",
-    "sdk_matrix": "101b6476c57b0fd70dc53f1c2e00a5f937ba0f265e51012c53cecc04c18568dd",
+    "sdk_matrix": "b8c282deb2515823f54613afc56b0876126f38cddbef9a88a57f29f4f1a23d2b",
 }
 EXPECTED_PROPOSALS = [
     (4143, "3236b007aaceee73e579e33990dd3ec5e07841e4", "proposals/4143-matrix-rtc.md", "open", "78f14c6467a28600094c6837bab55706c0f75c4f535e671503e9fb4a11e04103"),
@@ -121,9 +121,26 @@ EXPECTED_COMPARISON = {
     "sticky_event_ephemeral_map_surface": (False, False, True),
     "slot_member_lifecycle": (False, False, True),
     "delayed_leave_lifecycle": (False, False, True),
+    "profile_aware_participant_device_snapshot": (False, False, True),
+    "notification_and_decline": (True, True, True),
     "sender_key_lifecycle": (False, False, True),
+    "recipient_device_validation": (False, False, True),
     "bounded_transport_grant": (False, False, True),
+    "registered_transport_type_validation": (False, False, True),
     "complete_native_session_surface": (False, False, True),
+}
+EXPECTED_SELECTED_SDK_REQUIREMENTS = {
+    "authenticated_transport_registry_without_fallback",
+    "bounded_transport_grant",
+    "complete_native_session_surface",
+    "delayed_leave_lifecycle",
+    "notification_and_decline",
+    "profile_aware_participant_device_snapshot",
+    "recipient_device_validation",
+    "registered_transport_type_validation",
+    "sender_key_lifecycle",
+    "slot_member_lifecycle",
+    "sticky_event_ephemeral_map_surface",
 }
 
 
@@ -233,6 +250,9 @@ expected_sdk_capabilities = {
         "bounded_transport_grant": False, "complete_native_session_surface": False,
         "delayed_leave_lifecycle": False, "sender_key_lifecycle": False,
         "slot_member_lifecycle": False, "sticky_event_ephemeral_map_surface": False,
+        "profile_aware_participant_device_snapshot": False,
+        "notification_and_decline": True, "recipient_device_validation": False,
+        "registered_transport_type_validation": False,
         "ffi_decline_surface": True, "ffi_legacy_active_call_observation": True,
         "ffi_notification_projection": True, "ffi_openid_token_surface": True,
     },
@@ -240,16 +260,26 @@ expected_sdk_capabilities = {
         "authenticated_transport_registry": True, "bounded_transport_grant": False,
         "complete_native_session_surface": False, "ffi_convenience_falls_back_to_well_known": True,
         "ffi_direct_authenticated_transport_registry": False, "sticky_event_ephemeral_map_surface": False,
+        "profile_aware_participant_device_snapshot": False,
+        "notification_and_decline": True, "recipient_device_validation": False,
+        "registered_transport_type_validation": False,
     },
     "selected_profile_requires": {
         "authenticated_transport_registry_without_fallback": True, "bounded_transport_grant": True,
         "complete_native_session_surface": True, "delayed_leave_lifecycle": True,
         "sender_key_lifecycle": True, "slot_member_lifecycle": True,
         "sticky_event_ephemeral_map_surface": True,
+        "profile_aware_participant_device_snapshot": True,
+        "notification_and_decline": True, "recipient_device_validation": True,
+        "registered_transport_type_validation": True,
     },
 }
 for column, expected in expected_sdk_capabilities.items():
     require(all(sdk[column].get(key) is value for key, value in expected.items()), "SDK manifest capability matrix drift")
+require(
+    set(sdk["selected_profile_requires"]) == EXPECTED_SELECTED_SDK_REQUIREMENTS,
+    "selected profile SDK requirement closure drift",
+)
 
 production = profile["production_evidence"]
 require(production["qualification"] == "unsupported", "production evidence must remain unsupported")
