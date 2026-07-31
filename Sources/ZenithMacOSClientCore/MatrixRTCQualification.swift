@@ -31,13 +31,41 @@ public struct MatrixRTCEvidenceBinding: Equatable, Sendable {
     }
 }
 
+/// Caller-supplied identity attesting which SDK artifact produced a capability snapshot.
+/// This pure SDK-neutral value does not verify signatures or read files or the network.
+public struct MatrixRTCSDKArtifactIdentity: Equatable, Sendable {
+    public let sourceRevision: String
+    public let capabilitySnapshotDigestSHA256: String
+
+    public init?(sourceRevision: String, capabilitySnapshotDigestSHA256: String) {
+        guard Self.isLowercaseHex(sourceRevision, count: 40),
+              Self.isLowercaseHex(capabilitySnapshotDigestSHA256, count: 64) else {
+            return nil
+        }
+        self.sourceRevision = sourceRevision
+        self.capabilitySnapshotDigestSHA256 = capabilitySnapshotDigestSHA256
+    }
+
+    private static func isLowercaseHex(_ value: String, count: Int) -> Bool {
+        value.utf8.count == count && value.utf8.allSatisfy { byte in
+            (byte >= 48 && byte <= 57) || (byte >= 97 && byte <= 102)
+        }
+    }
+}
+
 public struct MatrixRTCQualificationSelection: Equatable, Sendable {
     public let origin: MatrixRTCOriginBinding
     public let generation: UInt64
+    public let expectedSDKArtifactIdentity: MatrixRTCSDKArtifactIdentity
 
-    public init(origin: MatrixRTCOriginBinding, generation: UInt64) {
+    public init(
+        origin: MatrixRTCOriginBinding,
+        generation: UInt64,
+        expectedSDKArtifactIdentity: MatrixRTCSDKArtifactIdentity
+    ) {
         self.origin = origin
         self.generation = generation
+        self.expectedSDKArtifactIdentity = expectedSDKArtifactIdentity
     }
 }
 
@@ -114,13 +142,16 @@ public struct MatrixRTCServerQualificationEvidence: Equatable, Sendable {
 
 public struct MatrixRTCSDKQualificationEvidence: Equatable, Sendable {
     public let binding: MatrixRTCEvidenceBinding
+    public let artifactIdentity: MatrixRTCSDKArtifactIdentity
     public let capabilities: Set<MatrixRTCSDKCapability>
 
     public init(
         binding: MatrixRTCEvidenceBinding,
+        artifactIdentity: MatrixRTCSDKArtifactIdentity,
         capabilities: Set<MatrixRTCSDKCapability>
     ) {
         self.binding = binding
+        self.artifactIdentity = artifactIdentity
         self.capabilities = capabilities
     }
 }
@@ -160,6 +191,8 @@ public enum MatrixRTCQualificationReason: Equatable, Sendable {
     case fallbackOnly
     case authenticatedTransportUnsupported
     case authenticatedTransportMalformed
+    case sdkSourceRevisionMismatch
+    case sdkCapabilitySnapshotDigestMismatch
     case missingSDKCapability(MatrixRTCSDKCapability)
 
     public var title: String {
@@ -206,6 +239,10 @@ public enum MatrixRTCQualificationReason: Equatable, Sendable {
             return "Authenticated transport registry unsupported"
         case .authenticatedTransportMalformed:
             return "Authenticated transport registry malformed"
+        case .sdkSourceRevisionMismatch:
+            return "SDK source revision mismatch"
+        case .sdkCapabilitySnapshotDigestMismatch:
+            return "SDK capability snapshot digest mismatch"
         case .missingSDKCapability:
             return "Required SDK capability unavailable"
         }
@@ -255,6 +292,10 @@ public enum MatrixRTCQualificationReason: Equatable, Sendable {
             return "The authenticated transport registry is unsupported."
         case .authenticatedTransportMalformed:
             return "The authenticated transport registry evidence is malformed."
+        case .sdkSourceRevisionMismatch:
+            return "The SDK artifact does not match the selected source revision."
+        case .sdkCapabilitySnapshotDigestMismatch:
+            return "The SDK capability snapshot does not match the selected digest."
         case .missingSDKCapability:
             return "A required SDK capability is missing."
         }
@@ -262,7 +303,8 @@ public enum MatrixRTCQualificationReason: Equatable, Sendable {
 
     public var recovery: String {
         switch self {
-        case .missingSDKCapability:
+        case .missingSDKCapability, .sdkSourceRevisionMismatch,
+             .sdkCapabilitySnapshotDigestMismatch:
             return "Update the SDK and repeat the authoritative capability check."
         case .fallbackOnly:
             return "Repeat the authoritative capability check without fallback discovery."
@@ -301,7 +343,7 @@ public enum MatrixRTCQualificationEvaluator {
     ]
 
     private static let selectedProfileID = "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2"
-    private static let selectedProfileDigestSHA256 = "b9c34cfd600fcc5bd9739cff8bdeb38d612bdf3d8337ea12598dbbc5dc6a8bc1"
+    private static let selectedProfileDigestSHA256 = "630c781b782eb94965fb83767a39247f2d127ac31f0c89065f18711b375f8f6d"
 
     public static func evaluate(
         selection: MatrixRTCQualificationSelection,
@@ -340,6 +382,12 @@ public enum MatrixRTCQualificationEvaluator {
         }
         if server.binding.generation > selection.generation {
             return .unavailable(.generationMismatch)
+        }
+        if sdk.artifactIdentity.sourceRevision != selection.expectedSDKArtifactIdentity.sourceRevision {
+            return .unavailable(.sdkSourceRevisionMismatch)
+        }
+        if sdk.artifactIdentity.capabilitySnapshotDigestSHA256 != selection.expectedSDKArtifactIdentity.capabilitySnapshotDigestSHA256 {
+            return .unavailable(.sdkCapabilitySnapshotDigestMismatch)
         }
 
         switch server.snapshotIntegrity {

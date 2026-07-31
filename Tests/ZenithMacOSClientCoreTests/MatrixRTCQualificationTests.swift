@@ -4,9 +4,13 @@ import XCTest
 
 final class MatrixRTCQualificationTests: XCTestCase {
     private static let profileID = "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2"
-    private static let profileDigest = "b9c34cfd600fcc5bd9739cff8bdeb38d612bdf3d8337ea12598dbbc5dc6a8bc1"
+    private static let profileDigest = "630c781b782eb94965fb83767a39247f2d127ac31f0c89065f18711b375f8f6d"
     private static let originDigest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     private static let otherOriginDigest = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+    private static let syntheticSDKSourceRevision = "0123456789abcdef0123456789abcdef01234567"
+    private static let otherSDKSourceRevision = "2222222222222222222222222222222222222222"
+    private static let syntheticSDKCapabilitySnapshotDigest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    private static let otherSDKCapabilitySnapshotDigest = "4444444444444444444444444444444444444444444444444444444444444444"
     private static let generation: UInt64 = 42
 
     func testCompleteAuthoritativeFixtureIsAvailable() throws {
@@ -156,11 +160,53 @@ final class MatrixRTCQualificationTests: XCTestCase {
     }
 
     func testCurrentPinnedSDKGapBlocksAvailability() throws {
-        let currentPinnedCapabilities: Set<MatrixRTCSDKCapability> = [.notificationAndDecline]
+        let evidence = try loadSDKCapabilityEvidence()
+        let currentPinnedCapabilities = try evidence.pinnedEvaluatorCapabilities()
         XCTAssertEqual(
             try evaluate(evidence: makeEvidence(capabilities: currentPinnedCapabilities)),
             .unavailable(.missingSDKCapability(.authenticatedTransportRegistryWithoutFallback))
         )
+    }
+
+    func testCheckedInSDKComparisonExhaustivelyCoversSelectedEvaluatorCapabilities() throws {
+        let mappedRows = try loadSDKCapabilityEvidence().evaluatorComparisonRows()
+        XCTAssertEqual(Set(mappedRows.keys), Set(MatrixRTCQualificationEvaluator.requiredSDKCapabilities))
+        XCTAssertEqual(mappedRows.count, 11)
+    }
+
+    func testNewlyClosedSDKMatrixRowsHavePinnedCurrentAndSelectedValues() throws {
+        let rows = try loadSDKCapabilityEvidence().comparisonByName()
+        for name in [
+            "profile_aware_participant_device_snapshot",
+            "notification_and_decline",
+            "recipient_device_validation",
+            "registered_transport_type_validation",
+        ] {
+            let row = try XCTUnwrap(rows[name])
+            let expectedPinnedAndCurrent = name == "notification_and_decline"
+            XCTAssertEqual(row.pinnedHypha, expectedPinnedAndCurrent, name)
+            XCTAssertEqual(row.currentUpstream, expectedPinnedAndCurrent, name)
+            XCTAssertTrue(row.selectedProfile, name)
+        }
+    }
+
+    func testUnknownSDKComparisonRowFailsFixtureDecoding() throws {
+        let data = try Data(contentsOf: sdkCapabilityEvidenceURL)
+        var object = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var comparison = try XCTUnwrap(object["comparison"] as? [[String: Any]])
+        comparison.append([
+            "capability": "unknown_evaluator_capability",
+            "current_upstream": false,
+            "pinned_hypha": false,
+            "selected_profile": true,
+        ])
+        object["comparison"] = comparison
+
+        let decoded = try JSONDecoder().decode(
+            SDKCapabilityEvidenceDTO.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+        XCTAssertThrowsError(try decoded.evaluatorComparisonRows())
     }
 
     func testCurrentProductionFixtureIsUnsupported() throws {
@@ -187,6 +233,56 @@ final class MatrixRTCQualificationTests: XCTestCase {
         XCTAssertEqual(try evaluate(evidence: makeEvidence(capabilities: Set(reversed))), expected)
     }
 
+    func testSDKArtifactIdentityRequiresExactLowercaseEncodings() {
+        XCTAssertNotNil(MatrixRTCSDKArtifactIdentity(
+            sourceRevision: Self.syntheticSDKSourceRevision,
+            capabilitySnapshotDigestSHA256: Self.syntheticSDKCapabilitySnapshotDigest
+        ))
+        for revision in [
+            Self.syntheticSDKSourceRevision.uppercased(),
+            String(Self.syntheticSDKSourceRevision.dropLast()),
+            Self.syntheticSDKSourceRevision + "0",
+            String(repeating: "g", count: 40),
+        ] {
+            XCTAssertNil(MatrixRTCSDKArtifactIdentity(
+                sourceRevision: revision,
+                capabilitySnapshotDigestSHA256: Self.syntheticSDKCapabilitySnapshotDigest
+            ))
+        }
+        for digest in [
+            Self.syntheticSDKCapabilitySnapshotDigest.uppercased(),
+            String(Self.syntheticSDKCapabilitySnapshotDigest.dropLast()),
+            Self.syntheticSDKCapabilitySnapshotDigest + "0",
+            String(repeating: "g", count: 64),
+        ] {
+            XCTAssertNil(MatrixRTCSDKArtifactIdentity(
+                sourceRevision: Self.syntheticSDKSourceRevision,
+                capabilitySnapshotDigestSHA256: digest
+            ))
+        }
+    }
+
+    func testSDKSourceRevisionMismatchPrecedesSnapshotDigestAndCapabilityEvaluation() throws {
+        XCTAssertEqual(
+            try evaluate(evidence: makeEvidence(
+                observedSDKSourceRevision: Self.otherSDKSourceRevision,
+                observedSDKCapabilitySnapshotDigest: Self.otherSDKCapabilitySnapshotDigest,
+                capabilities: []
+            )),
+            .unavailable(.sdkSourceRevisionMismatch)
+        )
+    }
+
+    func testSDKCapabilitySnapshotDigestMismatchPrecedesCapabilityEvaluation() throws {
+        XCTAssertEqual(
+            try evaluate(evidence: makeEvidence(
+                observedSDKCapabilitySnapshotDigest: Self.otherSDKCapabilitySnapshotDigest,
+                capabilities: []
+            )),
+            .unavailable(.sdkCapabilitySnapshotDigestMismatch)
+        )
+    }
+
     func testQualificationReasonPrecedenceMatchesContract() throws {
         let selection = try makeSelection()
         XCTAssertEqual(try evaluate(selection: selection, evidence: .init(server: nil, sdk: nil)), .unavailable(.missingServerEvidence))
@@ -210,6 +306,8 @@ final class MatrixRTCQualificationTests: XCTestCase {
         XCTAssertEqual(try evaluate(evidence: makeEvidence(transport: .fallbackOnly, capabilities: [])), .unavailable(.fallbackOnly))
         XCTAssertEqual(try evaluate(evidence: makeEvidence(transport: .authenticatedUnsupported, capabilities: [])), .unavailable(.authenticatedTransportUnsupported))
         XCTAssertEqual(try evaluate(evidence: makeEvidence(transport: .authenticatedMalformed, capabilities: [])), .unavailable(.authenticatedTransportMalformed))
+        XCTAssertEqual(try evaluate(evidence: makeEvidence(observedSDKSourceRevision: Self.otherSDKSourceRevision, observedSDKCapabilitySnapshotDigest: Self.otherSDKCapabilitySnapshotDigest, capabilities: [])), .unavailable(.sdkSourceRevisionMismatch))
+        XCTAssertEqual(try evaluate(evidence: makeEvidence(observedSDKCapabilitySnapshotDigest: Self.otherSDKCapabilitySnapshotDigest, capabilities: [])), .unavailable(.sdkCapabilitySnapshotDigestMismatch))
     }
 
     func testReasonDescriptionsContainNoEvidenceValues() {
@@ -220,7 +318,8 @@ final class MatrixRTCQualificationTests: XCTestCase {
             .snapshotDigestMismatch, .snapshotMalformed, .serverAdvertisementMissing,
             .serverAdvertisementDisabled, .serverAdvertisementMalformed,
             .authenticatedTransportMissing, .fallbackOnly, .authenticatedTransportUnsupported,
-            .authenticatedTransportMalformed,
+            .authenticatedTransportMalformed, .sdkSourceRevisionMismatch,
+            .sdkCapabilitySnapshotDigestMismatch,
         ] + MatrixRTCQualificationEvaluator.requiredSDKCapabilities.map { .missingSDKCapability($0) }
         let forbiddenValues = [Self.profileID, Self.profileDigest, Self.originDigest, String(Self.generation)]
         let forbiddenVocabulary = ["token", "header", "payload", "account", "room", "device", "host", "response", "error"]
@@ -283,9 +382,18 @@ final class MatrixRTCQualificationTests: XCTestCase {
 
     private func makeSelection(
         originDigest: String = MatrixRTCQualificationTests.originDigest,
-        generation: UInt64 = MatrixRTCQualificationTests.generation
+        generation: UInt64 = MatrixRTCQualificationTests.generation,
+        expectedSDKSourceRevision: String = MatrixRTCQualificationTests.syntheticSDKSourceRevision,
+        expectedSDKCapabilitySnapshotDigest: String = MatrixRTCQualificationTests.syntheticSDKCapabilitySnapshotDigest
     ) throws -> MatrixRTCQualificationSelection {
-        MatrixRTCQualificationSelection(origin: try XCTUnwrap(MatrixRTCOriginBinding(sha256: originDigest)), generation: generation)
+        MatrixRTCQualificationSelection(
+            origin: try XCTUnwrap(MatrixRTCOriginBinding(sha256: originDigest)),
+            generation: generation,
+            expectedSDKArtifactIdentity: try XCTUnwrap(MatrixRTCSDKArtifactIdentity(
+                sourceRevision: expectedSDKSourceRevision,
+                capabilitySnapshotDigestSHA256: expectedSDKCapabilitySnapshotDigest
+            ))
+        )
     }
 
     private func makeEvidence(
@@ -306,6 +414,8 @@ final class MatrixRTCQualificationTests: XCTestCase {
             legacyWellKnownFocusAdvertised: false,
             legacyConvenienceBooleanSupported: false
         ),
+        observedSDKSourceRevision: String = MatrixRTCQualificationTests.syntheticSDKSourceRevision,
+        observedSDKCapabilitySnapshotDigest: String = MatrixRTCQualificationTests.syntheticSDKCapabilitySnapshotDigest,
         capabilities: Set<MatrixRTCSDKCapability> = Set(MatrixRTCQualificationEvaluator.requiredSDKCapabilities)
     ) -> MatrixRTCQualificationEvidence {
         let serverOrigin = MatrixRTCOriginBinding(sha256: serverOriginDigest)!
@@ -330,7 +440,14 @@ final class MatrixRTCQualificationTests: XCTestCase {
                 transportEvidence: transport,
                 diagnostics: diagnostics
             ) : nil,
-            sdk: includeSDK ? MatrixRTCSDKQualificationEvidence(binding: sdkBinding, capabilities: capabilities) : nil
+            sdk: includeSDK ? MatrixRTCSDKQualificationEvidence(
+                binding: sdkBinding,
+                artifactIdentity: MatrixRTCSDKArtifactIdentity(
+                    sourceRevision: observedSDKSourceRevision,
+                    capabilitySnapshotDigestSHA256: observedSDKCapabilitySnapshotDigest
+                )!,
+                capabilities: capabilities
+            ) : nil
         )
     }
 
@@ -343,6 +460,14 @@ final class MatrixRTCQualificationTests: XCTestCase {
 
     private func fixtureURL(named name: String) -> URL {
         repositoryRoot.appendingPathComponent("docs/matrixrtc/fixtures/\(name).json")
+    }
+
+    private var sdkCapabilityEvidenceURL: URL {
+        repositoryRoot.appendingPathComponent("docs/matrixrtc/sdk-capability-evidence.json")
+    }
+
+    private func loadSDKCapabilityEvidence() throws -> SDKCapabilityEvidenceDTO {
+        try JSONDecoder().decode(SDKCapabilityEvidenceDTO.self, from: Data(contentsOf: sdkCapabilityEvidenceURL))
     }
 
     private func loadFixture(named name: String) throws -> FixtureDTO {
@@ -373,6 +498,8 @@ private struct FixtureDTO: Decodable {
     let profileDigestSHA256: String
     let originDigestSHA256: String
     let generation: UInt64
+    let sdkSourceRevision: String
+    let sdkCapabilitySnapshotDigestSHA256: String
     let snapshotIntegrity: String
     let serverAdvertisement: String
     let transportEvidence: String
@@ -385,6 +512,8 @@ private struct FixtureDTO: Decodable {
         case profileDigestSHA256 = "profile_digest_sha256"
         case originDigestSHA256 = "origin_digest_sha256"
         case generation
+        case sdkSourceRevision = "sdk_source_revision"
+        case sdkCapabilitySnapshotDigestSHA256 = "sdk_capability_snapshot_digest_sha256"
         case snapshotIntegrity = "snapshot_integrity"
         case serverAdvertisement = "server_advertisement"
         case transportEvidence = "transport_evidence"
@@ -414,10 +543,18 @@ private struct FixtureDTO: Decodable {
         )
         let sdk = MatrixRTCSDKQualificationEvidence(
             binding: binding,
+            artifactIdentity: try XCTUnwrap(MatrixRTCSDKArtifactIdentity(
+                sourceRevision: sdkSourceRevision,
+                capabilitySnapshotDigestSHA256: sdkCapabilitySnapshotDigestSHA256
+            )),
             capabilities: try Set(sdkCapabilities.map(capabilityValue))
         )
         return (
-            MatrixRTCQualificationSelection(origin: origin, generation: generation),
+            MatrixRTCQualificationSelection(
+                origin: origin,
+                generation: generation,
+                expectedSDKArtifactIdentity: sdk.artifactIdentity
+            ),
             MatrixRTCQualificationEvidence(server: server, sdk: sdk)
         )
     }
@@ -477,6 +614,69 @@ private struct FixtureDTO: Decodable {
     }
 }
 
+private struct SDKCapabilityEvidenceDTO: Decodable {
+    let comparison: [SDKCapabilityComparisonRow]
+
+    func comparisonByName() throws -> [String: SDKCapabilityComparisonRow] {
+        try Dictionary(uniqueKeysWithValues: comparison.map { row in
+            _ = try row.canonicalEvaluatorCapability
+            return (row.capability, row)
+        })
+    }
+
+    func evaluatorComparisonRows() throws -> [MatrixRTCSDKCapability: SDKCapabilityComparisonRow] {
+        var result: [MatrixRTCSDKCapability: SDKCapabilityComparisonRow] = [:]
+        for row in comparison {
+            guard let capability = try row.canonicalEvaluatorCapability else { continue }
+            guard result.updateValue(row, forKey: capability) == nil else {
+                throw FixtureError.duplicateValue(row.capability)
+            }
+        }
+        return result
+    }
+
+    func pinnedEvaluatorCapabilities() throws -> Set<MatrixRTCSDKCapability> {
+        Set(try evaluatorComparisonRows().compactMap { capability, row in
+            row.pinnedHypha ? capability : nil
+        })
+    }
+}
+
+private struct SDKCapabilityComparisonRow: Decodable {
+    let capability: String
+    let currentUpstream: Bool
+    let pinnedHypha: Bool
+    let selectedProfile: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case capability
+        case currentUpstream = "current_upstream"
+        case pinnedHypha = "pinned_hypha"
+        case selectedProfile = "selected_profile"
+    }
+
+    var canonicalEvaluatorCapability: MatrixRTCSDKCapability? {
+        get throws {
+            switch capability {
+            case "legacy_well_known_livekit_boolean", "core_authenticated_transport_registry": return nil
+            case "ffi_direct_authenticated_transport_registry_without_fallback": return .authenticatedTransportRegistryWithoutFallback
+            case "sticky_event_ephemeral_map_surface": return .stickyEventEphemeralMap
+            case "slot_member_lifecycle": return .slotMemberLifecycle
+            case "delayed_leave_lifecycle": return .delayedLeaveLifecycle
+            case "profile_aware_participant_device_snapshot": return .profileAwareParticipantDeviceSnapshot
+            case "notification_and_decline": return .notificationAndDecline
+            case "sender_key_lifecycle": return .perMemberSenderKeyLifecycle
+            case "recipient_device_validation": return .recipientDeviceValidation
+            case "bounded_transport_grant": return .boundedTransportGrant
+            case "registered_transport_type_validation": return .registeredTransportTypeValidation
+            case "complete_native_session_surface": return .completeNativeSessionSurface
+            default: throw FixtureError.unknownValue(capability)
+            }
+        }
+    }
+}
+
 private enum FixtureError: Error {
     case unknownValue(String)
+    case duplicateValue(String)
 }
