@@ -3,7 +3,6 @@
 Status: SYNTHESIZED
 Reviewed base: `a6f425b91946b3177410abcadc2155bbc58feff7`
 Upstream SDK head inspected: `43565c555072cc8002450ece96bd5a90e2b4a0b5`
-Canonical CTO synthesis: `capture/reviews/2026-07-31-hypha-matrixrtc-step1-roundtable.md`
 
 ## Protocol / SDK evidence
 

@@ -17,7 +17,12 @@ SDK_SHA256 = "ca8796d0f065ade3787de2f18693afd940914ce2e35f807ccf479d2f14c5c565"
 THIRD_PARTY_LICENSES_SHA256 = "f1e427b7af156b275595b0dbc78c0dcf1c85aee0240a9b92f856e07d5f55ed61"
 LICENSE_INVENTORY_SHA256 = "898a66bde0576256aaec51d98f517484bed57e32600f676d7169f37944f68309"
 THIRD_PARTY_NOTICES_SHA256 = "c72184ef1e27d760a6f6a5bae99b7873c3ea49dc554db411ec499cd31e822450"
-PRIVATE_PATH_PREFIXES = ("/" + "Users/", "/" + "Volumes/" + "home/", "/" + "home/")
+PRIVATE_PATH_PREFIXES = (
+    "/" + "Users/",
+    "/" + "Volumes/" + "home/",
+    "/" + "home/",
+    "~/" + ".hermes/",
+)
 LICENSE_HASHES = {
     "0BSD": "e3f18c71e10d673590eb9856c1d79dd3b4b0d65404efb5e8584dbede7edd608b",
     "Apache-2.0": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",

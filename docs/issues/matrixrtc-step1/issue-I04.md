@@ -44,7 +44,7 @@ One documentation/quality/final-evidence PR. It may strengthen static gates but 
 
 - Paths: `docs/issues/matrixrtc-step1/case-study.md`, `master-dag.md`, `execution-ledger.md`, `review-record.md`, `status.md`.
 - Record issue/PR map, exact heads, complexity before/after, critical path, agent roles/recoveries, exact commands/results, defects and repairs, non-claims, external gates, token telemetry, and Steps 2–6 residual normalized complexity.
-- Token totals come from `~/.hermes/state.db`; unavailable task baselines are labeled, never invented.
+- Token totals come from source-neutral session telemetry and record exact provider-reported input, output, cache, and reasoning totals where available; unavailable totals or task baselines are explicitly labeled unavailable, never inferred or invented.
 
 ## Acceptance
 
