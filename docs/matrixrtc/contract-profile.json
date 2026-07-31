@@ -1,0 +1,227 @@
+{
+  "canonicalization": "SHA-256 of UTF-8 JSON for the profile object with keys sorted and separators ',' ':'",
+  "profile": {
+    "excluded_evidence": [
+      "org.matrix.msc3401.call.member",
+      "m.rtc_foci",
+      "isLivekitRtcSupported",
+      "MSC4515_widget_transport_discovery",
+      "raw_response_body",
+      "authorization_header",
+      "matrix_access_token_value",
+      "openid_token_value",
+      "sender_key_value",
+      "transport_grant_value"
+    ],
+    "future_product_contract": {
+      "affordance": "top_right_room_call_affordance",
+      "navigation": "may_preserve_only_while_visibly_bound_to_origin_account_and_room",
+      "states": [
+        "unavailable",
+        "incoming",
+        "pre_join",
+        "active"
+      ],
+      "surface": "messages_like_trailing_inspector"
+    },
+    "id": "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.1",
+    "identifiers": {
+      "apis": {
+        "delayed_event_get": {
+          "proposal_route": "GET /_matrix/client/v1/delayed_events/{delay_id}"
+        },
+        "delayed_event_list": {
+          "proposal_route": "GET /_matrix/client/v1/delayed_events"
+        },
+        "delayed_event_manage": {
+          "actions": [
+            "send",
+            "cancel",
+            "restart"
+          ],
+          "proposal_route": "POST /_matrix/client/v1/delayed_events/{delay_id}/{action}"
+        },
+        "delayed_event_schedule": {
+          "proposal_route": "PUT /_matrix/client/v3/rooms/{roomId}/delayed_event/{eventType}/{txnId}"
+        },
+        "livekit_delegate_delayed_leave": {
+          "proposal_route": "POST /_matrix/client/v1/rtc/livekit/delegate_delayed_leave"
+        },
+        "livekit_token": {
+          "proposal_route": "POST /_matrix/client/v1/rtc/livekit/get_token"
+        },
+        "transport_registry": {
+          "authentication": "matrix_access_token",
+          "stable": "GET /_matrix/client/v1/rtc/transports",
+          "unstable": "GET /_matrix/client/unstable/org.matrix.msc4143/rtc/transports"
+        }
+      },
+      "application": {
+        "call_id_field": "m.call.id",
+        "default_room_slot": "m.call#ROOM",
+        "intent_field": "m.call.intent",
+        "type": "m.call"
+      },
+      "encryption": {
+        "stable": "m.per_member",
+        "unstable": "org.matrix.msc4143.per_member"
+      },
+      "feature_flags": {
+        "stable_identifiers": "org.matrix.msc4143.stable",
+        "unstable": "org.matrix.msc4143"
+      },
+      "room_events": {
+        "decline": {
+          "stable": "m.rtc.decline",
+          "unstable": "org.matrix.msc4310.rtc.decline"
+        },
+        "member": {
+          "stable": "m.rtc.member",
+          "state_key": null,
+          "sticky_key": "member.id",
+          "unstable": "org.matrix.msc4143.rtc.member"
+        },
+        "notification": {
+          "stable": "m.rtc.notification",
+          "unstable": "org.matrix.msc4075.rtc.notification"
+        },
+        "slot": {
+          "stable": "m.rtc.slot",
+          "state_key": "{application_type}#{application_slot_id}",
+          "unstable": "org.matrix.msc4143.rtc.slot"
+        }
+      },
+      "to_device_events": {
+        "encryption_key": {
+          "stable": "m.rtc.encryption_key",
+          "unstable": "org.matrix.msc4143.rtc.encryption_key"
+        },
+        "ring_ack": {
+          "stable": "m.call.ring.ack",
+          "unstable": "org.matrix.msc4075.call.ring.ack"
+        }
+      }
+    },
+    "kind": "open_msc_snapshot",
+    "non_claims": [
+      "native_session_available",
+      "production_rtc_ready",
+      "livekit_authorized",
+      "sender_keys_implemented",
+      "media_implemented",
+      "call_ui_implemented"
+    ],
+    "production_evidence": {
+      "credential_mode": "unauthenticated_sanitized",
+      "observed_date": "2026-07-31",
+      "qualification": "unsupported",
+      "stable_transport_registry": {
+        "errcode": "M_UNRECOGNIZED",
+        "http_status": 404
+      },
+      "versions": {
+        "http_status": 200,
+        "org_matrix_msc4143": "missing",
+        "org_matrix_msc4143_stable": "missing"
+      },
+      "well_known": {
+        "has_m_rtc_foci": false,
+        "http_status": 200
+      }
+    },
+    "proposals": [
+      {
+        "content_sha256": "78f14c6467a28600094c6837bab55706c0f75c4f535e671503e9fb4a11e04103",
+        "head": "3236b007aaceee73e579e33990dd3ec5e07841e4",
+        "msc": 4143,
+        "source_path": "proposals/4143-matrix-rtc.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "6becf1e8e177e9cd28fea0f668b097be703775459d5141266970169dfaf7c8ab",
+        "head": "15770e6988f307499519b0cb294b95ed494171b6",
+        "msc": 4140,
+        "source_path": "proposals/4140-delayed-events-futures.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "007d7b33c29dbb2108f3df96dc9e6bd766f3e84399f18f205b44bda7a26f979c",
+        "head": "afdcf273e507152699ffb0cbfa3f364550f2b112",
+        "msc": 4195,
+        "source_path": "proposals/4195-matrixrtc-livekit.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "29b0307635ac3524786cd1352fd8bbaaaa488160974561a371cf735841ec0e23",
+        "head": "5add2f0c96974c4996a6e5e0907018117cbb5934",
+        "msc": 4196,
+        "source_path": "proposals/4196-matrixrtc-m-call.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "b28513416ed3cedd81fb3d0f4b521a893a2ddf18929f58817469d7f5eadd325a",
+        "head": "39cc54743a4f2187fdee1a69909b4a84eb7af014",
+        "msc": 4075,
+        "source_path": "proposals/4075-rtc-notification-event.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "a75e97e72de589c6b23b1d95ad542f202935f8e170a42dcbc96734689743e375",
+        "head": "67687dc381f56c626edf6e00a2bd2c5e2d04e56b",
+        "msc": 4310,
+        "source_path": "proposals/4310-MatrixRTC-call-decline.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "22aef4423a8b42561aff9e1e1333a0cfc10500c5275a3ea29359f66b275d9ae4",
+        "head": "db488faa1c3f234847dada8d17893d60626e869d",
+        "msc": 4519,
+        "source_path": "proposals/4519-rtc-transports-registry.md",
+        "status": "open"
+      }
+    ],
+    "required_capabilities": [
+      "exact_snapshot_integrity",
+      "selected_identifier_family",
+      "server_profile_advertisement",
+      "authenticated_transport_registry_without_fallback",
+      "slot_open_close",
+      "member_join_refresh_leave",
+      "delayed_leave_deadman_switch",
+      "profile_aware_participant_device_snapshot",
+      "notification_and_decline",
+      "per_member_sender_key_lifecycle",
+      "recipient_device_validation",
+      "bounded_transport_grant",
+      "complete_native_session_surface",
+      "origin_account_room_device_binding"
+    ],
+    "sdk_matrix": {
+      "current_upstream_source": {
+        "authenticated_transport_registry": true,
+        "commit": "43565c555072cc8002450ece96bd5a90e2b4a0b5",
+        "complete_native_session_surface": false,
+        "ffi_convenience_falls_back_to_well_known": true
+      },
+      "pinned_hypha_artifact": {
+        "artifact": "26.07.23-zenith.10",
+        "artifact_sha256": "ca8796d0f065ade3787de2f18693afd940914ce2e35f807ccf479d2f14c5c565",
+        "authenticated_transport_registry": false,
+        "bounded_transport_grant": false,
+        "complete_native_session_surface": false,
+        "delayed_leave_lifecycle": false,
+        "generated_swift_sha256": "7d823dda5f112ebc60887fc0ff238129b49e0173870ad616978f17b3ace5bdbc",
+        "legacy_well_known_livekit_boolean": true,
+        "sender_key_lifecycle": false,
+        "slot_member_lifecycle": false,
+        "source_commit": "f4889ec898e77d8b8c9013adadd77f3d0901fc2d"
+      },
+      "selected_profile_requires": {
+        "authenticated_transport_registry_without_fallback": true,
+        "complete_native_session_surface": true
+      }
+    }
+  },
+  "profile_fingerprint_sha256": "bddeae87e3a2da8bb19b662465448b7fa0bc4e96fbc39954db83defe0f5c041f",
+  "schema": "ca.hypha.matrixrtc.contract-profile-manifest.v1"
+}
