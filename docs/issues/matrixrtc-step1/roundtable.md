@@ -32,10 +32,10 @@ Verdict before repairs: BLOCKED.
 
 ## Product / accessibility / QA evidence
 
-- Future UI decisions are fixed but not implemented in Step 1: an operable top-right room call affordance opens a Messages-like trailing inspector for unavailable, incoming, pre-join, and active states.
-- Incoming calls do not auto-open, steal focus, prompt permissions, answer, or connect media; closing the inspector and Escape affect presentation only.
-- Same-account navigation may preserve a future call only while visibly bound to immutable origin account/room with Return to origin. Account switching requires Leave and switch or Cancel; a second call is blocked.
-- Unsupported state requires typed reason codes plus safe title, description, accessibility label, and accessibility hint; a disabled control must not hide the reason.
+- Future UI decisions are fixed but not implemented in Step 1: an operable selected-room top-right call affordance opens a Messages-like trailing inspector for unavailable, incoming, pre-join, and active states.
+- Incoming calls never auto-open, steal focus, request permission, answer, or connect; closing the inspector and pressing Escape never leave a call and affect presentation only.
+- Same-account room navigation may preserve a future call only while visibly bound to immutable origin account and room with Return to origin. Account switching requires Leave and switch or Cancel; a conflicting second call is blocked.
+- Unsupported state requires typed reason codes plus a visible safe title, description, and recovery and an accessibility label and hint; the selected-room top-right affordance remains operable so an unavailable state cannot hide its reason.
 - The July 27 vault draft contains stale, contradictory call-mode/detached-window diagrams and a fictional July 2026 release-style profile label.
 - CI has no MatrixRTC manifest, stale-profile, fallback-rejection, fixture, or non-claim gate.
 

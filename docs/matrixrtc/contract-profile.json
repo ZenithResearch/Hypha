@@ -14,15 +14,55 @@
       "transport_grant_value"
     ],
     "future_product_contract": {
-      "affordance": "top_right_room_call_affordance",
-      "navigation": "may_preserve_only_while_visibly_bound_to_origin_account_and_room",
+      "account_switch": {
+        "required_actions": [
+          "Leave and switch",
+          "Cancel"
+        ]
+      },
+      "affordance": {
+        "location": "selected_room_top_right",
+        "operable_when_unavailable": true,
+        "selected_room_only": true,
+        "unavailable_action": "expose_unavailable_reason"
+      },
+      "concurrency": {
+        "conflicting_second_call": "blocked"
+      },
+      "incoming": {
+        "answers": false,
+        "auto_opens": false,
+        "connects": false,
+        "requests_permission": false,
+        "steals_focus": false
+      },
+      "inspector": {
+        "close_leaves_call": false,
+        "escape_leaves_call": false,
+        "surface": "messages_like_trailing_inspector"
+      },
+      "same_account_room_navigation": {
+        "origin_account": "immutable",
+        "origin_room": "immutable",
+        "preservation": "may_preserve_only_while_visibly_bound_to_origin",
+        "return_action": "Return to origin"
+      },
+      "scope": "future_only_nonruntime",
       "states": [
         "unavailable",
         "incoming",
         "pre_join",
         "active"
       ],
-      "surface": "messages_like_trailing_inspector"
+      "unavailable_reason": {
+        "accessibility_hint": "required",
+        "accessibility_label": "required",
+        "visible_fields": [
+          "title",
+          "description",
+          "recovery"
+        ]
+      }
     },
     "id": "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2",
     "identifiers": {
@@ -352,6 +392,6 @@
       }
     }
   },
-  "profile_fingerprint_sha256": "adb98379d638458b2e1e327e598222fccabfb8b91fca0ccd206908bd988257df",
+  "profile_fingerprint_sha256": "b9c34cfd600fcc5bd9739cff8bdeb38d612bdf3d8337ea12598dbbc5dc6a8bc1",
   "schema": "ca.hypha.matrixrtc.contract-profile-manifest.v1"
 }

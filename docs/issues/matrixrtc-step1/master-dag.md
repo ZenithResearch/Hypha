@@ -35,12 +35,14 @@ graph TD
 
 | Node | Issue | Branch | Stacked base | PR | Remaining | State |
 |---|---|---|---|---|---:|---|
-| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` | `main` | [#11](https://github.com/ZenithResearch/Hypha/pull/11) | 2 | hosted gates passed; reviews pending |
+| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` | `main` | [#11](https://github.com/ZenithResearch/Hypha/pull/11) | 2 | current head/check/review authority: live PR #11 |
 | I02 | [#8](https://github.com/ZenithResearch/Hypha/issues/8) | `feat/matrixrtc-qualification-evaluator` | `feat/matrixrtc-contract-profile` | PENDING | 3 | blocked by I01 head |
 | I03 | [#9](https://github.com/ZenithResearch/Hypha/issues/9) | `feat/matrixrtc-trust-origin-contract` | `feat/matrixrtc-qualification-evaluator` | PENDING | 3 | blocked by I02 head |
 | I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` | `feat/matrixrtc-trust-origin-contract` | PENDING | 2 | blocked by I03 head |
 
 ## Claim gates
+
+Committed status is intentionally head-stable: the live GitHub PR #11 head and check/review APIs are the sole authority for current exact-head CI and reviews. Committed run links or SHAs are historical completed checkpoints only. An exact-head verdict is posted on the PR as external immutable evidence after the relevant checks/reviews complete; adding that volatile verdict here would create a new head and invalidate its own claim. The committed no-merge/recovery rules remain authoritative regardless of live gate state.
 
 | Claim | Proving node | Gate |
 |---|---|---|

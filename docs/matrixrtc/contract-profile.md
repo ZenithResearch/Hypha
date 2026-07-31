@@ -2,13 +2,13 @@
 
 Status: qualified contract snapshot; runtime availability unsupported
 Profile ID: `ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2`
-Canonical profile fingerprint: `adb98379d638458b2e1e327e598222fccabfb8b91fca0ccd206908bd988257df`
+Canonical profile fingerprint: `b9c34cfd600fcc5bd9739cff8bdeb38d612bdf3d8337ea12598dbbc5dc6a8bc1`
 
 ## Boundary
 
 This profile is an exact composition of nine **open** Matrix Specification Proposals. It includes MSC4354 because MSC4143 requires Sticky Events and its ephemeral-map algorithm, and MSC4518 because MSC4519 depends on registry semantics. It is not a released Matrix version. Any proposal byte, head, digest, identifier, state-key rule, API route, or required-capability change creates a new profile and requires migration review.
 
-The machine-readable authority is [`contract-profile.json`](contract-profile.json). Its fingerprint is SHA-256 over canonical compact sorted-key JSON of the nested `profile` object; the fingerprint field is excluded from its own preimage.
+The machine-readable authority is [`contract-profile.json`](contract-profile.json). Its fingerprint is SHA-256 over canonical compact sorted-key JSON of the nested `profile` object; the fingerprint field is excluded from its own preimage. Its `future_product_contract` section is fixed future-only product authority, not evidence of runtime implementation.
 
 ## Selected protocol
 
@@ -40,7 +40,7 @@ The 2026-07-31 credential-free probes contain only endpoint kind, status class, 
 
 ## Product and authority decisions
 
-Future call presentation uses an operable top-right room affordance and a Messages-like trailing inspector for unavailable, incoming, pre-join, and active states, so keyboard and VoiceOver users can inspect an unavailable reason. Incoming calls never auto-open, steal focus, prompt permissions, answer, or connect media; closing the inspector or pressing Escape changes presentation only. Same-account room navigation may preserve a later active call only while the surface remains visibly bound to the immutable originating account and room and offers Return to origin. Account switching requires Leave and switch or Cancel, and a second call is blocked. Navigation never changes call authority. Step 1 implements none of that UI or lifecycle.
+Future call presentation uses an operable selected-room top-right affordance and a Messages-like trailing inspector for unavailable, incoming, pre-join, and active states. The affordance remains operable when unavailable so it can expose a visible safe reason title, description, and recovery, plus a required accessibility label and hint for keyboard and VoiceOver inspection. Incoming calls never auto-open, steal focus, request permission, answer, or connect; closing the inspector or pressing Escape never leaves a call and changes presentation only. Same-account room navigation may preserve a later active call only while the surface remains visibly bound to the immutable originating account and room and offers Return to origin. Account switching requires Leave and switch or Cancel, and a conflicting second call is blocked. Navigation never changes call authority. These are future-only, nonruntime requirements; Step 1 implements none of that UI or lifecycle.
 
 Peer-device terminology must keep authenticated, cross-signed, locally SAS-verified, invalid, and revoked states distinct. Invalid, revoked, and non-cross-signed devices fail closed. Whether a valid cross-signed device without local peer verification receives media keys remains unresolved and must be selected before any media-key implementation.
 

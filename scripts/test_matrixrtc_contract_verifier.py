@@ -118,6 +118,39 @@ must_reject_manifest(
     "canonical profile fingerprint mismatch",
 )
 
+# Every fixed future-only product/presentation decision is semantic authority,
+# not merely hash-bound prose. Mutate every leaf independently.
+for path in (
+    ("scope",),
+    ("affordance", "location"),
+    ("affordance", "selected_room_only"),
+    ("affordance", "operable_when_unavailable"),
+    ("affordance", "unavailable_action"),
+    ("inspector", "surface"),
+    ("inspector", "close_leaves_call"),
+    ("inspector", "escape_leaves_call"),
+    ("states",),
+    ("unavailable_reason", "visible_fields"),
+    ("unavailable_reason", "accessibility_label"),
+    ("unavailable_reason", "accessibility_hint"),
+    ("incoming", "auto_opens"),
+    ("incoming", "steals_focus"),
+    ("incoming", "requests_permission"),
+    ("incoming", "answers"),
+    ("incoming", "connects"),
+    ("same_account_room_navigation", "preservation"),
+    ("same_account_room_navigation", "origin_account"),
+    ("same_account_room_navigation", "origin_room"),
+    ("same_account_room_navigation", "return_action"),
+    ("account_switch", "required_actions"),
+    ("concurrency", "conflicting_second_call"),
+):
+    must_reject_manifest(
+        f"future product contract {'/'.join(path)}",
+        ("profile", "future_product_contract", *path),
+        "future product contract semantics drift",
+    )
+
 # MSC4140: every stable/unstable API route, the intentional no-alias state,
 # actions, flags, capability, and delay identifier.
 for api, fields in {

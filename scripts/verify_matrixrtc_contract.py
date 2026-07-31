@@ -21,7 +21,7 @@ GENERATED_SWIFT_SHA256 = "7d823dda5f112ebc60887fc0ff238129b49e0173870ad616978f17
 SDK_EVIDENCE_SHA256 = "03710b085e29d4a48c52279460a058de217de9e1109ddb520ae4401181cc39d3"
 SECTION_SHA256 = {
     "excluded_evidence": "9c2a0e9e264c2f359b67c835879e40e63edf286c7955fd45ccdf0c7ba1404d3b",
-    "future_product_contract": "e77cc31c01894390dbb0233d70dcaa21becee829c31dcd266ee750e197ce5360",
+    "future_product_contract": "a68e785703677ab9464183d4eec365faca9a58309dfb3329baf00106e4125733",
     "identifiers": "692651a337e64300220c9064db3085e687dcca481aa7d860d30b4fbe2510f022",
     "non_claims": "b926ecf2df3d2ec9b1a0533814b7d3802c664843f21e8d630944015c1883f7d7",
     "production_evidence": "b74537b1d62803306457d7591a79f569588ae01f8b33b24f254b411e8e8a7a5a",
@@ -79,6 +79,41 @@ EXPECTED_NON_CLAIMS = [
     "native_session_available", "production_rtc_ready", "livekit_authorized",
     "sender_keys_implemented", "media_implemented", "call_ui_implemented",
 ]
+EXPECTED_FUTURE_PRODUCT_CONTRACT = {
+    "account_switch": {"required_actions": ["Leave and switch", "Cancel"]},
+    "affordance": {
+        "location": "selected_room_top_right",
+        "operable_when_unavailable": True,
+        "selected_room_only": True,
+        "unavailable_action": "expose_unavailable_reason",
+    },
+    "concurrency": {"conflicting_second_call": "blocked"},
+    "incoming": {
+        "answers": False,
+        "auto_opens": False,
+        "connects": False,
+        "requests_permission": False,
+        "steals_focus": False,
+    },
+    "inspector": {
+        "close_leaves_call": False,
+        "escape_leaves_call": False,
+        "surface": "messages_like_trailing_inspector",
+    },
+    "same_account_room_navigation": {
+        "origin_account": "immutable",
+        "origin_room": "immutable",
+        "preservation": "may_preserve_only_while_visibly_bound_to_origin",
+        "return_action": "Return to origin",
+    },
+    "scope": "future_only_nonruntime",
+    "states": ["unavailable", "incoming", "pre_join", "active"],
+    "unavailable_reason": {
+        "accessibility_hint": "required",
+        "accessibility_label": "required",
+        "visible_fields": ["title", "description", "recovery"],
+    },
+}
 EXPECTED_COMPARISON = {
     "legacy_well_known_livekit_boolean": (True, True, False),
     "core_authenticated_transport_registry": (False, True, True),
@@ -186,6 +221,10 @@ require(
 )
 require(identifiers["room_events"]["decline"] == {"stable": "m.rtc.decline", "unstable": "org.matrix.msc4310.rtc.decline"}, "MSC4310 identifiers drift")
 require(profile["non_claims"] == EXPECTED_NON_CLAIMS, "required non-claims drift")
+require(
+    profile["future_product_contract"] == EXPECTED_FUTURE_PRODUCT_CONTRACT,
+    "future product contract semantics drift",
+)
 
 sdk = profile["sdk_matrix"]
 expected_sdk_capabilities = {
