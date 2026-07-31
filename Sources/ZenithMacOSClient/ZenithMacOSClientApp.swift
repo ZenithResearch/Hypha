@@ -16,7 +16,8 @@ struct ZenithMacOSClientApp: App {
         _model = StateObject(wrappedValue: MatrixAppModel(
             healthChecker: healthChecker,
             sessionVault: sessionVault,
-            credentialStore: credentialStore
+            credentialStore: credentialStore,
+            sharedPasswordStore: AppleSharedWebCredentialStore()
         ) { configuration in
             MatrixRustSDKChatService(
                 configuration: configuration,
@@ -47,9 +48,18 @@ enum HomeserverOnboardingState: Equatable {
 fileprivate enum MatrixAppPasswordChangeOutcome: Equatable {
     case success
     case successWithCredentialUpdate
+    case successWithApplePasswordsUpdate
+    case successWithCredentialUpdates
     case successWithCredentialWarning
     case invalidCurrentPassword
     case failed(String)
+}
+
+enum MatrixAppAdminAccessState: Equatable {
+    case unknown
+    case checking
+    case authorized
+    case denied
 }
 
 @MainActor
@@ -61,6 +71,7 @@ final class MatrixAppModel: ObservableObject {
     @Published var homeserverState: HomeserverOnboardingState = .awaitingInput
     @Published var username = ""
     @Published var password = ""
+    @Published var savePasswordToApplePasswords = false
     @Published var messageDraftStore = HyphaMessageDraftStore()
     @Published var rooms: [MatrixRoomSummary] = []
     @Published var trustState: MatrixDeviceTrustState = .unknown
@@ -77,6 +88,10 @@ final class MatrixAppModel: ObservableObject {
     @Published var savedCredentials: [HyphaMatrixCredentialDescriptor] = []
     @Published var activeSessionAccountKey: String?
     @Published private(set) var isAuthenticationOperationInFlight = false
+    @Published private(set) var adminAccessState: MatrixAppAdminAccessState = .unknown
+    @Published private(set) var adminSnapshot: MatrixAdminSnapshot?
+    @Published private(set) var isAdminOperationInFlight = false
+    @Published var adminMessage: String?
 
     private static let homeserverDefaultsKey = "ca.zenithresearch.macos.client.matrix.homeserver"
     private static let legacyHomeserverDefaultsKey = [
@@ -88,6 +103,7 @@ final class MatrixAppModel: ObservableObject {
     private let healthChecker: MatrixHomeserverHealthChecker
     private let sessionVault: MatrixEncryptedSessionVault
     private let credentialStore: any HyphaMatrixCredentialStore
+    private let sharedPasswordStore: any HyphaSharedWebCredentialStore
     private let serviceFactory: ServiceFactory
     private var activeConfiguration: MatrixProductConfiguration?
     private var coordinator: MatrixChatCoordinator?
@@ -99,11 +115,13 @@ final class MatrixAppModel: ObservableObject {
         healthChecker: MatrixHomeserverHealthChecker,
         sessionVault: MatrixEncryptedSessionVault,
         credentialStore: any HyphaMatrixCredentialStore,
+        sharedPasswordStore: any HyphaSharedWebCredentialStore = AppleSharedWebCredentialStore(),
         serviceFactory: @escaping ServiceFactory
     ) {
         self.healthChecker = healthChecker
         self.sessionVault = sessionVault
         self.credentialStore = credentialStore
+        self.sharedPasswordStore = sharedPasswordStore
         self.serviceFactory = serviceFactory
     }
 
@@ -113,6 +131,11 @@ final class MatrixAppModel: ObservableObject {
     }
 
     var isCheckingHomeserver: Bool { homeserverState == .checking }
+
+    var applePasswordsAvailable: Bool {
+        guard let domain = activeConfiguration?.homeserver.host else { return false }
+        return AppleSharedWebCredentialStore.isAvailable(for: domain)
+    }
 
     var composer: String {
         get { messageDraftStore.activeDraft.text }
@@ -144,6 +167,7 @@ final class MatrixAppModel: ObservableObject {
             }
             applyState(from: coordinator)
             applySecurityState(from: coordinator)
+            await refreshAdministratorAccess()
             let registrationClient = MatrixInviteRegistrationClient(homeserver: configuration.homeserver)
             self.registrationClient = registrationClient
             registrationAvailability = await registrationClient.availability()
@@ -157,6 +181,7 @@ final class MatrixAppModel: ObservableObject {
             activeSessionAccountKey = nil
             rooms = []
             resetSecurityState()
+            resetAdministratorState()
             let message = (error as? LocalizedError)?.errorDescription ?? "The homeserver could not be checked."
             homeserverState = .failed(message)
         }
@@ -193,12 +218,19 @@ final class MatrixAppModel: ObservableObject {
         activeSessionAccountKey = nil
         username = ""
         password = ""
+        savePasswordToApplePasswords = false
         state = .signedOut(message: nil)
         resetSecurityState()
+        resetAdministratorState()
         homeserverState = .awaitingInput
     }
 
-    func createAccount(username: String, password: String, registrationToken: String) async -> Bool {
+    func createAccount(
+        username: String,
+        password: String,
+        registrationToken: String,
+        saveInApplePasswords shouldSaveInApplePasswords: Bool
+    ) async -> Bool {
         guard registrationAvailability == .inviteToken,
               let registrationClient,
               let coordinator else { return false }
@@ -215,19 +247,16 @@ final class MatrixAppModel: ObservableObject {
             await coordinator.signIn(username: username, password: password)
             applyState(from: coordinator)
             applySecurityState(from: coordinator)
+            await refreshAdministratorAccess()
             if let configuration = activeConfiguration {
                 refreshSavedSessions(configuration: configuration)
-                if case .rooms = state {
-                    do {
-                        try credentialStore.savePassword(
-                            password,
-                            username: username,
-                            homeserver: configuration.homeserver
-                        )
-                        refreshSavedCredentials(configuration: configuration)
-                    } catch {
-                        roomSyncMessage = "Account created, but Hypha could not save this password."
-                    }
+                if case .rooms = state, shouldSaveInApplePasswords {
+                    await saveInApplePasswords(
+                        password: password,
+                        username: username,
+                        configuration: configuration,
+                        successContext: "Account created"
+                    )
                 }
             }
             if case .rooms = state {
@@ -280,25 +309,24 @@ final class MatrixAppModel: ObservableObject {
         guard let coordinator else { return }
         guard beginAuthenticationOperation() else { return }
         defer { finishAuthenticationOperation() }
+        let usernameForRequest = username
         let passwordForRequest = password
+        let shouldSaveInApplePasswords = savePasswordToApplePasswords
         password = ""
-        await coordinator.signIn(username: username, password: passwordForRequest)
+        savePasswordToApplePasswords = false
+        await coordinator.signIn(username: usernameForRequest, password: passwordForRequest)
         applyState(from: coordinator)
         applySecurityState(from: coordinator)
+        await refreshAdministratorAccess()
         if let configuration = activeConfiguration {
             refreshSavedSessions(configuration: configuration)
-            if case .rooms = state {
-                do {
-                    let credential = try credentialStore.savePassword(
-                        passwordForRequest,
-                        username: username,
-                        homeserver: configuration.homeserver
-                    )
-                    try credentialStore.finalizeAuthenticatedMigration(credential)
-                    refreshSavedCredentials(configuration: configuration)
-                } catch {
-                    roomSyncMessage = "Signed in, but Hypha could not save this password."
-                }
+            if case .rooms = state, shouldSaveInApplePasswords {
+                await saveInApplePasswords(
+                    password: passwordForRequest,
+                    username: usernameForRequest,
+                    configuration: configuration,
+                    successContext: "Signed in"
+                )
             }
         }
     }
@@ -326,6 +354,7 @@ final class MatrixAppModel: ObservableObject {
             await coordinator.signIn(username: credential.username, password: savedPassword)
             applyState(from: coordinator)
             applySecurityState(from: coordinator)
+            await refreshAdministratorAccess()
             refreshSavedSessions(configuration: configuration)
             if case .rooms = state {
                 do {
@@ -358,9 +387,41 @@ final class MatrixAppModel: ObservableObject {
             await coordinator.restore()
             applyState(from: coordinator)
             applySecurityState(from: coordinator)
+            await refreshAdministratorAccess()
             refreshSavedSessions(configuration: configuration)
         } catch {
             state = .unavailable(reason: "Saved Matrix session could not be opened")
+        }
+    }
+
+    func deleteLocalSession(_ session: MatrixSDKSessionRecord) async {
+        guard let configuration = activeConfiguration, beginAuthenticationOperation() else { return }
+        defer { finishAuthenticationOperation() }
+        if activeSessionAccountKey == session.accountKey {
+            await coordinator?.suspend()
+            timelineRefreshTask?.cancel()
+            timelineRefreshTask = nil
+            rooms = []
+            state = .signedOut(message: nil)
+            resetSecurityState()
+            resetAdministratorState()
+        }
+        do {
+            try sessionVault.deleteSession(accountKey: session.accountKey)
+            refreshSavedSessions(configuration: configuration)
+        } catch {
+            roomSyncMessage = "Hypha could not delete the selected local session."
+        }
+    }
+
+    func deleteSavedPassword(_ credential: HyphaMatrixCredentialDescriptor) async {
+        guard let configuration = activeConfiguration, beginAuthenticationOperation() else { return }
+        defer { finishAuthenticationOperation() }
+        do {
+            try credentialStore.delete(credential)
+            refreshSavedCredentials(configuration: configuration)
+        } catch {
+            roomSyncMessage = "Hypha could not delete the selected saved password."
         }
     }
 
@@ -373,8 +434,10 @@ final class MatrixAppModel: ObservableObject {
         coordinator = MatrixChatCoordinator(service: serviceFactory(configuration))
         username = ""
         password = ""
+        savePasswordToApplePasswords = false
         rooms = []
         resetSecurityState()
+        resetAdministratorState()
         state = .signedOut(message: nil)
     }
 
@@ -409,6 +472,38 @@ final class MatrixAppModel: ObservableObject {
         }
     }
 
+    @discardableResult
+    private func saveInApplePasswords(
+        password: String,
+        username: String,
+        configuration: MatrixProductConfiguration,
+        successContext: String,
+        announce: Bool = true
+    ) async -> Bool {
+        guard let domain = configuration.homeserver.host else {
+            if announce {
+                roomSyncMessage = "\(successContext), but Apple Passwords could not identify this homeserver."
+            }
+            return false
+        }
+        do {
+            try await sharedPasswordStore.save(
+                password: password,
+                username: username,
+                domain: domain
+            )
+            if announce {
+                roomSyncMessage = "\(successContext). Password saved in Apple Passwords."
+            }
+            return true
+        } catch {
+            if announce {
+                roomSyncMessage = "\(successContext), but Apple Passwords did not save the password."
+            }
+            return false
+        }
+    }
+
     private func beginAuthenticationOperation() -> Bool {
         guard authenticationOperationGate.begin() else { return false }
         isAuthenticationOperationInFlight = authenticationOperationGate.isInFlight
@@ -438,12 +533,14 @@ final class MatrixAppModel: ObservableObject {
         message: MatrixSignOutMessage? = nil
     ) {
         password = ""
+        savePasswordToApplePasswords = false
         if let username { self.username = username }
         if let configuration = activeConfiguration {
             coordinator = MatrixChatCoordinator(service: serviceFactory(configuration))
         }
         state = .signedOut(message: message)
         resetSecurityState()
+        resetAdministratorState()
     }
 
     func bootstrapFirstDeviceTrust() async {
@@ -507,7 +604,8 @@ final class MatrixAppModel: ObservableObject {
     fileprivate func changePassword(
         currentPassword: String,
         newPassword: String,
-        logoutOtherDevices: Bool
+        logoutOtherDevices: Bool,
+        saveInApplePasswords: Bool
     ) async -> MatrixAppPasswordChangeOutcome {
         guard let coordinator else {
             return .failed("No active Matrix session is available.")
@@ -519,10 +617,26 @@ final class MatrixAppModel: ObservableObject {
         )
         switch result {
         case .success:
+            var updatedApplePasswords = false
+            if saveInApplePasswords {
+                guard let configuration = activeConfiguration,
+                      let accountKey = activeSessionAccountKey,
+                      let username = savedSessions.first(where: { $0.accountKey == accountKey })?.userId else {
+                    return .successWithCredentialWarning
+                }
+                updatedApplePasswords = await self.saveInApplePasswords(
+                    password: newPassword,
+                    username: username,
+                    configuration: configuration,
+                    successContext: "Password changed",
+                    announce: false
+                )
+                guard updatedApplePasswords else { return .successWithCredentialWarning }
+            }
             guard let accountKey = activeSessionAccountKey,
                   let existingCredential = savedCredentials.first(where: { $0.id == accountKey }),
                   let configuration = activeConfiguration else {
-                return .success
+                return updatedApplePasswords ? .successWithApplePasswordsUpdate : .success
             }
             do {
                 let saved = try credentialStore.savePassword(
@@ -534,7 +648,7 @@ final class MatrixAppModel: ObservableObject {
                     return .successWithCredentialWarning
                 }
                 refreshSavedCredentials(configuration: configuration)
-                return .successWithCredentialUpdate
+                return updatedApplePasswords ? .successWithCredentialUpdates : .successWithCredentialUpdate
             } catch {
                 return .successWithCredentialWarning
             }
@@ -543,6 +657,196 @@ final class MatrixAppModel: ObservableObject {
         case let .failed(message):
             return .failed(message)
         }
+    }
+
+    func refreshAdministratorAccess() async {
+        guard let coordinator else {
+            resetAdministratorState()
+            return
+        }
+        adminAccessState = .checking
+        let authorized = await coordinator.isHomeserverAdministrator()
+        guard coordinator === self.coordinator else { return }
+        adminAccessState = authorized ? .authorized : .denied
+        if !authorized { adminSnapshot = nil }
+    }
+
+    func refreshAdministratorSnapshot() async {
+        guard adminAccessState == .authorized,
+              let coordinator,
+              !isAdminOperationInFlight else { return }
+        isAdminOperationInFlight = true
+        adminMessage = nil
+        defer { isAdminOperationInFlight = false }
+        do {
+            let snapshot = try await coordinator.administratorSnapshot()
+            guard coordinator === self.coordinator else { return }
+            adminSnapshot = snapshot
+        } catch {
+            applyAdministratorError(error)
+        }
+    }
+
+    func createAdministratorManagedAccount(
+        localpart: String,
+        temporaryPassword: String,
+        administrator: Bool
+    ) async -> Bool {
+        guard adminAccessState == .authorized,
+              let coordinator,
+              !isAdminOperationInFlight else { return false }
+        isAdminOperationInFlight = true
+        adminMessage = nil
+        defer { isAdminOperationInFlight = false }
+        do {
+            let user = try await coordinator.createAdministratorManagedAccount(
+                localpart: localpart,
+                temporaryPassword: temporaryPassword,
+                administrator: administrator
+            )
+            guard coordinator === self.coordinator else { return false }
+            await publishAdministratorMutationSuccess(
+                "Created \(user.userID) as \(user.isAdministrator ? "an administrator" : "a user"). Hypha did not retain the temporary password.",
+                coordinator: coordinator
+            )
+            return true
+        } catch {
+            applyAdministratorError(error)
+            return false
+        }
+    }
+
+    func createAdministratorManagedRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility) async -> Bool {
+        guard adminAccessState == .authorized, let coordinator, !isAdminOperationInFlight else { return false }
+        isAdminOperationInFlight = true
+        adminMessage = nil
+        defer { isAdminOperationInFlight = false }
+        do {
+            let room = try await coordinator.createAdministratorManagedRoom(name: name, topic: topic, asSpace: asSpace, visibility: visibility)
+            guard coordinator === self.coordinator else { return false }
+            await publishAdministratorMutationSuccess("Created \(asSpace ? "space" : "encrypted room") \(room.name).", coordinator: coordinator)
+            return true
+        } catch {
+            applyAdministratorError(error)
+            return false
+        }
+    }
+
+    func logoutAdministratorManagedAccount(_ user: MatrixAdminUserSummary) async {
+        guard adminAccessState == .authorized, let coordinator, !isAdminOperationInFlight else { return }
+        isAdminOperationInFlight = true
+        adminMessage = nil
+        defer { isAdminOperationInFlight = false }
+        do {
+            try await coordinator.logoutAdministratorManagedAccount(userID: user.userID)
+            clearLocalSessions(for: user.userID)
+            if user.userID == adminSnapshot?.currentUserID {
+                await coordinator.suspend()
+                state = .sessionExpired
+                resetAdministratorState()
+            } else {
+                await publishAdministratorMutationSuccess("Logged out every device for \(user.userID).", coordinator: coordinator)
+            }
+        } catch { applyAdministratorError(error) }
+    }
+
+    private func clearLocalSessions(for userID: String) {
+        for session in savedSessions where session.userId == userID {
+            try? sessionVault.deleteSession(accountKey: session.accountKey)
+        }
+        if let configuration = activeConfiguration { refreshSavedSessions(configuration: configuration) }
+    }
+
+    func deactivateAdministratorManagedAccount(_ user: MatrixAdminUserSummary) async {
+        guard adminAccessState == .authorized,
+              let currentUserID = adminSnapshot?.currentUserID,
+              !currentUserID.isEmpty,
+              user.userID != currentUserID,
+              let coordinator,
+              !isAdminOperationInFlight else { return }
+        isAdminOperationInFlight = true
+        adminMessage = nil
+        defer { isAdminOperationInFlight = false }
+        do {
+            try await coordinator.deactivateAdministratorManagedAccount(userID: user.userID)
+            guard coordinator === self.coordinator else { return }
+            clearLocalSessions(for: user.userID)
+            await publishAdministratorMutationSuccess(
+                "Deactivated and erased \(user.userID) on this homeserver.",
+                coordinator: coordinator
+            )
+        } catch {
+            applyAdministratorError(error)
+        }
+    }
+
+    func purgeAdministratorManagedRoom(_ room: MatrixAdminRoomSummary) async {
+        guard adminAccessState == .authorized,
+              let coordinator,
+              !isAdminOperationInFlight else { return }
+        isAdminOperationInFlight = true
+        adminMessage = nil
+        defer { isAdminOperationInFlight = false }
+        do {
+            try await coordinator.purgeAdministratorManagedRoom(roomID: room.roomID)
+            guard coordinator === self.coordinator else { return }
+            timelineRefreshTask?.cancel()
+            timelineRefreshTask = nil
+            rooms.removeAll { $0.id == room.roomID }
+            switch state {
+            case let .thread(openRoom, _, _) where openRoom.id == room.roomID,
+                 let .trustBlocked(openRoom) where openRoom.id == room.roomID:
+                state = .rooms(rooms)
+            default:
+                break
+            }
+            await publishAdministratorMutationSuccess(
+                "Blocked and purged \(room.name) from this homeserver. Federated copies may remain.",
+                coordinator: coordinator
+            )
+        } catch {
+            applyAdministratorError(error)
+        }
+    }
+
+    private func publishAdministratorMutationSuccess(
+        _ message: String,
+        coordinator: MatrixChatCoordinator
+    ) async {
+        adminMessage = message
+        do {
+            let snapshot = try await coordinator.administratorSnapshot()
+            guard coordinator === self.coordinator else { return }
+            adminSnapshot = snapshot
+        } catch {
+            adminMessage = message + " The administrator list could not be refreshed."
+        }
+    }
+
+    private func applyAdministratorError(_ error: Error) {
+        switch error as? MatrixAdminClientError {
+        case .notAdministrator:
+            adminAccessState = .denied
+            adminSnapshot = nil
+            adminMessage = "Administrator access is no longer available for this account."
+        case .sessionExpired:
+            adminMessage = "The Matrix session expired. Sign in again before using administration."
+        case .offline:
+            adminMessage = "Hypha could not reach the homeserver. No administrative change was made."
+        case .invalidInput:
+            adminMessage = "Check the account or room details and try again."
+        case .protectedAccount:
+            adminMessage = "Hypha will not deactivate the active administrator account."
+        case .invalidResponse, .serverRejected, nil:
+            adminMessage = "The homeserver rejected the administrative operation. No success was assumed."
+        }
+    }
+
+    private func resetAdministratorState() {
+        adminAccessState = .unknown
+        adminSnapshot = nil
+        isAdminOperationInFlight = false
+        adminMessage = nil
     }
 
     private func applySecurityState(from coordinator: MatrixChatCoordinator) {
@@ -561,13 +865,25 @@ final class MatrixAppModel: ObservableObject {
         peerVerificationEligibility = .unavailable
     }
 
-    func createEncryptedRoom(name: String, topic: String, invitees: String) async {
+    func createRoomOrSpace(
+        name: String,
+        topic: String,
+        invitees: String,
+        kind: MatrixRoomKind,
+        visibility: MatrixRoomVisibility
+    ) async {
         guard let coordinator else { return }
         let parsedInvitees = invitees
             .components(separatedBy: CharacterSet(charactersIn: ",\n"))
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        let request = MatrixRoomCreationRequest(name: name, topic: topic, invitees: parsedInvitees)
+        let request = MatrixRoomCreationRequest(
+            name: name,
+            topic: topic,
+            invitees: parsedInvitees,
+            kind: kind,
+            visibility: visibility
+        )
         await coordinator.createEncryptedRoom(request)
         applyState(from: coordinator)
         if case let .thread(room, _, _) = state {
@@ -675,6 +991,11 @@ final class MatrixAppModel: ObservableObject {
     private func applyState(from coordinator: MatrixChatCoordinator) {
         state = coordinator.state
         if case let .rooms(joinedRooms) = state { rooms = joinedRooms }
+        if case .sessionExpired = state, let accountKey = activeSessionAccountKey {
+            try? sessionVault.deleteSession(accountKey: accountKey)
+            if let configuration = activeConfiguration { refreshSavedSessions(configuration: configuration) }
+            resetAdministratorState()
+        }
     }
 }
 
@@ -690,10 +1011,13 @@ private struct MatrixCompanionShell: View {
     @State private var showsRecovery = false
     @State private var showsRecoverySetup = false
     @State private var showsNewRoom = false
+    @State private var newRoomKind: MatrixRoomKind = .room
     @State private var showsFirstDevicePassword = false
     @State private var showsSecurityCenter = false
     @State private var showsPasswordChange = false
+    @State private var showsAdministration = false
     @State private var roomPendingRemoval: MatrixRoomSummary?
+    @State private var credentialPendingDeletion: HyphaMatrixCredentialDescriptor?
     @State private var authRoute: HyphaAuthRoute = .landing
 
     var body: some View {
@@ -720,13 +1044,20 @@ private struct MatrixCompanionShell: View {
             MatrixRecoverySetupSheet(model: model, isPresented: $showsRecoverySetup)
         }
         .sheet(isPresented: $showsNewRoom) {
-            MatrixNewRoomSheet(model: model, isPresented: $showsNewRoom)
+            MatrixNewRoomSheet(
+                model: model,
+                isPresented: $showsNewRoom,
+                kind: $newRoomKind
+            )
         }
         .sheet(isPresented: $showsFirstDevicePassword) {
             MatrixFirstDevicePasswordSheet(model: model, isPresented: $showsFirstDevicePassword)
         }
         .sheet(isPresented: $showsPasswordChange) {
             MatrixChangePasswordSheet(model: model, isPresented: $showsPasswordChange)
+        }
+        .sheet(isPresented: $showsAdministration) {
+            MatrixAdminSheet(model: model, isPresented: $showsAdministration)
         }
         .sheet(isPresented: $showsSecurityCenter) {
             NavigationStack {
@@ -739,6 +1070,23 @@ private struct MatrixCompanionShell: View {
                     }
             }
             .frame(minWidth: 580, idealWidth: 640, minHeight: 320)
+        }
+        .confirmationDialog(
+            "Delete this saved password?",
+            isPresented: Binding(
+                get: { credentialPendingDeletion != nil },
+                set: { if !$0 { credentialPendingDeletion = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: credentialPendingDeletion
+        ) { credential in
+            Button("Delete saved password", role: .destructive) {
+                credentialPendingDeletion = nil
+                Task { await model.deleteSavedPassword(credential) }
+            }
+            Button("Cancel", role: .cancel) { credentialPendingDeletion = nil }
+        } message: { credential in
+            Text("This removes the saved password for \(credential.username) from Hypha on this Mac. Any active encrypted session remains signed in.")
         }
     }
 
@@ -814,15 +1162,26 @@ private struct MatrixCompanionShell: View {
                 }
 
                 HStack(spacing: ZenithDesign.Space.x2) {
-                    Button {
-                        showsNewRoom = true
+                    Menu {
+                        Button {
+                            newRoomKind = .room
+                            showsNewRoom = true
+                        } label: {
+                            Label("New encrypted room…", systemImage: "plus.message.fill")
+                        }
+                        Button {
+                            newRoomKind = .space
+                            showsNewRoom = true
+                        } label: {
+                            Label("New Space…", systemImage: "square.grid.2x2.fill")
+                        }
                     } label: {
-                        Label("New encrypted room", systemImage: "plus.message.fill")
+                        Label("Add room or Space", systemImage: "plus.circle.fill")
                             .font(ZenithDesign.Typography.corporate(.callout, weight: .semibold))
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("matrix.room.create")
+                    .menuStyle(.borderlessButton)
+                    .accessibilityIdentifier("matrix.room-or-space.create")
 
                     Button {
                         Task { await model.refreshRooms() }
@@ -879,10 +1238,21 @@ private struct MatrixCompanionShell: View {
                     }
                 }
 
-                sidebarSectionTitle("Rooms")
-                    .padding(.top, invitations.isEmpty ? 0 : ZenithDesign.Space.x2)
+                let joinedItems = rooms.filter { !$0.hasInvite }
+                let spaces = joinedItems.filter(\.isSpace)
+                let joinedRooms = joinedItems.filter { !$0.isSpace }
 
-                let joinedRooms = rooms.filter { !$0.hasInvite }
+                if !spaces.isEmpty {
+                    sidebarSectionTitle("Spaces")
+                        .padding(.top, invitations.isEmpty ? 0 : ZenithDesign.Space.x2)
+                    ForEach(spaces) { space in
+                        roomRow(space)
+                    }
+                }
+
+                sidebarSectionTitle("Rooms")
+                    .padding(.top, invitations.isEmpty && spaces.isEmpty ? 0 : ZenithDesign.Space.x2)
+
                 if joinedRooms.isEmpty {
                     Text("No joined rooms yet.")
                         .font(.caption)
@@ -901,7 +1271,7 @@ private struct MatrixCompanionShell: View {
         .accessibilityIdentifier("matrix.rooms.sidebar")
         .accessibilityElement(children: .contain)
         .confirmationDialog(
-            "Delete room from this account?",
+            "Delete \(roomPendingRemoval?.isSpace == true ? "space" : "room") from this account?",
             isPresented: Binding(
                 get: { roomPendingRemoval != nil },
                 set: { if !$0 { roomPendingRemoval = nil } }
@@ -946,6 +1316,17 @@ private struct MatrixCompanionShell: View {
                         )
                     }
                 }
+                Divider()
+                Menu {
+                    ForEach(model.savedCredentials) { credential in
+                        Button("Delete \(credential.username)'s saved password…", role: .destructive) {
+                            credentialPendingDeletion = credential
+                        }
+                    }
+                } label: {
+                    Label("Manage saved passwords", systemImage: "key.slash")
+                }
+                .accessibilityIdentifier("matrix.password.manage")
             }
             Divider()
             Button {
@@ -980,10 +1361,10 @@ private struct MatrixCompanionShell: View {
                 Task { await model.open(room) }
             } label: {
                 HStack(spacing: ZenithDesign.Space.x2) {
-                    Image(systemName: room.isEncrypted ? "lock.fill" : "lock.open.fill")
+                    Image(systemName: room.isSpace ? "square.grid.2x2.fill" : (room.isEncrypted ? "lock.fill" : "lock.open.fill"))
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(
-                            room.isEncrypted
+                            room.isSpace || room.isEncrypted
                                 ? ZenithDesign.Palette.brand
                                 : ZenithDesign.Palette.warning
                         )
@@ -991,18 +1372,24 @@ private struct MatrixCompanionShell: View {
                         .font(ZenithDesign.Typography.corporate(.callout, weight: .medium))
                         .lineLimit(2)
                         .foregroundStyle(ZenithDesign.Palette.content)
+                    if room.isSpace {
+                        Text("SPACE")
+                            .font(ZenithDesign.Typography.technical(size: 9, weight: .semibold))
+                            .tracking(0.7)
+                            .foregroundStyle(ZenithDesign.Palette.brand)
+                    }
                     Spacer(minLength: 0)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Open \(room.name)")
-            .accessibilityHint(room.isEncrypted ? "Encrypted room" : "Unencrypted room")
+            .accessibilityLabel("Open \(room.isSpace ? "Space" : "room") \(room.name)")
+            .accessibilityHint(room.isSpace ? "Matrix Space containing related rooms" : (room.isEncrypted ? "Encrypted room" : "Unencrypted room"))
             .accessibilityIdentifier("matrix.room.row")
 
             if room.isCreatedByCurrentUser {
                 Menu {
-                    Button("Delete room from this account…", role: .destructive) {
+                    Button("Delete \(room.isSpace ? "space" : "room") from this account…", role: .destructive) {
                         roomPendingRemoval = room
                     }
                 } label: {
@@ -1145,6 +1532,14 @@ private struct MatrixCompanionShell: View {
         }
     }
 
+    private func openAdministration() {
+        showsSecurityCenter = false
+        Task {
+            await Task.yield()
+            showsAdministration = true
+        }
+    }
+
     private var securityPresentation: HyphaSecurityPresentationState {
         HyphaSecurityPresentationPolicy.presentation(
             trustState: model.trustState,
@@ -1189,6 +1584,11 @@ private struct MatrixCompanionShell: View {
                     Button("Change Password…", action: openPasswordChange)
                         .buttonStyle(HyphaButtonStyle(.secondary))
                         .accessibilityIdentifier("matrix.password.open")
+                    if model.adminAccessState == .authorized {
+                        Button("Homeserver Administration…", action: openAdministration)
+                            .buttonStyle(HyphaButtonStyle(.secondary))
+                            .accessibilityIdentifier("matrix.admin.open")
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, ZenithDesign.Space.x5)
@@ -1230,6 +1630,10 @@ private struct MatrixCompanionShell: View {
 
                 Divider()
                 Button("Change Password…", action: openPasswordChange)
+                if model.adminAccessState == .authorized {
+                    Button("Homeserver Administration…", action: openAdministration)
+                        .accessibilityIdentifier("matrix.admin.open")
+                }
                 Button("Refresh Security Status") {
                     Task { await model.refreshDeviceVerification() }
                 }
@@ -1311,7 +1715,11 @@ private struct MatrixCompanionShell: View {
                 identifier: "matrix.rooms.empty-selection"
             )
         case let .thread(room, events, composer):
-            thread(room: room, events: events, composerState: composer)
+            if room.isSpace {
+                HyphaSpaceView(space: room)
+            } else {
+                thread(room: room, events: events, composerState: composer)
+            }
         case .sessionExpired:
             passwordFallbackPanel(
                 title: "Session expired",
@@ -1425,6 +1833,12 @@ private struct MatrixCompanionShell: View {
                     if case .signedOut = model.state {
                         authRoute = .passwordSignIn
                     }
+                },
+                deleteLocalSession: { session in
+                    await model.deleteLocalSession(session)
+                },
+                deleteSavedPassword: { credential in
+                    await model.deleteSavedPassword(credential)
                 },
                 usePassword: { authRoute = .passwordSignIn }
             )
@@ -1748,6 +2162,8 @@ private struct MatrixChangePasswordSheet: View {
     private enum CredentialResult: Equatable {
         case noneStored
         case updated
+        case applePasswordsUpdated
+        case allUpdated
         case updateFailed
     }
 
@@ -1764,6 +2180,7 @@ private struct MatrixChangePasswordSheet: View {
     @State private var newPassword = ""
     @State private var confirmation = ""
     @State private var logoutOtherDevices = false
+    @State private var saveInApplePasswords = false
     @State private var submissionState: SubmissionState = .idle
 
     private var isSubmitting: Bool { submissionState == .submitting }
@@ -1808,16 +2225,19 @@ private struct MatrixChangePasswordSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 SecureField("Current password", text: $currentPassword)
+                    .textContentType(.password)
                     .textFieldStyle(ZenithInputStyle())
                     .privacySensitive()
                     .disabled(isSubmitting)
                     .accessibilityIdentifier("matrix.password.current")
                 SecureField("New password", text: $newPassword)
+                    .textContentType(.newPassword)
                     .textFieldStyle(ZenithInputStyle())
                     .privacySensitive()
                     .disabled(isSubmitting)
                     .accessibilityIdentifier("matrix.password.new")
                 SecureField("Confirm new password", text: $confirmation)
+                    .textContentType(.newPassword)
                     .textFieldStyle(ZenithInputStyle())
                     .privacySensitive()
                     .disabled(isSubmitting)
@@ -1836,6 +2256,13 @@ private struct MatrixChangePasswordSheet: View {
                 Toggle("Sign out other Hypha devices after changing the password", isOn: $logoutOtherDevices)
                     .font(ZenithDesign.Typography.corporate(.callout))
                     .disabled(isSubmitting)
+
+                if model.applePasswordsAvailable {
+                    Toggle("Update in Apple Passwords", isOn: $saveInApplePasswords)
+                        .font(ZenithDesign.Typography.corporate(.callout))
+                        .disabled(isSubmitting)
+                        .accessibilityIdentifier("matrix.password.save-apple-passwords")
+                }
 
                 if case let .failed(message) = submissionState {
                     Label(message, systemImage: "exclamationmark.triangle.fill")
@@ -1885,7 +2312,8 @@ private struct MatrixChangePasswordSheet: View {
         let request = (
             currentPassword: currentPassword,
             newPassword: newPassword,
-            logoutOtherDevices: logoutOtherDevices
+            logoutOtherDevices: logoutOtherDevices,
+            saveInApplePasswords: saveInApplePasswords
         )
         clearSecrets()
         submissionState = .submitting
@@ -1893,13 +2321,18 @@ private struct MatrixChangePasswordSheet: View {
             let outcome = await model.changePassword(
                 currentPassword: request.currentPassword,
                 newPassword: request.newPassword,
-                logoutOtherDevices: request.logoutOtherDevices
+                logoutOtherDevices: request.logoutOtherDevices,
+                saveInApplePasswords: request.saveInApplePasswords
             )
             switch outcome {
             case .success:
                 submissionState = .succeeded(.noneStored)
             case .successWithCredentialUpdate:
                 submissionState = .succeeded(.updated)
+            case .successWithApplePasswordsUpdate:
+                submissionState = .succeeded(.applePasswordsUpdated)
+            case .successWithCredentialUpdates:
+                submissionState = .succeeded(.allUpdated)
             case .successWithCredentialWarning:
                 submissionState = .succeeded(.updateFailed)
             case .invalidCurrentPassword:
@@ -1914,6 +2347,7 @@ private struct MatrixChangePasswordSheet: View {
         currentPassword = ""
         newPassword = ""
         confirmation = ""
+        saveInApplePasswords = false
     }
 
     private func successMessage(for result: CredentialResult) -> String {
@@ -1922,8 +2356,12 @@ private struct MatrixChangePasswordSheet: View {
             return "The homeserver accepted the new password. No saved sign-in credential was changed."
         case .updated:
             return "Hypha updated the saved account password in encrypted local storage."
+        case .applePasswordsUpdated:
+            return "Apple Passwords saved the new password for this homeserver and can sync it through iCloud Keychain."
+        case .allUpdated:
+            return "Hypha updated the existing local credential and Apple Passwords saved the new password for iCloud Keychain sync."
         case .updateFailed:
-            return "The homeserver accepted the new password, but Hypha could not update the saved local credential. Enter the new password the next time you sign in."
+            return "The homeserver accepted the new password, but a selected password store was not updated. Enter the new password the next time you sign in."
         }
     }
 }
@@ -1939,9 +2377,10 @@ private struct MatrixFirstDevicePasswordSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Authorize device security")
                 .font(ZenithDesign.Typography.technical(size: 22, weight: .semibold))
-            Text("Enter the account password to let the homeserver authorize this device. Hypha keeps the saved account password in macOS Keychain.")
+            Text("Enter the account password to let the homeserver authorize this device. Hypha uses it only for this authorization request.")
                 .foregroundStyle(ZenithDesign.Palette.muted)
             SecureField("Account password", text: $firstDevicePassword)
+                .textContentType(.password)
                 .textFieldStyle(ZenithInputStyle())
                 .accessibilityIdentifier("matrix.first-device.password")
             if attempted && model.firstDeviceTrustBootstrapState == .passwordRequired {
@@ -2133,55 +2572,110 @@ private struct MatrixRecoverySheet: View {
 private struct MatrixNewRoomSheet: View {
     @ObservedObject var model: MatrixAppModel
     @Binding var isPresented: Bool
+    @Binding var kind: MatrixRoomKind
+    @State private var visibility: MatrixRoomVisibility = .inviteOnly
     @State private var name = ""
     @State private var topic = ""
     @State private var invitees = ""
     @State private var isSubmitting = false
 
     var body: some View {
-        Form {
-            Section {
-                TextField("Room name", text: $name)
-                    .accessibilityIdentifier("matrix.room.name")
-                TextField("Topic (optional)", text: $topic)
-                    .accessibilityIdentifier("matrix.room.topic")
-                TextField("Invite Matrix IDs, separated by commas", text: $invitees)
-                    .accessibilityIdentifier("matrix.room.invitees")
-            }
-            Section {
-                Label("Encrypted and invite-only", systemImage: "lock.fill")
-                Text("Hypha waits for the production homeserver to confirm the room before opening it.")
-                    .font(.caption)
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x4) {
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                Text(kind == .space ? "Create a Space" : "Create a room")
+                    .font(ZenithDesign.Typography.corporate(.title2, weight: .semibold))
+                    .foregroundStyle(ZenithDesign.Palette.content)
+                Text(kind == .space
+                     ? "Spaces organize related rooms and subspaces."
+                     : "Rooms are end-to-end encrypted conversation surfaces.")
+                    .font(ZenithDesign.Typography.corporate(.callout))
                     .foregroundStyle(ZenithDesign.Palette.muted)
             }
-            HStack {
-                Button("Cancel") { isPresented = false }
-                Spacer()
-                Button {
-                    submit()
-                } label: {
-                    if isSubmitting {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Text("Create room")
-                    }
+
+            Picker("Type", selection: $kind) {
+                Label("Room", systemImage: "message.fill").tag(MatrixRoomKind.room)
+                Label("Space", systemImage: "square.grid.2x2.fill").tag(MatrixRoomKind.space)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("matrix.room.kind")
+
+            TextField(kind == .space ? "Space name" : "Room name", text: $name)
+                .textFieldStyle(HyphaTextFieldStyle())
+                .accessibilityIdentifier("matrix.room.name")
+            TextField("Topic (optional)", text: $topic)
+                .textFieldStyle(HyphaTextFieldStyle())
+                .accessibilityIdentifier("matrix.room.topic")
+            TextField("Invite Matrix IDs, separated by commas", text: $invitees)
+                .textFieldStyle(HyphaTextFieldStyle())
+                .accessibilityIdentifier("matrix.room.invitees")
+
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+                Text("ACCESS")
+                    .font(ZenithDesign.Typography.technical(size: 11, weight: .semibold))
+                    .tracking(0.9)
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                Picker("Access", selection: $visibility) {
+                    Label("Invite only", systemImage: "person.badge.key.fill")
+                        .tag(MatrixRoomVisibility.inviteOnly)
+                    Label("Public", systemImage: "globe")
+                        .tag(MatrixRoomVisibility.public)
                 }
-                .buttonStyle(ZenithPrimaryButtonStyle())
-                .keyboardShortcut(.defaultAction)
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("matrix.room.visibility")
+                Text(accessDescription)
+                    .font(ZenithDesign.Typography.corporate(.caption))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(ZenithDesign.Space.x3)
+            .background(ZenithDesign.Palette.baseRaised)
+            .clipShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.control, style: .continuous))
+
+            HStack(spacing: ZenithDesign.Space.x2) {
+                HyphaButton(title: "Cancel", variant: .secondary) {
+                    isPresented = false
+                }
+                Spacer()
+                HyphaButton(
+                    title: isSubmitting ? "Creating…" : (kind == .space ? "Create Space" : "Create encrypted room"),
+                    systemImage: kind == .space ? "square.grid.2x2.fill" : "lock.fill",
+                    variant: .primary
+                ) {
+                    submit()
+                }
                 .disabled(isSubmitting || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier("matrix.room.create")
             }
         }
-        .formStyle(.grouped)
-        .padding(12)
-        .frame(width: 520, height: 390)
+        .padding(ZenithDesign.Space.x5)
+        .frame(width: 560)
+        .background(ZenithDesign.Palette.base)
+    }
+
+    private var accessDescription: String {
+        switch (kind, visibility) {
+        case (.room, .inviteOnly):
+            "Only invited members can join. Messages remain end-to-end encrypted."
+        case (.room, .public):
+            "The room is published and anyone can join. Messages remain end-to-end encrypted."
+        case (.space, .inviteOnly):
+            "Only invited members can join this Space and browse its published hierarchy."
+        case (.space, .public):
+            "The Space is published and anyone can join and browse its published hierarchy."
+        }
     }
 
     private func submit() {
         guard !isSubmitting else { return }
         isSubmitting = true
         Task {
-            await model.createEncryptedRoom(name: name, topic: topic, invitees: invitees)
+            await model.createRoomOrSpace(
+                name: name,
+                topic: topic,
+                invitees: invitees,
+                kind: kind,
+                visibility: visibility
+            )
             isSubmitting = false
             if case .thread = model.state { isPresented = false }
         }

@@ -54,6 +54,36 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         XCTAssertEqual(service.passwordChangeRequests, 1)
     }
 
+    func testAdministratorSnapshotFailsClosedWithoutAuthoritativeAdminStatus() async {
+        let service = FakeMatrixChatService()
+        let coordinator = MatrixChatCoordinator(service: service)
+
+        do {
+            _ = try await coordinator.administratorSnapshot()
+            XCTFail("Expected administrator authority rejection")
+        } catch {
+            XCTAssertEqual(error as? MatrixAdminClientError, .notAdministrator)
+        }
+        XCTAssertEqual(service.adminSnapshotRequests, 0)
+    }
+
+    func testAuthorizedAccountCreationForwardsAdministratorRole() async throws {
+        let service = FakeMatrixChatService()
+        service.adminAuthorized = true
+        let coordinator = MatrixChatCoordinator(service: service)
+
+        let created = try await coordinator.createAdministratorManagedAccount(
+            localpart: "new.user",
+            temporaryPassword: "temporary-password-value",
+            administrator: true
+        )
+
+        XCTAssertEqual(created.userID, "@new.user:example.org")
+        XCTAssertTrue(created.isAdministrator)
+        XCTAssertEqual(service.adminAccountCreationLocalparts, ["new.user"])
+        XCTAssertEqual(service.adminAccountCreationRoles, [true])
+    }
+
     func testRestoreTransitionsThroughRestoringToRooms() async {
         let room = MatrixRoomSummary(id: "room-1", name: "Design", isEncrypted: true, hasInvite: false)
         let service = FakeMatrixChatService(restoredRooms: [room])
@@ -976,6 +1006,10 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     var roomRefreshRequests = 0
     var passwordChangeRequests = 0
     var passwordChangeError: MatrixChatServiceError?
+    var adminAuthorized = false
+    var adminSnapshotRequests = 0
+    var adminAccountCreationLocalparts: [String] = []
+    var adminAccountCreationRoles: [Bool] = []
     var timelineHandler: (@Sendable (String) async throws -> [MatrixTimelineEvent])?
     var sendTextHandler: (@Sendable (String, String) async throws -> Void)?
 
@@ -1044,6 +1078,29 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     ) async throws {
         passwordChangeRequests += 1
         if let passwordChangeError { throw passwordChangeError }
+    }
+
+    func isHomeserverAdministrator() async throws -> Bool { adminAuthorized }
+
+    func administratorSnapshot() async throws -> MatrixAdminSnapshot {
+        adminSnapshotRequests += 1
+        return MatrixAdminSnapshot(users: [], rooms: [])
+    }
+
+    func createAdministratorManagedAccount(
+        localpart: String,
+        temporaryPassword: String,
+        administrator: Bool
+    ) async throws -> MatrixAdminUserSummary {
+        adminAccountCreationLocalparts.append(localpart)
+        adminAccountCreationRoles.append(administrator)
+        return MatrixAdminUserSummary(
+            userID: "@\(localpart):example.org",
+            isAdministrator: administrator,
+            isDeactivated: false,
+            isGuest: false,
+            userType: nil
+        )
     }
 
     func refreshRooms() async throws -> [MatrixRoomSummary] {

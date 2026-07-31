@@ -40,9 +40,17 @@ public protocol MatrixSDKSessionVault: Sendable {
     func loadSession(accountKey: String) throws -> MatrixSDKSessionRecord?
     func saveSession(_ value: MatrixSDKSessionRecord) throws
     func deleteSession() throws
+    func deleteSession(accountKey: String) throws
     func loadStoreKey(accountKey: String) throws -> Data?
     func saveStoreKey(_ value: Data, accountKey: String) throws
     func finalizeLegacyMigrationAfterRestore(accountKey: String) throws
+}
+
+public extension MatrixSDKSessionVault {
+    func deleteSession(accountKey: String) throws {
+        guard try loadSession()?.accountKey == accountKey else { return }
+        try deleteSession()
+    }
 }
 
 public extension MatrixSDKSessionVault {
@@ -187,6 +195,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
     private let passwordSessionReauthenticator: any MatrixPasswordSessionReauthenticating
     private let randomStoreKey: RandomStoreKey
     private var client: (any MatrixLiveClient)?
+    private var activeSession: MatrixSDKSessionRecord?
     private var roomsByID: [String: MatrixRoomSummary] = [:]
     private var firstDeviceBootstrapInFlight = false
 
@@ -226,7 +235,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
         let rooms = try await loadInitialRooms(with: liveClient)
         try vault.finalizeLegacyMigrationAfterRestore(accountKey: session.accountKey)
-        activate(liveClient, rooms: rooms)
+        activate(liveClient, session: session, rooms: rooms)
         return rooms
     }
 
@@ -261,7 +270,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
             let rooms = try await loadInitialRooms(with: liveClient)
             try vault.saveSession(refreshedSession)
             try vault.finalizeLegacyMigrationAfterRestore(accountKey: accountKey)
-            activate(liveClient, rooms: rooms)
+            activate(liveClient, session: refreshedSession, rooms: rooms)
             return rooms
         }
 
@@ -302,7 +311,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
         let rooms = try await loadInitialRooms(with: liveClient)
         try vault.saveSession(record)
-        activate(liveClient, rooms: rooms)
+        activate(liveClient, session: record, rooms: rooms)
         return rooms
     }
 
@@ -420,6 +429,42 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
     }
 
+    public func isHomeserverAdministrator() async throws -> Bool {
+        try await administratorClient().isAdministrator()
+    }
+
+    public func administratorSnapshot() async throws -> MatrixAdminSnapshot {
+        try await administratorClient().snapshot()
+    }
+
+    public func createAdministratorManagedAccount(
+        localpart: String,
+        temporaryPassword: String,
+        administrator: Bool
+    ) async throws -> MatrixAdminUserSummary {
+        try await administratorClient().createAccount(
+            localpart: localpart,
+            temporaryPassword: temporaryPassword,
+            administrator: administrator
+        )
+    }
+
+    public func deactivateAdministratorManagedAccount(userID: String) async throws {
+        try await administratorClient().deactivateAccount(userID: userID)
+    }
+
+    public func createAdministratorManagedRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility) async throws -> MatrixAdminRoomSummary {
+        try await administratorClient().createRoom(name: name, topic: topic, asSpace: asSpace, visibility: visibility)
+    }
+
+    public func logoutAdministratorManagedAccount(userID: String) async throws {
+        try await administratorClient().logoutAccount(userID: userID)
+    }
+
+    public func purgeAdministratorManagedRoom(roomID: String) async throws {
+        try await administratorClient().purgeRoom(roomID: roomID)
+    }
+
     public func deviceTrustState() async throws -> MatrixDeviceTrustState {
         guard let client else { throw MatrixChatServiceError.sessionExpired }
         do {
@@ -491,6 +536,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
             await client.stopContinuousSync()
         }
         self.client = nil
+        activeSession = nil
         roomsByID = [:]
     }
 
@@ -506,6 +552,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
         try vault.deleteSession()
         self.client = nil
+        activeSession = nil
         roomsByID = [:]
         if let remoteLogoutError {
             throw mapRuntimeError(remoteLogoutError, fallbackReason: "Signed out locally, but remote logout could not be confirmed")
@@ -528,9 +575,31 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
     }
 
-    private func activate(_ client: any MatrixLiveClient, rooms: [MatrixRoomSummary]) {
+    private func activate(
+        _ client: any MatrixLiveClient,
+        session: MatrixSDKSessionRecord,
+        rooms: [MatrixRoomSummary]
+    ) {
         self.client = client
+        activeSession = session
         remember(rooms)
+    }
+
+    private func administratorClient() throws -> MatrixSynapseAdminClient {
+        guard client != nil, let activeSession else {
+            throw MatrixChatServiceError.sessionExpired
+        }
+        guard MatrixRustLiveClientFactory.matchesConfiguredHomeserver(
+            activeSession.homeserverURL,
+            configured: configuration.homeserver
+        ) else {
+            throw MatrixChatServiceError.unavailable(reason: "Administrator session belongs to another homeserver")
+        }
+        return MatrixSynapseAdminClient(
+            homeserver: configuration.homeserver,
+            currentUserID: activeSession.userId,
+            accessToken: activeSession.accessToken
+        )
     }
 
     private func remember(_ rooms: [MatrixRoomSummary]) {
@@ -813,19 +882,34 @@ public final class MatrixEncryptedSessionVault: MatrixSDKSessionVault, HyphaMatr
             let key = try prepareVault()
             var manifest = try loadManifest(key: key)
             guard let accountKey = manifest.activeAccountKey else { return }
-            guard var record = try loadAccount(accountKey: accountKey, key: key) else {
+            try clearSession(accountKey: accountKey, key: key, manifest: &manifest)
+        }
+    }
+
+    public func deleteSession(accountKey: String) throws {
+        try synchronized {
+            guard Self.isValidAccountKey(accountKey) else {
                 throw MatrixChatServiceError.recoveryRequired
             }
-            record.session = nil
-            if record.storeKey == nil, record.credential == nil {
-                try? FileManager.default.removeItem(at: accountURL(accountKey: accountKey))
-                manifest.accountKeys.removeAll { $0 == accountKey }
-            } else {
-                try writeAccount(record, key: key)
-            }
-            manifest.activeAccountKey = nil
-            try writeManifest(manifest, key: key)
+            let key = try prepareVault()
+            var manifest = try loadManifest(key: key)
+            try clearSession(accountKey: accountKey, key: key, manifest: &manifest)
         }
+    }
+
+    private func clearSession(accountKey: String, key: Data, manifest: inout Manifest) throws {
+        guard var record = try loadAccount(accountKey: accountKey, key: key) else { return }
+        record.session = nil
+        if record.storeKey == nil, record.credential == nil {
+            try? FileManager.default.removeItem(at: accountURL(accountKey: accountKey))
+            manifest.accountKeys.removeAll { $0 == accountKey }
+        } else {
+            try writeAccount(record, key: key)
+        }
+        if manifest.activeAccountKey == accountKey {
+            manifest.activeAccountKey = nil
+        }
+        try writeManifest(manifest, key: key)
     }
 
     public func loadStoreKey(accountKey: String) throws -> Data? {
@@ -1520,7 +1604,9 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
                 name: room.displayName() ?? room.canonicalAlias() ?? roomID,
                 isEncrypted: await room.isEncrypted(),
                 hasInvite: room.membership() == .invited,
-                isCreatedByCurrentUser: isCreatedByCurrentUser
+                isCreatedByCurrentUser: isCreatedByCurrentUser,
+                isSpace: info?.isSpace == true,
+                topic: info?.topic
             ))
         }
         roomByID = retained
@@ -1654,13 +1740,16 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
     }
 
     public func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary {
+        let createsSpace = request.kind == .space
+        let isPublic = request.visibility == .public
         let roomID = try await client.createRoom(request: CreateRoomParameters(
             name: request.name,
             topic: request.topic,
-            isEncrypted: true,
-            visibility: .private,
-            preset: .privateChat,
-            invite: request.invitees.isEmpty ? nil : request.invitees
+            isEncrypted: !createsSpace,
+            visibility: isPublic ? .public : .private,
+            preset: isPublic ? .publicChat : .privateChat,
+            invite: request.invitees.isEmpty ? nil : request.invitees,
+            isSpace: createsSpace
         ))
 
         var createdRoom: Room?
@@ -1674,15 +1763,20 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
         guard let room = createdRoom else {
             throw MatrixChatServiceError.unavailable(reason: "Created room was not returned by Matrix sync")
         }
-        guard await room.isEncrypted() else { throw MatrixChatServiceError.trustViolation }
+        let isEncrypted = await room.isEncrypted()
+        guard createsSpace || isEncrypted else {
+            throw MatrixChatServiceError.trustViolation
+        }
 
         roomByID[roomID] = room
         return MatrixRoomSummary(
             id: roomID,
             name: room.displayName() ?? room.canonicalAlias() ?? request.name,
-            isEncrypted: true,
+            isEncrypted: !createsSpace,
             hasInvite: false,
-            isCreatedByCurrentUser: true
+            isCreatedByCurrentUser: true,
+            isSpace: createsSpace,
+            topic: request.topic
         )
     }
 

@@ -23,19 +23,25 @@ public struct MatrixRoomSummary: Identifiable, Equatable, Sendable {
     public let isEncrypted: Bool
     public let hasInvite: Bool
     public let isCreatedByCurrentUser: Bool
+    public let isSpace: Bool
+    public let topic: String?
 
     public init(
         id: String,
         name: String,
         isEncrypted: Bool,
         hasInvite: Bool,
-        isCreatedByCurrentUser: Bool = false
+        isCreatedByCurrentUser: Bool = false,
+        isSpace: Bool = false,
+        topic: String? = nil
     ) {
         self.id = id
         self.name = name
         self.isEncrypted = isEncrypted
         self.hasInvite = hasInvite
         self.isCreatedByCurrentUser = isCreatedByCurrentUser
+        self.isSpace = isSpace
+        self.topic = topic
     }
 }
 
@@ -145,12 +151,30 @@ public struct MatrixCrossSigningDiagnosticReceipt: Equatable, Sendable {
     }
 }
 
+public enum MatrixRoomKind: String, CaseIterable, Equatable, Sendable {
+    case room
+    case space
+}
+
+public enum MatrixRoomVisibility: String, CaseIterable, Equatable, Sendable {
+    case inviteOnly
+    case `public`
+}
+
 public struct MatrixRoomCreationRequest: Equatable, Sendable {
     public let name: String
     public let topic: String?
     public let invitees: [String]
+    public let kind: MatrixRoomKind
+    public let visibility: MatrixRoomVisibility
 
-    public init(name: String, topic: String? = nil, invitees: [String] = []) {
+    public init(
+        name: String,
+        topic: String? = nil,
+        invitees: [String] = [],
+        kind: MatrixRoomKind = .room,
+        visibility: MatrixRoomVisibility = .inviteOnly
+    ) {
         self.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedTopic = topic?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.topic = trimmedTopic?.isEmpty == true ? nil : trimmedTopic
@@ -160,6 +184,8 @@ public struct MatrixRoomCreationRequest: Equatable, Sendable {
             guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { return nil }
             return trimmed
         }
+        self.kind = kind
+        self.visibility = visibility
     }
 }
 
@@ -255,6 +281,17 @@ public protocol MatrixChatService: Sendable {
         newPassword: String,
         logoutOtherDevices: Bool
     ) async throws
+    func isHomeserverAdministrator() async throws -> Bool
+    func administratorSnapshot() async throws -> MatrixAdminSnapshot
+    func createAdministratorManagedAccount(
+        localpart: String,
+        temporaryPassword: String,
+        administrator: Bool
+    ) async throws -> MatrixAdminUserSummary
+    func createAdministratorManagedRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility) async throws -> MatrixAdminRoomSummary
+    func logoutAdministratorManagedAccount(userID: String) async throws
+    func deactivateAdministratorManagedAccount(userID: String) async throws
+    func purgeAdministratorManagedRoom(roomID: String) async throws
     func refreshRooms() async throws -> [MatrixRoomSummary]
     func timeline(for roomID: String) async throws -> [MatrixTimelineEvent]
     func sendText(_ body: String, to roomID: String) async throws
@@ -275,12 +312,42 @@ public protocol MatrixChatService: Sendable {
 }
 
 public extension MatrixChatService {
+    func createAdministratorManagedRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility) async throws -> MatrixAdminRoomSummary {
+        throw MatrixAdminClientError.serverRejected
+    }
+
+    func logoutAdministratorManagedAccount(userID: String) async throws {
+        throw MatrixAdminClientError.serverRejected
+    }
+
     func changePassword(
         currentPassword: String,
         newPassword: String,
         logoutOtherDevices: Bool
     ) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Password change is unavailable")
+    }
+
+    func isHomeserverAdministrator() async throws -> Bool { false }
+
+    func administratorSnapshot() async throws -> MatrixAdminSnapshot {
+        throw MatrixChatServiceError.unavailable(reason: "Homeserver administration is unavailable")
+    }
+
+    func createAdministratorManagedAccount(
+        localpart: String,
+        temporaryPassword: String,
+        administrator: Bool
+    ) async throws -> MatrixAdminUserSummary {
+        throw MatrixChatServiceError.unavailable(reason: "Account administration is unavailable")
+    }
+
+    func deactivateAdministratorManagedAccount(userID: String) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Account administration is unavailable")
+    }
+
+    func purgeAdministratorManagedRoom(roomID: String) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Room administration is unavailable")
     }
 
     func refreshRooms() async throws -> [MatrixRoomSummary] {
@@ -419,6 +486,60 @@ public final class MatrixChatCoordinator {
         }
     }
 
+    public func isHomeserverAdministrator() async -> Bool {
+        do {
+            return try await service.isHomeserverAdministrator()
+        } catch {
+            return false
+        }
+    }
+
+    public func administratorSnapshot() async throws -> MatrixAdminSnapshot {
+        guard try await service.isHomeserverAdministrator() else {
+            throw MatrixAdminClientError.notAdministrator
+        }
+        return try await service.administratorSnapshot()
+    }
+
+    public func createAdministratorManagedAccount(
+        localpart: String,
+        temporaryPassword: String,
+        administrator: Bool
+    ) async throws -> MatrixAdminUserSummary {
+        guard try await service.isHomeserverAdministrator() else {
+            throw MatrixAdminClientError.notAdministrator
+        }
+        return try await service.createAdministratorManagedAccount(
+            localpart: localpart,
+            temporaryPassword: temporaryPassword,
+            administrator: administrator
+        )
+    }
+
+    public func createAdministratorManagedRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility) async throws -> MatrixAdminRoomSummary {
+        guard try await service.isHomeserverAdministrator() else { throw MatrixAdminClientError.notAdministrator }
+        return try await service.createAdministratorManagedRoom(name: name, topic: topic, asSpace: asSpace, visibility: visibility)
+    }
+
+    public func logoutAdministratorManagedAccount(userID: String) async throws {
+        guard try await service.isHomeserverAdministrator() else { throw MatrixAdminClientError.notAdministrator }
+        try await service.logoutAdministratorManagedAccount(userID: userID)
+    }
+
+    public func deactivateAdministratorManagedAccount(userID: String) async throws {
+        guard try await service.isHomeserverAdministrator() else {
+            throw MatrixAdminClientError.notAdministrator
+        }
+        try await service.deactivateAdministratorManagedAccount(userID: userID)
+    }
+
+    public func purgeAdministratorManagedRoom(roomID: String) async throws {
+        guard try await service.isHomeserverAdministrator() else {
+            throw MatrixAdminClientError.notAdministrator
+        }
+        try await service.purgeAdministratorManagedRoom(roomID: roomID)
+    }
+
     public func refreshRooms() async throws -> [MatrixRoomSummary] {
         let rooms = try await service.refreshRooms()
         if case .rooms = state {
@@ -539,7 +660,7 @@ public final class MatrixChatCoordinator {
         }
         do {
             let room = try await service.createEncryptedRoom(request)
-            guard room.isEncrypted else {
+            guard room.isSpace || room.isEncrypted else {
                 state = .trustBlocked(room: room)
                 return
             }

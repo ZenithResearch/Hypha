@@ -1,0 +1,451 @@
+import Foundation
+
+public enum MatrixAdminClientError: Error, Equatable, Sendable {
+    case invalidInput
+    case notAdministrator
+    case protectedAccount
+    case sessionExpired
+    case offline
+    case invalidResponse
+    case serverRejected
+}
+
+public struct MatrixAdminUserSummary: Identifiable, Equatable, Sendable {
+    public let userID: String
+    public let isAdministrator: Bool
+    public let isDeactivated: Bool
+    public let isGuest: Bool
+    public let userType: String?
+
+    public var id: String { userID }
+
+    public init(
+        userID: String,
+        isAdministrator: Bool,
+        isDeactivated: Bool,
+        isGuest: Bool,
+        userType: String?
+    ) {
+        self.userID = userID
+        self.isAdministrator = isAdministrator
+        self.isDeactivated = isDeactivated
+        self.isGuest = isGuest
+        self.userType = userType
+    }
+}
+
+public struct MatrixAdminRoomSummary: Identifiable, Equatable, Sendable {
+    public let roomID: String
+    public let name: String
+    public let joinedMemberCount: Int
+
+    public var id: String { roomID }
+
+    public init(roomID: String, name: String, joinedMemberCount: Int) {
+        self.roomID = roomID
+        self.name = name
+        self.joinedMemberCount = joinedMemberCount
+    }
+}
+
+public struct MatrixAdminSnapshot: Equatable, Sendable {
+    public let currentUserID: String
+    public let users: [MatrixAdminUserSummary]
+    public let rooms: [MatrixAdminRoomSummary]
+
+    public init(
+        currentUserID: String = "",
+        users: [MatrixAdminUserSummary],
+        rooms: [MatrixAdminRoomSummary]
+    ) {
+        self.currentUserID = currentUserID
+        self.users = users
+        self.rooms = rooms
+    }
+}
+
+public protocol MatrixAdminClient: Sendable {
+    func isAdministrator() async throws -> Bool
+    func snapshot() async throws -> MatrixAdminSnapshot
+    func createAccount(
+        localpart: String,
+        temporaryPassword: String,
+        administrator: Bool
+    ) async throws -> MatrixAdminUserSummary
+    func createRoom(
+        name: String,
+        topic: String,
+        asSpace: Bool,
+        visibility: MatrixRoomVisibility
+    ) async throws -> MatrixAdminRoomSummary
+    func logoutAccount(userID: String) async throws
+    func deactivateAccount(userID: String) async throws
+    func purgeRoom(roomID: String) async throws
+}
+
+public struct MatrixAdminHTTPResponse: Sendable {
+    public let statusCode: Int
+    public let body: Data
+    public let responseURL: URL
+
+    public init(statusCode: Int, body: Data, responseURL: URL) {
+        self.statusCode = statusCode
+        self.body = body
+        self.responseURL = responseURL
+    }
+}
+
+public protocol MatrixAdminHTTPTransport: Sendable {
+    func send(_ request: URLRequest) async throws -> MatrixAdminHTTPResponse
+}
+
+private final class MatrixAdminRedirectRejectingDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+}
+
+public actor MatrixURLSessionAdminTransport: MatrixAdminHTTPTransport {
+    private let delegate: MatrixAdminRedirectRejectingDelegate
+    private let session: URLSession
+
+    public init() {
+        let delegate = MatrixAdminRedirectRejectingDelegate()
+        self.delegate = delegate
+        self.session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
+    }
+
+    public func send(_ request: URLRequest) async throws -> MatrixAdminHTTPResponse {
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  let responseURL = httpResponse.url else {
+                throw MatrixAdminClientError.invalidResponse
+            }
+            return MatrixAdminHTTPResponse(
+                statusCode: httpResponse.statusCode,
+                body: data,
+                responseURL: responseURL
+            )
+        } catch let error as MatrixAdminClientError {
+            throw error
+        } catch {
+            throw MatrixAdminClientError.offline
+        }
+    }
+}
+
+public struct MatrixSynapseAdminClient: MatrixAdminClient, Sendable {
+    private static let localpartPattern = try! NSRegularExpression(pattern: "^[a-z0-9._=-]+$")
+
+    private let homeserver: URL
+    private let currentUserID: String
+    private let accessToken: String
+    private let transport: any MatrixAdminHTTPTransport
+
+    public init(
+        homeserver: URL,
+        currentUserID: String,
+        accessToken: String,
+        transport: any MatrixAdminHTTPTransport = MatrixURLSessionAdminTransport()
+    ) {
+        self.homeserver = homeserver
+        self.currentUserID = currentUserID
+        self.accessToken = accessToken
+        self.transport = transport
+    }
+
+    public func isAdministrator() async throws -> Bool {
+        let response = try await perform(
+            method: "GET",
+            path: "/_synapse/admin/v1/users/\(encoded(currentUserID))/admin"
+        )
+        guard response.statusCode == 200,
+              let object = jsonObject(response.body),
+              let administrator = object["admin"] as? Bool else {
+            throw mappedError(for: response.statusCode)
+        }
+        return administrator
+    }
+
+    public func snapshot() async throws -> MatrixAdminSnapshot {
+        guard try await isAdministrator() else { throw MatrixAdminClientError.notAdministrator }
+        async let users = listUsers()
+        async let rooms = listRooms()
+        return try await MatrixAdminSnapshot(
+            currentUserID: currentUserID,
+            users: users,
+            rooms: rooms
+        )
+    }
+
+    public func createAccount(
+        localpart: String,
+        temporaryPassword: String,
+        administrator: Bool
+    ) async throws -> MatrixAdminUserSummary {
+        let userIDParts = currentUserID.split(separator: ":", maxSplits: 1)
+        guard validLocalpart(localpart), validPassword(temporaryPassword),
+              userIDParts.count == 2,
+              userIDParts[0].hasPrefix("@"),
+              !userIDParts[1].isEmpty else {
+            throw MatrixAdminClientError.invalidInput
+        }
+        let serverName = userIDParts[1]
+        let expectedUserID = "@\(localpart):\(serverName)"
+        let response = try await perform(
+            method: "PUT",
+            path: "/_synapse/admin/v2/users/\(encoded(expectedUserID))",
+            json: [
+                "password": temporaryPassword,
+                "admin": administrator,
+                "deactivated": false,
+            ]
+        )
+        guard response.statusCode == 200,
+              let user = parseUser(response.body),
+              user.userID == expectedUserID,
+              user.isAdministrator == administrator,
+              !user.isDeactivated else {
+            throw mappedError(for: response.statusCode)
+        }
+        return user
+    }
+
+    public func createRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility = .inviteOnly) async throws -> MatrixAdminRoomSummary {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanTopic = topic.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty, cleanName.count <= 255, cleanTopic.count <= 1_000 else {
+            throw MatrixAdminClientError.invalidInput
+        }
+        var body: [String: Any] = [
+            "name": cleanName,
+            "visibility": visibility == .public ? "public" : "private",
+            "preset": visibility == .public ? "public_chat" : "private_chat",
+        ]
+        if !cleanTopic.isEmpty { body["topic"] = cleanTopic }
+        if asSpace {
+            body["creation_content"] = ["type": "m.space"]
+        } else {
+            body["initial_state"] = [[
+                "type": "m.room.encryption",
+                "state_key": "",
+                "content": ["algorithm": "m.megolm.v1.aes-sha2"],
+            ]]
+        }
+        let response = try await perform(method: "POST", path: "/_matrix/client/v3/createRoom", json: body)
+        guard response.statusCode == 200,
+              let roomID = jsonObject(response.body)?["room_id"] as? String,
+              roomID.hasPrefix("!") else {
+            throw mappedError(for: response.statusCode)
+        }
+        return MatrixAdminRoomSummary(roomID: roomID, name: cleanName, joinedMemberCount: 1)
+    }
+
+    public func logoutAccount(userID: String) async throws {
+        guard userID.hasPrefix("@"), userID.contains(":") else {
+            throw MatrixAdminClientError.invalidInput
+        }
+        let response = try await perform(
+            method: "POST",
+            path: "/_synapse/admin/v1/users/\(encoded(userID))/logout",
+            json: [:]
+        )
+        guard response.statusCode == 200 else { throw mappedError(for: response.statusCode) }
+    }
+
+    public func deactivateAccount(userID: String) async throws {
+        guard userID != currentUserID, userID.hasPrefix("@"), userID.contains(":") else {
+            throw MatrixAdminClientError.protectedAccount
+        }
+        let response = try await perform(
+            method: "POST",
+            path: "/_synapse/admin/v1/deactivate/\(encoded(userID))",
+            json: ["erase": true]
+        )
+        guard response.statusCode == 200 else { throw mappedError(for: response.statusCode) }
+    }
+
+    public func purgeRoom(roomID: String) async throws {
+        guard roomID.hasPrefix("!"), roomID.contains(":") else {
+            throw MatrixAdminClientError.invalidInput
+        }
+        let response = try await perform(
+            method: "DELETE",
+            path: "/_synapse/admin/v2/rooms/\(encoded(roomID))",
+            json: [
+                "block": true,
+                "purge": true,
+                "force_purge": true,
+            ]
+        )
+        guard response.statusCode == 200 else { throw mappedError(for: response.statusCode) }
+        guard let object = jsonObject(response.body), let deleteID = object["delete_id"] as? String else {
+            return
+        }
+        try await waitForRoomDeletion(deleteID: deleteID)
+    }
+
+    private func listUsers() async throws -> [MatrixAdminUserSummary] {
+        var users: [MatrixAdminUserSummary] = []
+        var offset = "0"
+        while true {
+            let response = try await perform(
+                method: "GET",
+                path: "/_synapse/admin/v2/users",
+                queryItems: [
+                    URLQueryItem(name: "from", value: offset),
+                    URLQueryItem(name: "limit", value: "100"),
+                    URLQueryItem(name: "guests", value: "false"),
+                    URLQueryItem(name: "deactivated", value: "false"),
+                ]
+            )
+            guard response.statusCode == 200,
+                  let object = jsonObject(response.body),
+                  let page = object["users"] as? [[String: Any]] else {
+                throw mappedError(for: response.statusCode)
+            }
+            users.append(contentsOf: page.compactMap(parseUser))
+            guard let next = object["next_token"] else { break }
+            offset = String(describing: next)
+        }
+        return users.sorted { $0.userID.localizedCaseInsensitiveCompare($1.userID) == .orderedAscending }
+    }
+
+    private func listRooms() async throws -> [MatrixAdminRoomSummary] {
+        var rooms: [MatrixAdminRoomSummary] = []
+        var offset = "0"
+        while true {
+            let response = try await perform(
+                method: "GET",
+                path: "/_synapse/admin/v1/rooms",
+                queryItems: [
+                    URLQueryItem(name: "from", value: offset),
+                    URLQueryItem(name: "limit", value: "100"),
+                    URLQueryItem(name: "order_by", value: "name"),
+                    URLQueryItem(name: "dir", value: "f"),
+                ]
+            )
+            guard response.statusCode == 200,
+                  let object = jsonObject(response.body),
+                  let page = object["rooms"] as? [[String: Any]] else {
+                throw mappedError(for: response.statusCode)
+            }
+            rooms.append(contentsOf: page.compactMap { room in
+                guard let roomID = room["room_id"] as? String else { return nil }
+                let name = (room["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? roomID
+                let members = room["joined_members"] as? Int ?? 0
+                return MatrixAdminRoomSummary(roomID: roomID, name: name, joinedMemberCount: members)
+            })
+            guard let next = object["next_batch"] else { break }
+            offset = String(describing: next)
+        }
+        return rooms.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func waitForRoomDeletion(deleteID: String) async throws {
+        for _ in 0..<60 {
+            let response = try await perform(
+                method: "GET",
+                path: "/_synapse/admin/v2/rooms/delete_status/\(encoded(deleteID))"
+            )
+            guard response.statusCode == 200, let object = jsonObject(response.body),
+                  let status = object["status"] as? String else {
+                throw mappedError(for: response.statusCode)
+            }
+            if status == "complete" { return }
+            if status == "failed" { throw MatrixAdminClientError.serverRejected }
+            try await Task.sleep(for: .seconds(1))
+        }
+        throw MatrixAdminClientError.serverRejected
+    }
+
+    private func perform(
+        method: String,
+        path: String,
+        queryItems: [URLQueryItem] = [],
+        json: [String: Any]? = nil
+    ) async throws -> MatrixAdminHTTPResponse {
+        guard validHomeserver(homeserver), var components = URLComponents(url: homeserver, resolvingAgainstBaseURL: false) else {
+            throw MatrixAdminClientError.invalidInput
+        }
+        let basePath = components.percentEncodedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        components.percentEncodedPath = basePath.isEmpty ? path : "/\(basePath)\(path)"
+        components.queryItems = queryItems.isEmpty ? nil : queryItems
+        guard let url = components.url else { throw MatrixAdminClientError.invalidInput }
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        if let json {
+            request.httpBody = try JSONSerialization.data(withJSONObject: json, options: [.sortedKeys])
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+        let response = try await transport.send(request)
+        guard sameOrigin(url, response.responseURL) else { throw MatrixAdminClientError.invalidResponse }
+        if response.statusCode == 401 { throw MatrixAdminClientError.sessionExpired }
+        if response.statusCode == 403 { throw MatrixAdminClientError.notAdministrator }
+        return response
+    }
+
+    private func validLocalpart(_ value: String) -> Bool {
+        guard !value.isEmpty, value.count <= 255 else { return false }
+        let range = NSRange(value.startIndex..., in: value)
+        return Self.localpartPattern.firstMatch(in: value, range: range)?.range == range
+    }
+
+    private func validPassword(_ value: String) -> Bool {
+        !value.isEmpty && value.count >= 12 && value.count <= 512 && !value.unicodeScalars.contains { $0.value < 0x20 }
+    }
+
+    private func validHomeserver(_ url: URL) -> Bool {
+        if url.scheme == "https" { return url.host != nil && url.user == nil && url.password == nil }
+        return url.scheme == "http" && ["localhost", "127.0.0.1", "::1"].contains(url.host)
+    }
+
+    private func sameOrigin(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.scheme?.lowercased() == rhs.scheme?.lowercased()
+            && lhs.host?.lowercased() == rhs.host?.lowercased()
+            && lhs.port == rhs.port
+    }
+
+    private func encoded(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? ""
+    }
+
+    private func jsonObject(_ data: Data) -> [String: Any]? {
+        (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
+
+    private func parseUser(_ data: Data) -> MatrixAdminUserSummary? {
+        guard let object = jsonObject(data) else { return nil }
+        return parseUser(object)
+    }
+
+    private func parseUser(_ object: [String: Any]) -> MatrixAdminUserSummary? {
+        guard let userID = object["name"] as? String else { return nil }
+        return MatrixAdminUserSummary(
+            userID: userID,
+            isAdministrator: object["admin"] as? Bool ?? false,
+            isDeactivated: object["deactivated"] as? Bool ?? false,
+            isGuest: object["is_guest"] as? Bool ?? false,
+            userType: object["user_type"] as? String
+        )
+    }
+
+    private func mappedError(for statusCode: Int) -> MatrixAdminClientError {
+        switch statusCode {
+        case 401: .sessionExpired
+        case 403: .notAdministrator
+        case 400, 404, 409: .serverRejected
+        default: .invalidResponse
+        }
+    }
+}

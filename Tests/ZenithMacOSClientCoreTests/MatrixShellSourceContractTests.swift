@@ -29,6 +29,91 @@ final class MatrixShellSourceContractTests: XCTestCase {
         }
     }
 
+    func testPasswordPersistenceIsExplicitAndUsesApplePasswordsAutofill() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let appSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+        let authSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/Auth/HyphaAuthenticationViews.swift"),
+            encoding: .utf8
+        )
+        let entitlements = try String(
+            contentsOf: root.appendingPathComponent("Resources/ZenithMacOSClient.apple-passwords.entitlements"),
+            encoding: .utf8
+        )
+        let source = [appSource, authSource, entitlements].joined(separator: "\n")
+
+        for marker in [
+            "Save in Apple Passwords",
+            "savePasswordToApplePasswords",
+            ".textContentType(.username)",
+            ".textContentType(.password)",
+            ".textContentType(.newPassword)",
+            "com.apple.developer.associated-domains",
+            "webcredentials:synapse.zenith-research.ca",
+        ] {
+            XCTAssertTrue(source.contains(marker), "Missing opt-in Apple Passwords contract: \(marker)")
+        }
+
+        let signInStart = try XCTUnwrap(appSource.range(of: "    func signIn() async {"))
+        let signInEnd = try XCTUnwrap(appSource.range(of: "    func signIn(with credential:", range: signInStart.upperBound..<appSource.endIndex))
+        XCTAssertFalse(String(appSource[signInStart.lowerBound..<signInEnd.lowerBound]).contains("credentialStore.savePassword"))
+
+        let registrationStart = try XCTUnwrap(appSource.range(of: "    func createAccount("))
+        let registrationEnd = try XCTUnwrap(appSource.range(of: "    func dismissFirstRunGuidance", range: registrationStart.upperBound..<appSource.endIndex))
+        XCTAssertFalse(String(appSource[registrationStart.lowerBound..<registrationEnd.lowerBound]).contains("credentialStore.savePassword"))
+    }
+
+    func testAdministratorControlsAreAuthorityGatedAndPresentedAsASheet() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let appSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+        let sheetSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/MatrixAdminSheet.swift"),
+            encoding: .utf8
+        )
+        let clientSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClientCore/MatrixSynapseAdminClient.swift"),
+            encoding: .utf8
+        )
+        let source = [appSource, sheetSource, clientSource].joined(separator: "\n")
+
+        for marker in [
+            ".sheet(isPresented: $showsAdministration)",
+            "model.adminAccessState == .authorized",
+            "MatrixAdminSheet",
+            "matrix.admin.open",
+            "matrix.admin.account.create",
+            "matrix.admin.account.password",
+            "privacySensitive()",
+            "clearSecrets()",
+            "Create user",
+            "MatrixAdminAccountRole",
+            "administrator: administrator",
+            "user.userID == model.adminSnapshot?.currentUserID",
+            "\"block\": true",
+            "\"purge\": true",
+            "Copies retained by federated servers",
+        ] {
+            XCTAssertTrue(source.contains(marker), "Missing administrator-control contract: \(marker)")
+        }
+        XCTAssertFalse(source.contains("registration_shared_secret"))
+        XCTAssertFalse(source.contains("SYNAPSE_REGISTRATION_SHARED_SECRET"))
+        XCTAssertFalse(source.contains("Create normal"))
+    }
+
     func testSidebarUsesCompactCorporateRoomTypographyAndSmallTechnicalSecuritySymbols() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
@@ -42,7 +127,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
 
         XCTAssertTrue(source.contains("ZenithDesign.Typography.corporate(.callout, weight: .medium)"))
         XCTAssertTrue(source.contains("ZenithDesign.Typography.technical(.caption2, weight: .semibold)"))
-        XCTAssertTrue(source.contains(".accessibilityLabel(\"Open \\(room.name)\")"))
+        XCTAssertTrue(source.contains(".accessibilityLabel(\"Open \\(room.isSpace"))
         XCTAssertTrue(source.contains(".menuIndicator(.hidden)"))
         XCTAssertTrue(source.contains("Image(systemName: securityToolbarSymbol)"))
     }
@@ -166,6 +251,9 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(authSource.contains("HyphaAccountChoiceCard"))
         XCTAssertTrue(accountCardSource.contains("Continue existing session for \\(choice.displayAccount)"))
         XCTAssertTrue(accountCardSource.contains("Sign in with saved password for \\(choice.displayAccount)"))
+        XCTAssertTrue(accountCardSource.contains("Delete local session for \\(choice.displayAccount)"))
+        XCTAssertTrue(accountCardSource.contains("Delete saved password for \\(choice.displayAccount)"))
+        XCTAssertTrue(accountCardSource.contains("fillsWidth: true"))
         XCTAssertTrue(accountCardSource.contains("choice.id"))
         XCTAssertTrue(accountCardSource.contains("ProgressView"))
         XCTAssertTrue(accountCardSource.contains("isInteractionDisabled"))
@@ -184,7 +272,8 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(authSource.contains("Create account with invite token"))
         XCTAssertTrue(authSource.contains("registrationAvailability == .inviteToken"))
         XCTAssertTrue(authSource.contains("clearSecrets()"))
-        XCTAssertTrue(authSource.contains(".onDisappear { model.password = \"\" }"))
+        XCTAssertTrue(authSource.contains("model.password = \"\""))
+        XCTAssertTrue(authSource.contains("model.savePasswordToApplePasswords = false"))
         XCTAssertTrue(authSource.contains(".onChange(of: model.registrationAvailability)"))
         XCTAssertFalse(appSource.contains("MatrixRegistrationSheet"))
         XCTAssertFalse(appSource.contains("showsRegistration"))
@@ -201,7 +290,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(shellSource.contains("ZenithDesign.Palette"))
     }
 
-    func testSuccessfulManualAndSavedPasswordRoutesFinalizeOnlyAuthenticatedCredentialMigrations() throws {
+    func testSavedPasswordRouteFinalizesOnlyAuthenticatedCredentialMigration() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
             .deletingLastPathComponent()
@@ -214,7 +303,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
 
         XCTAssertGreaterThanOrEqual(
             source.components(separatedBy: "credentialStore.finalizeAuthenticatedMigration").count - 1,
-            2
+            1
         )
         XCTAssertTrue(source.contains("if case .rooms = state"))
     }
@@ -230,11 +319,40 @@ final class MatrixShellSourceContractTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(source.contains("Delete room from this account…"))
+        XCTAssertTrue(source.contains("Delete \\(room.isSpace ? \"space\" : \"room\") from this account…"))
         XCTAssertTrue(source.contains("Leave and forget"))
         XCTAssertTrue(source.contains("Matrix does not erase copies held by other members or servers"))
         XCTAssertTrue(source.contains("room.isCreatedByCurrentUser"))
         XCTAssertTrue(source.contains("matrix.room.remove.confirm"))
+    }
+
+    func testMatrixSpacesUseSpaceMetadataAndAContainerSpecificSurface() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let shell = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+        let service = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClientCore/MatrixRustSDKChatService.swift"),
+            encoding: .utf8
+        )
+        let spaceView = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/Spaces/HyphaSpaceView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(service.contains("isSpace: info?.isSpace == true"))
+        XCTAssertTrue(shell.contains("let spaces = joinedItems.filter(\\.isSpace)"))
+        XCTAssertTrue(shell.contains("HyphaSpaceView(space: room)"))
+        XCTAssertTrue(shell.contains("Label(\"Add room or Space\""))
+        XCTAssertTrue(shell.contains("MatrixRoomVisibility.public"))
+        XCTAssertTrue(shell.contains(".accessibilityIdentifier(\"matrix.room.visibility\")"))
+        XCTAssertTrue(spaceView.contains("Spaces organize rooms; they are not chat timelines."))
+        XCTAssertFalse(spaceView.contains("ZenithMessageComposer"))
     }
 
     func testPasswordLoginRemainsAvailableWhenSavedCredentialsOrSessionRestoreFail() throws {
@@ -540,7 +658,9 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "matrix.room.name",
             "matrix.room.topic",
             "matrix.room.invitees",
-            "Encrypted and invite-only",
+            "matrix.room.visibility",
+            "MatrixRoomVisibility.inviteOnly",
+            "MatrixRoomVisibility.public",
             "recoveryKey = \"\"",
             "restoreSavedHomeserverIfAvailable",
             "await coordinator.restore()",
