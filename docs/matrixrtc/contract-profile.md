@@ -2,7 +2,7 @@
 
 Status: qualified contract snapshot; runtime availability unsupported
 Profile ID: `ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2`
-Canonical profile fingerprint: `f6e02c1f812a3507a0d7c15d04df118659d066a3e0936a1cd7ce6642ccb9b55d`
+Canonical profile fingerprint: `adb98379d638458b2e1e327e598222fccabfb8b91fca0ccd206908bd988257df`
 
 ## Boundary
 
@@ -19,6 +19,7 @@ The machine-readable authority is [`contract-profile.json`](contract-profile.jso
 - Notification: `m.rtc.notification` / `org.matrix.msc4075.rtc.notification`; acknowledgement `m.call.ring.ack` / `org.matrix.msc4075.call.ring.ack`.
 - Decline: `m.rtc.decline` / `org.matrix.msc4310.rtc.decline`.
 - Authenticated transport discovery: stable `GET /_matrix/client/v1/rtc/transports`; unstable `GET /_matrix/client/unstable/org.matrix.msc4143/rtc/transports`.
+- MSC4195 token APIs include client `POST /_matrix/client/v1/rtc/livekit/get_token`, authenticated federation `POST /_matrix/federation/v1/rtc/livekit/get_token`, and delegated leave `POST /_matrix/client/v1/rtc/livekit/delegate_delayed_leave`.
 - MSC4140 delayed events use stable schedule/manage/list routes and the exact unstable `org.matrix.msc4140` schedule/manage/list routes. The pinned snapshot specifies no unstable alias for the single-event lookup.
 - MSC4140 feature flags are `org.matrix.msc4140` and `org.matrix.msc4140.stable`; its capability is `m.delayed_events` / `org.matrix.msc4140.delayed_events`; its sender-visible unsigned field is `delay_id` / `org.matrix.msc4140.delay_id`.
 - MSC4354 membership events are sticky. The selected ephemeral map key is `(room_id, sender, type, content.sticky_key)`, with last-to-expire then highest-lexicographical-event-ID tie-breaking; membership `sticky_key` equals `member.id`.
@@ -31,7 +32,7 @@ The legacy `org.matrix.msc3401.call.member`, `m.rtc_foci`, the generated `isLive
 
 The pinned Hypha artifact source is `f4889ec898e77d8b8c9013adadd77f3d0901fc2d`. It exposes useful earlier observation/notification/decline and OpenID surfaces, but its LiveKit boolean reads legacy well-known foci and it lacks direct authenticated no-fallback transport discovery plus the complete selected sticky-map/slot/member/delayed-leave/sender-key/grant/session surface. The manifest binds these claims to exact source-file and generated-binding digests.
 
-Current upstream at `43565c555072cc8002450ece96bd5a90e2b4a0b5` adds authenticated core transport discovery, but exposes no direct no-fallback FFI qualification surface: the FFI convenience method still falls back to well-known evidence. Upstream also lacks the selected sticky-map/session primitives and explicitly does not provide a complete native MatrixRTC session. Neither source can currently qualify Hypha to join.
+Current upstream at `43565c555072cc8002450ece96bd5a90e2b4a0b5` adds authenticated core transport discovery, but exposes no direct no-fallback FFI qualification surface: the FFI convenience method still falls back to well-known evidence. Upstream also lacks the selected sticky-map/session primitives and explicitly does not provide a complete native MatrixRTC session. The pinned artifact and current upstream both have `bounded_transport_grant = false`; the selected profile requires it as `true`. Neither source can currently qualify Hypha to join.
 
 ## Production-safe unsupported evidence
 

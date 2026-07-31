@@ -52,6 +52,9 @@
         "livekit_delegate_delayed_leave": {
           "proposal_route": "POST /_matrix/client/v1/rtc/livekit/delegate_delayed_leave"
         },
+        "livekit_federation_token": {
+          "proposal_route": "POST /_matrix/federation/v1/rtc/livekit/get_token"
+        },
         "livekit_token": {
           "proposal_route": "POST /_matrix/client/v1/rtc/livekit/get_token"
         },
@@ -304,6 +307,7 @@
     "sdk_matrix": {
       "current_upstream_source": {
         "authenticated_transport_registry": true,
+        "bounded_transport_grant": false,
         "commit": "43565c555072cc8002450ece96bd5a90e2b4a0b5",
         "complete_native_session_surface": false,
         "ffi_convenience_falls_back_to_well_known": true,
@@ -339,6 +343,7 @@
       },
       "selected_profile_requires": {
         "authenticated_transport_registry_without_fallback": true,
+        "bounded_transport_grant": true,
         "complete_native_session_surface": true,
         "delayed_leave_lifecycle": true,
         "sender_key_lifecycle": true,
@@ -347,6 +352,6 @@
       }
     }
   },
-  "profile_fingerprint_sha256": "f6e02c1f812a3507a0d7c15d04df118659d066a3e0936a1cd7ce6642ccb9b55d",
+  "profile_fingerprint_sha256": "adb98379d638458b2e1e327e598222fccabfb8b91fca0ccd206908bd988257df",
   "schema": "ca.hypha.matrixrtc.contract-profile-manifest.v1"
 }

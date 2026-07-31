@@ -43,6 +43,12 @@
       "selected_profile": true
     },
     {
+      "capability": "bounded_transport_grant",
+      "current_upstream": false,
+      "pinned_hypha": false,
+      "selected_profile": true
+    },
+    {
       "capability": "complete_native_session_surface",
       "current_upstream": false,
       "pinned_hypha": false,

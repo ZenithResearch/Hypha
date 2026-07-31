@@ -19,3 +19,5 @@ Each source was downloaded over HTTPS from `raw.githubusercontent.com/matrix-org
 | 4518 | `a066bdbdf625b7efe98fdf84bf4a8c64fe5f6eb0` | `proposals/4518-registries.md` | `d070a21fe3d793a3f8f2088b9a00937a4b6e43118eccd502fcac09a0650c3a7b` | MATCH |
 
 The manifest profile fingerprint is separately recomputed from canonical compact sorted-key JSON of the nested `profile` object. Proposal source hashes are inputs to that fingerprint; source verification does not imply proposal acceptance, SDK implementation, deployment support, or interoperability.
+
+The exact pinned MSC4195 source includes the authenticated federation API `POST /_matrix/federation/v1/rtc/livekit/get_token`; the authoritative manifest and human contract record that route alongside the client token and delegated-leave APIs.
