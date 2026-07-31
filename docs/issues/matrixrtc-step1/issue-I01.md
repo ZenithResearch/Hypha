@@ -48,7 +48,7 @@ One docs/manifest/static-verifier PR. No app UI, RTC session, transport, crypto,
 
 ### Commit 2 — `test(matrixrtc): enforce profile source integrity`
 
-- Paths: `scripts/verify_matrixrtc_contract.py`, `scripts/test_matrixrtc_contract_verifier.py`, `.github/workflows/ci.yml`, and I01 status rows under `docs/issues/matrixrtc-step1/**`.
+- Paths: `scripts/verify_matrixrtc_contract.py`, `scripts/test_matrixrtc_contract_verifier.py`, `.github/workflows/ci.yml`, the `.github/workflows/ci.yml` digest constant in `scripts/verify_public_release.py`, and I01 status rows under `docs/issues/matrixrtc-step1/**`.
 - Add deterministic no-network manifest/source/static checks and mutation tests.
 - Hook the verifier into existing CI.
 - Acceptance evidence: valid tree passes; missing proposal, digest drift, mixed identifiers, legacy MSC3401 membership, MSC4515 widget-only promotion, fallback qualification, and fictional profile names fail.
@@ -82,7 +82,7 @@ Stop if any upstream pin/digest cannot be reproduced, stable/unstable identifier
 
 ## Allowed paths
 
-`docs/matrixrtc/**`, `docs/issues/matrixrtc-step1/**`, `scripts/verify_matrixrtc_contract.py`, `scripts/test_matrixrtc_contract_verifier.py`, `.github/workflows/ci.yml`.
+`docs/matrixrtc/**`, `docs/issues/matrixrtc-step1/**`, `scripts/verify_matrixrtc_contract.py`, `scripts/test_matrixrtc_contract_verifier.py`, `.github/workflows/ci.yml`, and only the CI workflow digest constant in `scripts/verify_public_release.py`.
 
 ## Stacked PR base
 

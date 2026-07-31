@@ -42,7 +42,7 @@ BINARY_HASHES = {
     "Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip": SDK_SHA256,
 }
 CRITICAL_POLICY_HASHES = {
-    ".github/workflows/ci.yml": "7619938b56be3dc9f8ababf0446a2a26f2da2dc43e37f0f8974c0b965f9bc195",
+    ".github/workflows/ci.yml": "f225852d3ac8a0da992cad51768b825f6b06fcf202a1f42f0dbbd37c5d4a1fd5",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
     "build-app.sh": "cf0fb549796569ca366080f42cac92b83ae9aeccf6bca686c29bd78d6b1452c0",
     "scripts/verify_app_licenses.py": "62cedfdd0c4590c79ec3d66d1f38fe61caee767403d5629c13107697190823ce",

@@ -1,0 +1,82 @@
+{
+  "comparison": [
+    {
+      "capability": "legacy_well_known_livekit_boolean",
+      "current_upstream": true,
+      "pinned_hypha": true,
+      "selected_profile": false
+    },
+    {
+      "capability": "core_authenticated_transport_registry",
+      "current_upstream": true,
+      "pinned_hypha": false,
+      "selected_profile": true
+    },
+    {
+      "capability": "ffi_direct_authenticated_transport_registry_without_fallback",
+      "current_upstream": false,
+      "pinned_hypha": false,
+      "selected_profile": true
+    },
+    {
+      "capability": "sticky_event_ephemeral_map_surface",
+      "current_upstream": false,
+      "pinned_hypha": false,
+      "selected_profile": true
+    },
+    {
+      "capability": "slot_member_lifecycle",
+      "current_upstream": false,
+      "pinned_hypha": false,
+      "selected_profile": true
+    },
+    {
+      "capability": "delayed_leave_lifecycle",
+      "current_upstream": false,
+      "pinned_hypha": false,
+      "selected_profile": true
+    },
+    {
+      "capability": "sender_key_lifecycle",
+      "current_upstream": false,
+      "pinned_hypha": false,
+      "selected_profile": true
+    },
+    {
+      "capability": "complete_native_session_surface",
+      "current_upstream": false,
+      "pinned_hypha": false,
+      "selected_profile": true
+    }
+  ],
+  "current_upstream": {
+    "commit": "43565c555072cc8002450ece96bd5a90e2b4a0b5",
+    "files": {
+      "bindings/matrix-sdk-ffi/CHANGELOG.md": "51d4f3bd0cdb4ad97ccac22a6706d47f6a323031247b10143238af3660270f36",
+      "bindings/matrix-sdk-ffi/src/client.rs": "a79e76aef6e116e98123c0bb4f1a38e25a24aca24b8e1e729bea84f7c9ffea45",
+      "crates/matrix-sdk/src/client/mod.rs": "181447b458753b9854917c840fe97e0b7d3f357aeceb82f2a2990ee41d2b3510"
+    },
+    "observations": [
+      "Client::rtc_transports exists in the core SDK",
+      "FFI is_livekit_rtc_supported calls rtc_transports and falls back to well_known_rtc_transports",
+      "FFI exposes no direct authenticated no-fallback transport-registry result",
+      "the changelog states clients are not supposed to join MatrixRTC sessions yet"
+    ]
+  },
+  "observed_date": "2026-07-31",
+  "pinned_hypha": {
+    "commit": "f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+    "files": {
+      "bindings/matrix-sdk-ffi/CHANGELOG.md": "51d4f3bd0cdb4ad97ccac22a6706d47f6a323031247b10143238af3660270f36",
+      "bindings/matrix-sdk-ffi/src/client.rs": "d84a7703f32f14d1e77acb44ead2a93f276f2c58b344e9df541e0e3d4f328e50",
+      "generated_swift_binding": "7d823dda5f112ebc60887fc0ff238129b49e0173870ad616978f17b3ace5bdbc"
+    },
+    "observations": [
+      "FFI is_livekit_rtc_supported reads legacy rtc_foci well-known data",
+      "observation, notification, decline, and OpenID support do not constitute a join surface",
+      "authenticated transport-registry, sticky-map, slot/member lifecycle, delayed-leave, sender-key, grant, and complete session surfaces are absent"
+    ]
+  },
+  "qualification": "unsupported",
+  "schema": "ca.hypha.matrixrtc.sdk-capability-evidence.v1"
+}

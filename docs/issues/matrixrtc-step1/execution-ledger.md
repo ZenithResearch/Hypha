@@ -20,7 +20,7 @@ Recovery rule: preserve all commits and dirty files; never reset, clean, rewrite
 
 | Node | Issue | Branch/head | PR/base | Local gates | Hosted CI | Exact-head reviews | State |
 |---|---|---|---|---|---|---|---|
-| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` / `64f509b` | [#11](https://github.com/ZenithResearch/Hypha/pull/11) / `main` | Commit 1 baseline passed | `64f509b` push + PR CI passed | CTO BLOCKED: missing MSC4354/MSC4518 | additive repair in progress |
+| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` / `78dedde` + pending Commit 2 | [#11](https://github.com/ZenithResearch/Hypha/pull/11) / `main` | contract verifier + mutation suite; public-release suite; 217 Swift tests (3 skipped); build/package/codesign passed | pending repaired head | prior verdicts invalidated | local gates passed; push pending |
 | I02 | [#8](https://github.com/ZenithResearch/Hypha/issues/8) | `feat/matrixrtc-qualification-evaluator` / PENDING | PENDING / I01 | pending | pending | pending | blocked |
 | I03 | [#9](https://github.com/ZenithResearch/Hypha/issues/9) | `feat/matrixrtc-trust-origin-contract` / PENDING | PENDING / I02 | pending | pending | pending | blocked |
 | I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` / PENDING | PENDING / I03 | pending | pending | pending | blocked |
@@ -30,5 +30,7 @@ Recovery rule: preserve all commits and dirty files; never reset, clean, rewrite
 - Roundtable synthesized in `roundtable.md`.
 - All nine proposal files were independently downloaded at their exact heads and matched their recorded SHA-256 digests.
 - The interrupted Commit 2 developer left no shared diff and is treated as failed; no partial work was adopted.
+- Additive repair `78dedde` pins MSC4354 and MSC4518, every selected MSC4140 unstable identifier, sticky-map requirements, and exact SDK source evidence without rewriting Commit 1.
+- Commit 2 local verification passed offline contract/source/static mutation gates plus the complete existing CI-equivalent package gate.
 - Master DAG and issue packets are authoritative for scope.
 - Open PRs do not authorize merge or ordinary downstream readiness; stacked execution is the explicit operator waiver only.
