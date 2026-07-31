@@ -13,6 +13,32 @@ ROOT = Path(__file__).resolve().parents[1]
 VERIFIER = ROOT / "scripts" / "verify_matrixrtc_contract.py"
 MANIFEST = ROOT / "docs" / "matrixrtc" / "contract-profile.json"
 SDK_EVIDENCE = ROOT / "docs" / "matrixrtc" / "sdk-capability-evidence.json"
+PUBLIC_DOC_REQUIREMENTS = {
+    ROOT / "README.md": (
+        "## MatrixRTC contract qualification",
+        "Step 1 qualifies contracts only; it does not implement calling.",
+        "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2",
+        "The current Matrix Rust SDK and production deployment are unsupported.",
+    ),
+    ROOT / "docs" / "architecture.md": (
+        "## MatrixRTC contract boundary",
+        "MatrixRTCPeerTrustClassifier",
+        "MatrixRTCOriginLifecycleEvaluator",
+        "future-only",
+    ),
+    ROOT / "docs" / "security-model.md": (
+        "## MatrixRTC Step 1",
+        "No trust classification grants media-key authority.",
+        "cross-signed but not locally SAS-verified",
+        "remains unresolved",
+    ),
+    ROOT / "Vendor" / "MatrixRustSDK" / "PROVENANCE.md": (
+        "## MatrixRTC qualification gap",
+        "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2",
+        "630c781b782eb94965fb83767a39247f2d127ac31f0c89065f18711b375f8f6d",
+        "unsupported",
+    ),
+}
 
 
 def run_verifier() -> subprocess.CompletedProcess[str]:
@@ -344,6 +370,27 @@ must_reject_file(
     "CI omits contract mutation tests", workflow_path,
     workflow.replace("          python3 scripts/test_matrixrtc_contract_verifier.py\n", "").encode(),
     "CI omits MatrixRTC verifier mutation tests",
+)
+
+for path, phrases in PUBLIC_DOC_REQUIREMENTS.items():
+    original = path.read_text(encoding="utf-8")
+    for phrase in phrases:
+        must_reject_file(
+            f"public documentation omits {phrase}", path,
+            original.replace(phrase, "", 1).encode(),
+            "public MatrixRTC contract claim missing",
+        )
+
+readme = ROOT / "README.md"
+must_reject_file(
+    "fictional release profile survives in public docs", readme,
+    (readme.read_text(encoding="utf-8") + "\nReleased2026_07\n").encode(),
+    "stale or overclaimed MatrixRTC surface",
+)
+must_reject_file(
+    "legacy fallback is promoted in public docs", readme,
+    (readme.read_text(encoding="utf-8") + "\nisLivekitRtcSupported() proves availability\n").encode(),
+    "legacy fallback promoted in public docs",
 )
 
 print("MatrixRTC contract verifier mutation tests passed")

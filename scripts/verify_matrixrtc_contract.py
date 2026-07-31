@@ -15,6 +15,10 @@ CONTRACT_PATH = ROOT / "docs" / "matrixrtc" / "contract-profile.md"
 SOURCE_VERIFICATION_PATH = ROOT / "docs" / "matrixrtc" / "source-verification.md"
 SDK_EVIDENCE_PATH = ROOT / "docs" / "matrixrtc" / "sdk-capability-evidence.json"
 CI_PATH = ROOT / ".github" / "workflows" / "ci.yml"
+README_PATH = ROOT / "README.md"
+ARCHITECTURE_PATH = ROOT / "docs" / "architecture.md"
+SECURITY_PATH = ROOT / "docs" / "security-model.md"
+PROVENANCE_PATH = ROOT / "Vendor" / "MatrixRustSDK" / "PROVENANCE.md"
 PROFILE_ID = "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2"
 SCHEMA = "ca.hypha.matrixrtc.contract-profile-manifest.v1"
 GENERATED_SWIFT_SHA256 = "7d823dda5f112ebc60887fc0ff238129b49e0173870ad616978f17b3ace5bdbc"
@@ -142,6 +146,41 @@ EXPECTED_SELECTED_SDK_REQUIREMENTS = {
     "slot_member_lifecycle",
     "sticky_event_ephemeral_map_surface",
 }
+PUBLIC_DOC_REQUIREMENTS = {
+    README_PATH: (
+        "## MatrixRTC contract qualification",
+        "Step 1 qualifies contracts only; it does not implement calling.",
+        PROFILE_ID,
+        "The current Matrix Rust SDK and production deployment are unsupported.",
+    ),
+    ARCHITECTURE_PATH: (
+        "## MatrixRTC contract boundary",
+        "MatrixRTCPeerTrustClassifier",
+        "MatrixRTCOriginLifecycleEvaluator",
+        "future-only",
+    ),
+    SECURITY_PATH: (
+        "## MatrixRTC Step 1",
+        "No trust classification grants media-key authority.",
+        "cross-signed but not locally SAS-verified",
+        "remains unresolved",
+    ),
+    PROVENANCE_PATH: (
+        "## MatrixRTC qualification gap",
+        PROFILE_ID,
+        "630c781b782eb94965fb83767a39247f2d127ac31f0c89065f18711b375f8f6d",
+        "unsupported",
+    ),
+}
+FORBIDDEN_PUBLIC_DOC_CLAIMS = (
+    "Released2026_07",
+    "[Voice] [Video]",
+    "[ Chat ] [ Canvas ] [ Call",
+    "Join video call",
+    "Hypha can join MatrixRTC",
+    "production is RTC-ready",
+    "MatrixRTC is implemented",
+)
 
 
 def require(condition: bool, message: str) -> None:
@@ -335,8 +374,17 @@ for path in (ROOT / "Sources").rglob("*.swift"):
 vendor_swift = ROOT / "Vendor" / "MatrixRustSDK" / "Sources" / "MatrixRustSDK" / "matrix_sdk_ffi.swift"
 require(hashlib.sha256(vendor_swift.read_bytes()).hexdigest() == GENERATED_SWIFT_SHA256, "generated SDK binding drift")
 require("func isLivekitRtcSupported()" in vendor_swift.read_text(encoding="utf-8"), "pinned SDK fallback evidence missing")
-provenance = (ROOT / "Vendor" / "MatrixRustSDK" / "PROVENANCE.md").read_text(encoding="utf-8")
+provenance = PROVENANCE_PATH.read_text(encoding="utf-8")
 require(sdk["pinned_hypha_artifact"]["source_commit"] in provenance, "pinned SDK source commit missing from provenance")
+for path, required_phrases in PUBLIC_DOC_REQUIREMENTS.items():
+    text = path.read_text(encoding="utf-8")
+    for phrase in required_phrases:
+        require(phrase in text, f"public MatrixRTC contract claim missing: {path.relative_to(ROOT)}: {phrase}")
+    for claim in FORBIDDEN_PUBLIC_DOC_CLAIMS:
+        require(claim not in text, f"stale or overclaimed MatrixRTC surface: {path.relative_to(ROOT)}: {claim}")
+for path in (README_PATH, ARCHITECTURE_PATH, SECURITY_PATH):
+    text = path.read_text(encoding="utf-8")
+    require("isLivekitRtcSupported() proves availability" not in text, f"legacy fallback promoted in public docs: {path.relative_to(ROOT)}")
 ci = CI_PATH.read_text(encoding="utf-8")
 require("python3 scripts/verify_matrixrtc_contract.py" in ci, "CI omits MatrixRTC contract verification")
 require("python3 scripts/test_matrixrtc_contract_verifier.py" in ci, "CI omits MatrixRTC verifier mutation tests")
