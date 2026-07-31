@@ -1334,17 +1334,13 @@ private struct MatrixCompanionShell: View {
         HStack(spacing: ZenithDesign.Space.x2) {
             sidebarSectionTitle(title)
             Spacer(minLength: 0)
-            Button {
+            HyphaIconButton(
+                systemImage: "plus",
+                accessibilityLabel: "Add \(kind == .space ? "Space" : "room")"
+            ) {
                 newRoomKind = kind
                 showsNewRoom = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 11, weight: .bold))
-                    .accessibilityHidden(true)
             }
-            .buttonStyle(HyphaButtonStyle(.quiet))
-            .fixedSize()
-            .accessibilityLabel("Add \(kind == .space ? "Space" : "room")")
             .accessibilityIdentifier(kind == .space ? "matrix.space.create.inline" : "matrix.room.create.inline")
         }
     }
