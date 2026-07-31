@@ -24,14 +24,17 @@
       ],
       "surface": "messages_like_trailing_inspector"
     },
-    "id": "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.1",
+    "id": "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2",
     "identifiers": {
       "apis": {
         "delayed_event_get": {
-          "proposal_route": "GET /_matrix/client/v1/delayed_events/{delay_id}"
+          "stable": "GET /_matrix/client/v1/delayed_events/{delay_id}",
+          "unstable": null,
+          "unstable_status": "no unstable alias specified by the pinned MSC4140 snapshot"
         },
         "delayed_event_list": {
-          "proposal_route": "GET /_matrix/client/v1/delayed_events"
+          "stable": "GET /_matrix/client/v1/delayed_events",
+          "unstable": "GET /_matrix/client/unstable/org.matrix.msc4140/delayed_events"
         },
         "delayed_event_manage": {
           "actions": [
@@ -39,10 +42,12 @@
             "cancel",
             "restart"
           ],
-          "proposal_route": "POST /_matrix/client/v1/delayed_events/{delay_id}/{action}"
+          "stable": "POST /_matrix/client/v1/delayed_events/{delay_id}/{action}",
+          "unstable": "POST /_matrix/client/unstable/org.matrix.msc4140/delayed_events/{delay_id}/{action}"
         },
         "delayed_event_schedule": {
-          "proposal_route": "PUT /_matrix/client/v3/rooms/{roomId}/delayed_event/{eventType}/{txnId}"
+          "stable": "PUT /_matrix/client/v3/rooms/{roomId}/delayed_event/{eventType}/{txnId}",
+          "unstable": "PUT /_matrix/client/unstable/org.matrix.msc4140/rooms/{roomId}/delayed_event/{eventType}/{txnId}"
         },
         "livekit_delegate_delayed_leave": {
           "proposal_route": "POST /_matrix/client/v1/rtc/livekit/delegate_delayed_leave"
@@ -66,9 +71,31 @@
         "stable": "m.per_member",
         "unstable": "org.matrix.msc4143.per_member"
       },
+      "capabilities": {
+        "delayed_events": {
+          "stable": "m.delayed_events",
+          "unstable": "org.matrix.msc4140.delayed_events"
+        }
+      },
+      "event_fields": {
+        "delayed_event_unsigned_id": {
+          "stable": "delay_id",
+          "unstable": "org.matrix.msc4140.delay_id"
+        }
+      },
       "feature_flags": {
-        "stable_identifiers": "org.matrix.msc4143.stable",
-        "unstable": "org.matrix.msc4143"
+        "delayed_events": {
+          "stable_identifiers": "org.matrix.msc4140.stable",
+          "unstable": "org.matrix.msc4140"
+        },
+        "matrixrtc": {
+          "stable_identifiers": "org.matrix.msc4143.stable",
+          "unstable": "org.matrix.msc4143"
+        },
+        "sticky_events": {
+          "stable_identifiers": null,
+          "unstable": "org.matrix.msc4354"
+        }
       },
       "room_events": {
         "decline": {
@@ -89,6 +116,32 @@
           "stable": "m.rtc.slot",
           "state_key": "{application_type}#{application_slot_id}",
           "unstable": "org.matrix.msc4143.rtc.slot"
+        }
+      },
+      "sticky_events": {
+        "content_map_key": {
+          "stable": "sticky_key",
+          "unstable": "msc4354_sticky_key"
+        },
+        "pdu_object": {
+          "stable": "sticky",
+          "unstable": "msc4354_sticky"
+        },
+        "send_query_parameter": {
+          "stable": "sticky_duration_ms",
+          "unstable": "org.matrix.msc4354.sticky_duration_ms"
+        },
+        "sliding_sync_extension": {
+          "stable": null,
+          "unstable": "org.matrix.msc4354.sticky_events"
+        },
+        "sync_section": {
+          "stable": "sticky",
+          "unstable": "msc4354_sticky"
+        },
+        "unsigned_ttl_field": {
+          "stable": "unsigned.sticky_duration_ttl_ms",
+          "unstable": "unsigned.msc4354_sticky_duration_ttl_ms"
         }
       },
       "to_device_events": {
@@ -178,8 +231,57 @@
         "msc": 4519,
         "source_path": "proposals/4519-rtc-transports-registry.md",
         "status": "open"
+      },
+      {
+        "content_sha256": "1a89c37ee7b0add4e55ebef2cce0d6ccb14ecb88e18a4dfdce498737b465ee02",
+        "head": "74fc75e1dc1301230cc3fcb7435205bf4f567ef8",
+        "msc": 4354,
+        "source_path": "proposals/4354-sticky-events.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "d070a21fe3d793a3f8f2088b9a00937a4b6e43118eccd502fcac09a0650c3a7b",
+        "head": "a066bdbdf625b7efe98fdf84bf4a8c64fe5f6eb0",
+        "msc": 4518,
+        "source_path": "proposals/4518-registries.md",
+        "status": "open"
       }
     ],
+    "protocol_requirements": {
+      "ephemeral_map": {
+        "deletion": "send a sticky event containing the sticky key with application-specific fields omitted",
+        "expiry": "expire entries when event stickiness ends",
+        "key_tuple": [
+          "room_id",
+          "sender",
+          "type",
+          "content.sticky_key"
+        ],
+        "membership_sticky_key": "content.sticky_key MUST equal member.id",
+        "refresh": "reuse the same sticky key and sticky duration",
+        "tie_break": [
+          "highest origin_server_ts + sticky.duration_ms",
+          "highest lexicographical event_id"
+        ]
+      },
+      "registry": {
+        "discovery_entries_must_be_registered": true,
+        "entry_fields": [
+          "opaque transport type",
+          "stable or unstable status",
+          "transport specification link"
+        ],
+        "livekit_exception": "livekit is the pinned unstable type rather than msc4195.livekit",
+        "process_authority": "MSC4518 registry process",
+        "unknown_transport_types_permitted": false
+      },
+      "sticky_event": {
+        "duration_ms_max": 3600000,
+        "duration_ms_min": 0,
+        "expiry_formula": "min(received_ts, origin_server_ts) + min(sticky.duration_ms, 3600000)",
+        "member_events_must_be_sticky": true
+      }
+    },
     "required_capabilities": [
       "exact_snapshot_integrity",
       "selected_identifier_family",
@@ -187,12 +289,15 @@
       "authenticated_transport_registry_without_fallback",
       "slot_open_close",
       "member_join_refresh_leave",
+      "sticky_event_delivery",
+      "ephemeral_map_materialization",
       "delayed_leave_deadman_switch",
       "profile_aware_participant_device_snapshot",
       "notification_and_decline",
       "per_member_sender_key_lifecycle",
       "recipient_device_validation",
       "bounded_transport_grant",
+      "registered_transport_type_validation",
       "complete_native_session_surface",
       "origin_account_room_device_binding"
     ],
@@ -201,7 +306,14 @@
         "authenticated_transport_registry": true,
         "commit": "43565c555072cc8002450ece96bd5a90e2b4a0b5",
         "complete_native_session_surface": false,
-        "ffi_convenience_falls_back_to_well_known": true
+        "ffi_convenience_falls_back_to_well_known": true,
+        "ffi_direct_authenticated_transport_registry": false,
+        "source_evidence": {
+          "bindings/matrix-sdk-ffi/CHANGELOG.md": "51d4f3bd0cdb4ad97ccac22a6706d47f6a323031247b10143238af3660270f36",
+          "bindings/matrix-sdk-ffi/src/client.rs": "a79e76aef6e116e98123c0bb4f1a38e25a24aca24b8e1e729bea84f7c9ffea45",
+          "crates/matrix-sdk/src/client/mod.rs": "181447b458753b9854917c840fe97e0b7d3f357aeceb82f2a2990ee41d2b3510"
+        },
+        "sticky_event_ephemeral_map_surface": false
       },
       "pinned_hypha_artifact": {
         "artifact": "26.07.23-zenith.10",
@@ -211,17 +323,30 @@
         "complete_native_session_surface": false,
         "delayed_leave_lifecycle": false,
         "generated_swift_sha256": "7d823dda5f112ebc60887fc0ff238129b49e0173870ad616978f17b3ace5bdbc",
+        "ffi_decline_surface": true,
+        "ffi_legacy_active_call_observation": true,
+        "ffi_notification_projection": true,
+        "ffi_openid_token_surface": true,
         "legacy_well_known_livekit_boolean": true,
         "sender_key_lifecycle": false,
         "slot_member_lifecycle": false,
-        "source_commit": "f4889ec898e77d8b8c9013adadd77f3d0901fc2d"
+        "source_commit": "f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+        "source_evidence": {
+          "bindings/matrix-sdk-ffi/CHANGELOG.md": "51d4f3bd0cdb4ad97ccac22a6706d47f6a323031247b10143238af3660270f36",
+          "bindings/matrix-sdk-ffi/src/client.rs": "d84a7703f32f14d1e77acb44ead2a93f276f2c58b344e9df541e0e3d4f328e50"
+        },
+        "sticky_event_ephemeral_map_surface": false
       },
       "selected_profile_requires": {
         "authenticated_transport_registry_without_fallback": true,
-        "complete_native_session_surface": true
+        "complete_native_session_surface": true,
+        "delayed_leave_lifecycle": true,
+        "sender_key_lifecycle": true,
+        "slot_member_lifecycle": true,
+        "sticky_event_ephemeral_map_surface": true
       }
     }
   },
-  "profile_fingerprint_sha256": "bddeae87e3a2da8bb19b662465448b7fa0bc4e96fbc39954db83defe0f5c041f",
+  "profile_fingerprint_sha256": "f6e02c1f812a3507a0d7c15d04df118659d066a3e0936a1cd7ce6642ccb9b55d",
   "schema": "ca.hypha.matrixrtc.contract-profile-manifest.v1"
 }

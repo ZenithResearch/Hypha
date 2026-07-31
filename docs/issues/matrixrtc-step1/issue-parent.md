@@ -13,15 +13,15 @@ Qualify one exact open-MSC MatrixRTC proposal snapshot, bind it to explicit SDK/
 - `origin/main@a6f425b91946b3177410abcadc2155bbc58feff7`
 - Pinned SDK source `f4889ec898e77d8b8c9013adadd77f3d0901fc2d`
 - Current upstream SDK evidence `43565c555072cc8002450ece96bd5a90e2b4a0b5`
-- Seven open MSC heads and digests recorded by I01
+- Nine open MSC heads and digests recorded by I01, including mandatory MSC4354 and MSC4518 dependencies
 
 ## Complexity
 
-- Total: 13
-- Intrinsic: 13
-- Existing: 5
-- Remaining: 8
-- Angles: protocol 5; SDK 3; security/privacy 3; product/accessibility 2; QA/docs 3
+- Total: 21
+- Intrinsic: 21
+- Existing: 8
+- Remaining: 13
+- Angles: protocol 8; SDK 5; security/privacy 5; product/accessibility 3; QA/docs 3
 
 ## PR boundary
 

@@ -12,7 +12,7 @@ Qualify one exact, source-grounded MatrixRTC proposal-snapshot contract profile 
 
 | Scope | Total | Intrinsic | Existing | Remaining | Angles |
 |---|---:|---:|---:|---:|---|
-| Step 1 initiative | 13 | 13 | 5 | 8 | protocol 5; SDK 3; security/privacy 3; product/accessibility 2; QA/docs 3 |
+| Step 1 initiative | 21 | 21 | 8 | 13 | protocol 8; SDK 5; security/privacy 5; product/accessibility 3; QA/docs 3 |
 | I01 source profile | 3 | 3 | 1 | 2 | source provenance; identifiers; SDK gap; static integrity |
 | I02 qualification evaluator | 5 | 5 | 2 | 3 | typed contract; fail-closed matrix; deterministic fixtures |
 | I03 trust and origin boundaries | 5 | 5 | 2 | 3 | trust; privacy; lifecycle; accessibility semantics |
@@ -35,7 +35,7 @@ graph TD
 
 | Node | Issue | Branch | Stacked base | PR | Remaining | State |
 |---|---|---|---|---|---:|---|
-| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` | `main` | PENDING | 2 | start-ready |
+| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` | `main` | [#11](https://github.com/ZenithResearch/Hypha/pull/11) | 2 | repair in progress |
 | I02 | [#8](https://github.com/ZenithResearch/Hypha/issues/8) | `feat/matrixrtc-qualification-evaluator` | `feat/matrixrtc-contract-profile` | PENDING | 3 | blocked by I01 head |
 | I03 | [#9](https://github.com/ZenithResearch/Hypha/issues/9) | `feat/matrixrtc-trust-origin-contract` | `feat/matrixrtc-qualification-evaluator` | PENDING | 3 | blocked by I02 head |
 | I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` | `feat/matrixrtc-trust-origin-contract` | PENDING | 2 | blocked by I03 head |
@@ -45,6 +45,7 @@ graph TD
 | Claim | Proving node | Gate |
 |---|---|---|
 | Exact open-MSC snapshot and digests are pinned | I01 | manifest + mutation-tested verifier |
+| Mandatory sticky-event and registry dependencies are pinned | I01 | MSC4354/MSC4518 pins + contract verifier |
 | Stable/unstable identifier profile is explicit | I01 | source/profile tests and verifier |
 | Pinned/current SDK gaps are honest | I01 | provenance contract and source evidence |
 | Legacy fallback cannot qualify availability | I02 | negative evaluator tests |

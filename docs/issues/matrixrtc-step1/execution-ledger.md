@@ -20,7 +20,7 @@ Recovery rule: preserve all commits and dirty files; never reset, clean, rewrite
 
 | Node | Issue | Branch/head | PR/base | Local gates | Hosted CI | Exact-head reviews | State |
 |---|---|---|---|---|---|---|---|
-| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` / PENDING | PENDING / `main` | pending | pending | pending | start-ready |
+| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` / `64f509b` | [#11](https://github.com/ZenithResearch/Hypha/pull/11) / `main` | Commit 1 baseline passed | `64f509b` push + PR CI passed | CTO BLOCKED: missing MSC4354/MSC4518 | additive repair in progress |
 | I02 | [#8](https://github.com/ZenithResearch/Hypha/issues/8) | `feat/matrixrtc-qualification-evaluator` / PENDING | PENDING / I01 | pending | pending | pending | blocked |
 | I03 | [#9](https://github.com/ZenithResearch/Hypha/issues/9) | `feat/matrixrtc-trust-origin-contract` / PENDING | PENDING / I02 | pending | pending | pending | blocked |
 | I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` / PENDING | PENDING / I03 | pending | pending | pending | blocked |
@@ -28,5 +28,7 @@ Recovery rule: preserve all commits and dirty files; never reset, clean, rewrite
 ## Recovery checkpoints
 
 - Roundtable synthesized in `roundtable.md`.
+- All nine proposal files were independently downloaded at their exact heads and matched their recorded SHA-256 digests.
+- The interrupted Commit 2 developer left no shared diff and is treated as failed; no partial work was adopted.
 - Master DAG and issue packets are authoritative for scope.
 - Open PRs do not authorize merge or ordinary downstream readiness; stacked execution is the explicit operator waiver only.
