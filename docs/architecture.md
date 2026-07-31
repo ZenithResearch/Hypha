@@ -17,6 +17,12 @@ First-device setup is an explicit post-login operation. The SDK creates or recon
 
 Hypha-to-Hypha is the primary interoperability boundary. Element may be used as an optional compatibility probe, but it does not define Hypha trust, recovery, or release readiness.
 
+## MatrixRTC contract boundary
+
+Step 1 adds SDK-neutral, future-only qualification contracts; it does not add a MatrixRTC runtime. `MatrixRTCQualificationEvaluator` accepts caller-supplied, profile-bound evidence and fails closed. `MatrixRTCPeerTrustClassifier` keeps authenticated, cross-signed, locally SAS-verified, invalid, revoked, unknown, and malformed evidence distinct without granting media-key authority. `MatrixRTCOriginLifecycleEvaluator` binds presentation to immutable account, homeserver, origin room, device, profile, and generation identifiers before interpreting navigation or account-switch actions.
+
+The selected profile is pinned in [`matrixrtc/contract-profile.md`](matrixrtc/contract-profile.md). Current SDK and production evidence remain unsupported. A future selected-room top-right affordance may open a Messages-like trailing inspector; opening or dismissing it has no join, leave, permission, transport, media, or origin-rebinding authority.
+
 ## Native atomic design system
 
 Hypha’s macOS interface keeps reusable presentation under `Sources/ZenithMacOSClient/DesignSystem/`:
