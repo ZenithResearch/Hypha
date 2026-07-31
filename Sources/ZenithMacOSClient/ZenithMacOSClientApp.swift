@@ -1157,32 +1157,11 @@ private struct MatrixCompanionShell: View {
     private func roomList(_ rooms: [MatrixRoomSummary]) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
-                if !model.savedSessions.isEmpty || !model.savedCredentials.isEmpty {
-                    accountSwitcher
-                }
-
                 HStack(spacing: ZenithDesign.Space.x2) {
-                    Menu {
-                        Button {
-                            newRoomKind = .room
-                            showsNewRoom = true
-                        } label: {
-                            Label("New encrypted room…", systemImage: "plus.message.fill")
-                        }
-                        Button {
-                            newRoomKind = .space
-                            showsNewRoom = true
-                        } label: {
-                            Label("New Space…", systemImage: "square.grid.2x2.fill")
-                        }
-                    } label: {
-                        Label("Add room or Space", systemImage: "plus.circle.fill")
-                            .font(ZenithDesign.Typography.corporate(.callout, weight: .semibold))
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    if !model.savedSessions.isEmpty || !model.savedCredentials.isEmpty {
+                        accountSwitcher
                     }
-                    .menuStyle(.borderlessButton)
-                    .accessibilityIdentifier("matrix.room-or-space.create")
-
+                    Spacer(minLength: 0)
                     Button {
                         Task { await model.refreshRooms() }
                     } label: {
@@ -1242,15 +1221,20 @@ private struct MatrixCompanionShell: View {
                 let spaces = joinedItems.filter(\.isSpace)
                 let joinedRooms = joinedItems.filter { !$0.isSpace }
 
-                if !spaces.isEmpty {
-                    sidebarSectionTitle("Spaces")
-                        .padding(.top, invitations.isEmpty ? 0 : ZenithDesign.Space.x2)
+                sidebarCreationHeader("Spaces", kind: .space)
+                    .padding(.top, invitations.isEmpty ? 0 : ZenithDesign.Space.x2)
+                if spaces.isEmpty {
+                    Text("No Spaces yet.")
+                        .font(.caption)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .padding(.horizontal, ZenithDesign.Space.x2)
+                } else {
                     ForEach(spaces) { space in
                         roomRow(space)
                     }
                 }
 
-                sidebarSectionTitle("Rooms")
+                sidebarCreationHeader("Rooms", kind: .room)
                     .padding(.top, invitations.isEmpty && spaces.isEmpty ? 0 : ZenithDesign.Space.x2)
 
                 if joinedRooms.isEmpty {
@@ -1344,6 +1328,25 @@ private struct MatrixCompanionShell: View {
         }
         .menuStyle(.borderlessButton)
         .accessibilityIdentifier("matrix.session.switcher")
+    }
+
+    private func sidebarCreationHeader(_ title: String, kind: MatrixRoomKind) -> some View {
+        HStack(spacing: ZenithDesign.Space.x2) {
+            sidebarSectionTitle(title)
+            Spacer(minLength: 0)
+            Button {
+                newRoomKind = kind
+                showsNewRoom = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .bold))
+                    .accessibilityHidden(true)
+            }
+            .buttonStyle(HyphaButtonStyle(.quiet))
+            .fixedSize()
+            .accessibilityLabel("Add \(kind == .space ? "Space" : "room")")
+            .accessibilityIdentifier(kind == .space ? "matrix.space.create.inline" : "matrix.room.create.inline")
+        }
     }
 
     private func sidebarSectionTitle(_ title: String) -> some View {
