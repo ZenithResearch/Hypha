@@ -154,7 +154,7 @@ final class MatrixRTCSecurityContractTests: XCTestCase {
 
     func testDigestIdentifierRequiresExactlyLowercaseSHA256() {
         XCTAssertNotNil(MatrixRTCDigestIdentifier(sha256: Self.accountDigest))
-        XCTAssertNil(MatrixRTCDigestIdentifier(sha256: Self.accountDigest.uppercased()))
+        XCTAssertNil(MatrixRTCDigestIdentifier(sha256: Self.otherDigest.uppercased()))
         XCTAssertNil(MatrixRTCDigestIdentifier(sha256: String(Self.accountDigest.dropLast())))
         XCTAssertNil(MatrixRTCDigestIdentifier(sha256: Self.accountDigest + "0"))
         XCTAssertNil(MatrixRTCDigestIdentifier(sha256: String(repeating: "g", count: 64)))
