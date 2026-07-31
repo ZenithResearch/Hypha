@@ -166,4 +166,66 @@ struct HyphaButton: View {
     }
 }
 
+/// Minimal borderless icon action for compact section headers and tool rows.
+struct HyphaIconButton: View {
+    let systemImage: String
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
+    @State private var isCursorPushed = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(isHovered && isEnabled ? ZenithDesign.Palette.content : ZenithDesign.Palette.brand)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focused($isFocused)
+        .overlay {
+            if isFocused {
+                RoundedRectangle(cornerRadius: ZenithDesign.Radius.control, style: .continuous)
+                    .stroke(ZenithDesign.Palette.brand, lineWidth: 1)
+            }
+        }
+        .scaleEffect(accessibilityReduceMotion ? 1 : (isHovered && isEnabled ? 1.06 : 1))
+        .opacity(isEnabled ? 1 : 0.5)
+        .animation(accessibilityReduceMotion ? nil : .easeOut(duration: 0.12), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering && isEnabled
+            updateCursor(hovering: hovering)
+        }
+        .onChange(of: isEnabled) { _, enabled in
+            if !enabled {
+                isHovered = false
+                releaseCursorIfNeeded()
+            }
+        }
+        .onDisappear { releaseCursorIfNeeded() }
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private func updateCursor(hovering: Bool) {
+        if hovering && isEnabled {
+            guard !isCursorPushed else { return }
+            NSCursor.pointingHand.push()
+            isCursorPushed = true
+        } else {
+            releaseCursorIfNeeded()
+        }
+    }
+
+    private func releaseCursorIfNeeded() {
+        guard isCursorPushed else { return }
+        NSCursor.pop()
+        isCursorPushed = false
+    }
+}
+
 typealias ZenithPrimaryButtonStyle = HyphaButtonStyle
