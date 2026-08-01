@@ -1,6 +1,6 @@
 # Hypha MatrixRTC Step 1 master DAG and checklist
 
-Status: ACTIVE — STACKED PR TRAIN, DO NOT MERGE
+Status: I04 FINAL EVIDENCE ACTIVE — STACKED PR TRAIN, DO NOT MERGE
 Canonical base: `origin/main@a6f425b91946b3177410abcadc2155bbc58feff7`
 Parent initiative: https://github.com/ZenithResearch/Hypha/issues/6
 
@@ -35,14 +35,14 @@ graph TD
 
 | Node | Issue | Branch | Stacked base | PR | Remaining | State |
 |---|---|---|---|---|---:|---|
-| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` | `main` | [#11](https://github.com/ZenithResearch/Hypha/pull/11) | 2 | current head/check/review authority: live PR #11 |
-| I02 | [#8](https://github.com/ZenithResearch/Hypha/issues/8) | `feat/matrixrtc-qualification-evaluator` | `feat/matrixrtc-contract-profile` | PENDING | 3 | blocked by I01 head |
-| I03 | [#9](https://github.com/ZenithResearch/Hypha/issues/9) | `feat/matrixrtc-trust-origin-contract` | `feat/matrixrtc-qualification-evaluator` | PENDING | 3 | blocked by I02 head |
-| I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` | `feat/matrixrtc-trust-origin-contract` | PENDING | 2 | blocked by I03 head |
+| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` | `main` | [#11](https://github.com/ZenithResearch/Hypha/pull/11) | 2 | exact head `8a87fbc`; approved/open/unmerged |
+| I02 | [#8](https://github.com/ZenithResearch/Hypha/issues/8) | `feat/matrixrtc-qualification-evaluator` | `feat/matrixrtc-contract-profile` | [#12](https://github.com/ZenithResearch/Hypha/pull/12) | 3 | exact head `40c742c`; approved/open/unmerged |
+| I03 | [#9](https://github.com/ZenithResearch/Hypha/issues/9) | `feat/matrixrtc-trust-origin-contract` | `feat/matrixrtc-qualification-evaluator` | [#13](https://github.com/ZenithResearch/Hypha/pull/13) | 3 | exact head `6de688f`; approved/open/unmerged |
+| I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` | `feat/matrixrtc-trust-origin-contract` | live stacked PR | 2 | final evidence and exact-head reviews active |
 
 ## Claim gates
 
-Committed status is intentionally head-stable: the live GitHub PR #11 head and check/review APIs are the sole authority for current exact-head CI and reviews. Committed run links or SHAs are historical completed checkpoints only. An exact-head verdict is posted on the PR as external immutable evidence after the relevant checks/reviews complete; adding that volatile verdict here would create a new head and invalidate its own claim. The committed no-merge/recovery rules remain authoritative regardless of live gate state.
+Committed status is intentionally head-stable: each live GitHub PR head and check/review API is the sole authority for current exact-head CI and reviews. Committed predecessor SHAs are completed historical checkpoints. I04 exact-head verdicts are posted on its PR as external immutable evidence after checks/reviews complete; adding that volatile verdict here would create a new head and invalidate its own claim. The committed no-merge/recovery rules remain authoritative regardless of live gate state.
 
 | Claim | Proving node | Gate |
 |---|---|---|
