@@ -865,6 +865,19 @@ final class MatrixAppModel: ObservableObject {
         peerVerificationEligibility = .unavailable
     }
 
+    func inviteUsers(_ invitees: String, to room: MatrixRoomSummary) async -> Bool {
+        guard let coordinator else { return false }
+        let parsedInvitees = invitees
+            .components(separatedBy: CharacterSet(charactersIn: ",\n"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let invited = await coordinator.inviteUsers(parsedInvitees, to: room)
+        roomSyncMessage = invited
+            ? "Invitations sent to \(room.name)."
+            : "Not all invitations could be confirmed. Your room permission may have changed."
+        return invited
+    }
+
     func createRoomOrSpace(
         name: String,
         topic: String,
@@ -1011,6 +1024,7 @@ private struct MatrixCompanionShell: View {
     @State private var showsRecovery = false
     @State private var showsRecoverySetup = false
     @State private var showsNewRoom = false
+    @State private var showsRoomInvite = false
     @State private var newRoomKind: MatrixRoomKind = .room
     @State private var showsFirstDevicePassword = false
     @State private var showsSecurityCenter = false
@@ -1049,6 +1063,9 @@ private struct MatrixCompanionShell: View {
                 isPresented: $showsNewRoom,
                 kind: $newRoomKind
             )
+        }
+        .sheet(isPresented: $showsRoomInvite) {
+            MatrixRoomInviteSheet(model: model, isPresented: $showsRoomInvite)
         }
         .sheet(isPresented: $showsFirstDevicePassword) {
             MatrixFirstDevicePasswordSheet(model: model, isPresented: $showsFirstDevicePassword)
@@ -1334,6 +1351,16 @@ private struct MatrixCompanionShell: View {
         HStack(spacing: ZenithDesign.Space.x2) {
             sidebarSectionTitle(title)
             Spacer(minLength: 0)
+            if kind == .room,
+               !MatrixRoomInvitationPolicy.eligibleRooms(from: model.rooms).isEmpty {
+                HyphaIconButton(
+                    systemImage: "person.badge.plus",
+                    accessibilityLabel: "Invite members to a room"
+                ) {
+                    showsRoomInvite = true
+                }
+                .accessibilityIdentifier("matrix.room.invite.inline")
+            }
             HyphaIconButton(
                 systemImage: "plus",
                 accessibilityLabel: "Add \(kind == .space ? "Space" : "room")"
@@ -2564,6 +2591,103 @@ private struct MatrixRecoverySheet: View {
             await model.restoreEncryption(recoveryKey: keyForRequest)
             isSubmitting = false
             if model.recoveryState == .ready { isPresented = false }
+        }
+    }
+}
+
+private struct MatrixRoomInviteSheet: View {
+    @ObservedObject var model: MatrixAppModel
+    @Binding var isPresented: Bool
+    @State private var selectedRoomID = ""
+    @State private var invitees = ""
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+
+    private var eligibleRooms: [MatrixRoomSummary] {
+        MatrixRoomInvitationPolicy.eligibleRooms(from: model.rooms)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x4) {
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                Text("Invite members")
+                    .font(ZenithDesign.Typography.corporate(.title2, weight: .semibold))
+                    .foregroundStyle(ZenithDesign.Palette.content)
+                Text("Choose a room where your current account can invite members.")
+                    .font(ZenithDesign.Typography.corporate(.callout))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+            }
+
+            if eligibleRooms.isEmpty {
+                HyphaStatusMessage(
+                    message: "No joined rooms currently allow this account to invite members.",
+                    tone: .warning
+                )
+            } else {
+                Picker("Room", selection: $selectedRoomID) {
+                    ForEach(eligibleRooms) { room in
+                        Text(room.name).tag(room.id)
+                    }
+                }
+                .accessibilityIdentifier("matrix.room.invite.destination")
+
+                TextField("Matrix IDs, separated by commas", text: $invitees)
+                    .textFieldStyle(HyphaTextFieldStyle())
+                    .accessibilityIdentifier("matrix.room.invite.userIDs")
+
+                Text("Permission is checked again when you send the invitations.")
+                    .font(ZenithDesign.Typography.corporate(.caption))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+            }
+
+            if let errorMessage {
+                HyphaStatusMessage(message: errorMessage, tone: .warning)
+            }
+
+            HStack(spacing: ZenithDesign.Space.x2) {
+                HyphaButton(title: "Cancel", variant: .secondary) {
+                    isPresented = false
+                }
+                Spacer()
+                HyphaButton(
+                    title: isSubmitting ? "Inviting…" : "Send invitations",
+                    systemImage: "person.badge.plus",
+                    variant: .primary
+                ) {
+                    submit()
+                }
+                .disabled(
+                    isSubmitting
+                        || selectedRoomID.isEmpty
+                        || invitees.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                )
+                .accessibilityIdentifier("matrix.room.invite.submit")
+            }
+        }
+        .padding(ZenithDesign.Space.x5)
+        .frame(width: 520)
+        .background(ZenithDesign.Palette.base)
+        .onAppear { selectFirstEligibleRoomIfNeeded() }
+        .onChange(of: model.rooms) { _, _ in selectFirstEligibleRoomIfNeeded() }
+    }
+
+    private func selectFirstEligibleRoomIfNeeded() {
+        guard !eligibleRooms.contains(where: { $0.id == selectedRoomID }) else { return }
+        selectedRoomID = eligibleRooms.first?.id ?? ""
+    }
+
+    private func submit() {
+        guard !isSubmitting,
+              let room = eligibleRooms.first(where: { $0.id == selectedRoomID }) else { return }
+        isSubmitting = true
+        errorMessage = nil
+        Task {
+            if await model.inviteUsers(invitees, to: room) {
+                isPresented = false
+            } else {
+                errorMessage = "Not all invitations could be confirmed. Refresh room membership and your invite permission."
+            }
+            isSubmitting = false
         }
     }
 }

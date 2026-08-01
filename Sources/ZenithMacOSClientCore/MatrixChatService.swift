@@ -25,6 +25,7 @@ public struct MatrixRoomSummary: Identifiable, Equatable, Sendable {
     public let isCreatedByCurrentUser: Bool
     public let isSpace: Bool
     public let topic: String?
+    public let canInviteMembers: Bool
 
     public init(
         id: String,
@@ -33,7 +34,8 @@ public struct MatrixRoomSummary: Identifiable, Equatable, Sendable {
         hasInvite: Bool,
         isCreatedByCurrentUser: Bool = false,
         isSpace: Bool = false,
-        topic: String? = nil
+        topic: String? = nil,
+        canInviteMembers: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -42,6 +44,7 @@ public struct MatrixRoomSummary: Identifiable, Equatable, Sendable {
         self.isCreatedByCurrentUser = isCreatedByCurrentUser
         self.isSpace = isSpace
         self.topic = topic
+        self.canInviteMembers = canInviteMembers
     }
 }
 
@@ -189,6 +192,29 @@ public struct MatrixRoomCreationRequest: Equatable, Sendable {
     }
 }
 
+public struct MatrixRoomInviteRequest: Equatable, Sendable {
+    public let roomID: String
+    public let userIDs: [String]
+
+    public init(roomID: String, userIDs: [String]) {
+        self.roomID = roomID.trimmingCharacters(in: .whitespacesAndNewlines)
+        var seen = Set<String>()
+        self.userIDs = userIDs.compactMap { value in
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { return nil }
+            return trimmed
+        }
+    }
+}
+
+public enum MatrixRoomInvitationPolicy {
+    public static func eligibleRooms(from rooms: [MatrixRoomSummary]) -> [MatrixRoomSummary] {
+        rooms
+            .filter { !$0.hasInvite && !$0.isSpace && $0.canInviteMembers }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+}
+
 public enum MatrixDeviceTrustState: Equatable, Sendable {
     case unknown
     case unsigned
@@ -296,6 +322,7 @@ public protocol MatrixChatService: Sendable {
     func timeline(for roomID: String) async throws -> [MatrixTimelineEvent]
     func sendText(_ body: String, to roomID: String) async throws
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary
+    func inviteUsers(_ request: MatrixRoomInviteRequest) async throws
     func removeRoom(roomID: String) async throws -> [MatrixRoomSummary]
     func encryptionRecoveryState(trustState: MatrixDeviceTrustState) async throws -> MatrixRecoveryState
     func setupEncryptionRecovery() async throws -> String
@@ -355,6 +382,9 @@ public extension MatrixChatService {
     }
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary {
         throw MatrixChatServiceError.unavailable(reason: "Room creation is unavailable")
+    }
+    func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Room invitations are unavailable")
     }
     func removeRoom(roomID: String) async throws -> [MatrixRoomSummary] {
         throw MatrixChatServiceError.unavailable(reason: "Room removal is unavailable")
@@ -546,6 +576,22 @@ public final class MatrixChatCoordinator {
             state = .rooms(rooms)
         }
         return rooms
+    }
+
+    public func inviteUsers(_ userIDs: [String], to room: MatrixRoomSummary) async -> Bool {
+        let request = MatrixRoomInviteRequest(roomID: room.id, userIDs: userIDs)
+        guard room.canInviteMembers,
+              !room.hasInvite,
+              !room.isSpace,
+              !request.roomID.isEmpty,
+              !request.userIDs.isEmpty,
+              chatAuthority == .available else { return false }
+        do {
+            try await service.inviteUsers(request)
+            return true
+        } catch {
+            return false
+        }
     }
 
     public func open(room: MatrixRoomSummary) async {

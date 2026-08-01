@@ -133,6 +133,7 @@ public protocol MatrixLiveClient: Sendable {
     func timeline(roomID: String) async throws -> [MatrixTimelineEvent]
     func sendText(_ body: String, roomID: String) async throws
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary
+    func inviteUsers(_ request: MatrixRoomInviteRequest) async throws
     func removeRoom(roomID: String) async throws
     func encryptionRecoveryState(trustState: MatrixDeviceTrustState) async throws -> MatrixRecoveryState
     func setupEncryptionRecovery() async throws -> String
@@ -158,6 +159,9 @@ public extension MatrixLiveClient {
 
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary {
         throw MatrixChatServiceError.unavailable(reason: "Room creation is unavailable")
+    }
+    func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Room invitations are unavailable")
     }
     func removeRoom(roomID: String) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Room removal is unavailable")
@@ -361,6 +365,21 @@ public actor MatrixRustSDKChatService: MatrixChatService {
             throw error
         } catch {
             throw mapRuntimeError(error, fallbackReason: "Encrypted room creation failed")
+        }
+    }
+
+    public func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
+        guard let client else { throw MatrixChatServiceError.sessionExpired }
+        guard roomsByID[request.roomID]?.canInviteMembers == true,
+              !request.userIDs.isEmpty else {
+            throw MatrixChatServiceError.unavailable(reason: "You cannot invite members to this room")
+        }
+        do {
+            try await client.inviteUsers(request)
+        } catch let error as MatrixChatServiceError {
+            throw error
+        } catch {
+            throw mapRuntimeError(error, fallbackReason: "Room invitations failed")
         }
     }
 
@@ -1599,6 +1618,12 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
             retained[roomID] = room
             let info = try? await room.roomInfo()
             let isCreatedByCurrentUser = info?.creators?.contains(room.ownUserId()) == true
+            let canInviteMembers: Bool
+            if room.membership() == .joined, let powerLevels = info?.powerLevels {
+                canInviteMembers = (try? powerLevels.canUserInvite(userId: room.ownUserId())) ?? false
+            } else {
+                canInviteMembers = false
+            }
             summaries.append(MatrixRoomSummary(
                 id: roomID,
                 name: room.displayName() ?? room.canonicalAlias() ?? roomID,
@@ -1606,11 +1631,27 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
                 hasInvite: room.membership() == .invited,
                 isCreatedByCurrentUser: isCreatedByCurrentUser,
                 isSpace: info?.isSpace == true,
-                topic: info?.topic
+                topic: info?.topic,
+                canInviteMembers: canInviteMembers
             ))
         }
         roomByID = retained
         return summaries.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    public func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
+        guard let room = roomByID[request.roomID],
+              room.membership() == .joined,
+              !request.userIDs.isEmpty else {
+            throw MatrixChatServiceError.unavailable(reason: "Room invitations are unavailable")
+        }
+        let powerLevels = try await room.getPowerLevels()
+        guard try powerLevels.canUserInvite(userId: room.ownUserId()) else {
+            throw MatrixChatServiceError.unavailable(reason: "Invite permission changed")
+        }
+        for userID in request.userIDs {
+            try await room.inviteUserById(userId: userID)
+        }
     }
 
     static func mapAuthoritativeDeviceVerificationState(
