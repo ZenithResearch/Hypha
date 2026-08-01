@@ -27,6 +27,14 @@ Device verification and encryption recovery remain visible security capabilities
 
 Not included: ZenithOS integration, Sophia/appservice credentials, Dregg/Hub authority, Rolodex, calls, attachments, reactions, public-room creation, broad room administration, or Element feature parity.
 
+## MatrixRTC contract qualification
+
+Step 1 qualifies contracts only; it does not implement calling. The governing contract is the exact open-MSC snapshot `ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2`, documented in [`docs/matrixrtc/contract-profile.md`](docs/matrixrtc/contract-profile.md) with source and SDK evidence. The current Matrix Rust SDK and production deployment are unsupported.
+
+The checked-in evaluator, trust model, immutable-origin model, fixtures, and static gates are nonruntime qualification evidence. They do not join or leave a call, publish membership, authorize a transport, distribute sender keys, connect media, request microphone or camera permission, or add call UI. Legacy well-known focus data is diagnostic-only and cannot make a deployment available.
+
+The future product contract is audio-first: a minimal selected-room affordance opens a Messages-like trailing inspector without answering, connecting, or stealing focus. Navigation may preserve presentation only while it stays visibly bound to the originating account and room. Whether a valid cross-signed peer that is not locally SAS-verified may receive future media keys remains deliberately unresolved.
+
 ## Why a separate app
 
 A temporary ZenithOS development-package smoke crashed because a dynamic `libMatrixRustSDK.dylib` was not embedded. It was a packaging error, not a size or memory crash. Static release packaging subsequently launched successfully. The Rust SDK makes the app materially larger (roughly 120–132 MB in local release proofs), but that is acceptable for the current focused desktop Matrix capability and is separate from the crash cause.

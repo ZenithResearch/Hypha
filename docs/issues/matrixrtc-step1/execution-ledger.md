@@ -1,10 +1,10 @@
 # MatrixRTC Step 1 execution ledger
 
-Status: ACTIVE
+Status: I04 FINAL EVIDENCE ACTIVE
 Last reconciled base: `a6f425b91946b3177410abcadc2155bbc58feff7`
 Recovery rule: preserve all commits and dirty files; never reset, clean, rewrite, merge, close issues, or start Step 2.
 
-Current-state authority: live [PR #11](https://github.com/ZenithResearch/Hypha/pull/11) head and GitHub check/review APIs. This committed ledger records historical completed checkpoints only; it never promotes a hosted result or review verdict to the moving current head. Exact-head verdicts belong on the PR as external immutable evidence, avoiding a commit that invalidates its own SHA claim.
+Current-state authority: live PR heads and GitHub check/review APIs. This committed ledger records historical completed checkpoints only; it never promotes a hosted result or review verdict to a moving head. Exact-head verdicts belong on each PR as external immutable evidence, avoiding a commit that invalidates its own SHA claim.
 
 ## Baseline evidence
 
@@ -22,10 +22,10 @@ Current-state authority: live [PR #11](https://github.com/ZenithResearch/Hypha/p
 
 | Node | Issue | Branch/head | PR/base | Local gates | Hosted CI | Exact-head reviews | State |
 |---|---|---|---|---|---|---|---|
-| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` / live PR head | [#11](https://github.com/ZenithResearch/Hypha/pull/11) / `main` | historical local results are recorded below | live PR #11 check API | live PR #11 review API and external exact-head verdict evidence | active; do not merge |
-| I02 | [#8](https://github.com/ZenithResearch/Hypha/issues/8) | `feat/matrixrtc-qualification-evaluator` / PENDING | PENDING / I01 | pending | pending | pending | blocked |
-| I03 | [#9](https://github.com/ZenithResearch/Hypha/issues/9) | `feat/matrixrtc-trust-origin-contract` / PENDING | PENDING / I02 | pending | pending | pending | blocked |
-| I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` / PENDING | PENDING / I03 | pending | pending | pending | blocked |
+| I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` / `8a87fbc` | [#11](https://github.com/ZenithResearch/Hypha/pull/11) / `main` | verifier/mutations, 217 tests, build, diff passed | two exact-head checks passed | all specialist + Lead verdicts approved | open, ready, unmerged |
+| I02 | [#8](https://github.com/ZenithResearch/Hypha/issues/8) | `feat/matrixrtc-qualification-evaluator` / `40c742c` | [#12](https://github.com/ZenithResearch/Hypha/pull/12) / I01 | focused 37/full 254 tests, build/verifiers/audits passed | two exact-head checks passed | all specialist + Lead verdicts approved | open, ready, unmerged |
+| I03 | [#9](https://github.com/ZenithResearch/Hypha/issues/9) | `feat/matrixrtc-trust-origin-contract` / `6de688f` | [#13](https://github.com/ZenithResearch/Hypha/pull/13) / I02 | focused 24/full 278 tests, build/verifiers/audits passed | two exact-head checks passed | all specialist + Lead verdicts approved | open, ready, unmerged |
+| I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` / live PR head | [#14](https://github.com/ZenithResearch/Hypha/pull/14) / I03 | final package gates must pass | live PR check API | live PR external exact-head verdicts | final evidence active; do not merge |
 
 ## Recovery checkpoints
 
@@ -38,3 +38,7 @@ Current-state authority: live [PR #11](https://github.com/ZenithResearch/Hypha/p
 - Historical head `858fd789152b0781f188b7f346ae02cfc8eeff49` records the additive I01 protocol repair and passed local contract/public-release verifier and mutation suites, 217 Swift tests (3 skipped), Swift build, diff check, and hosted runs [30623549433](https://github.com/ZenithResearch/Hypha/actions/runs/30623549433) and [30623546079](https://github.com/ZenithResearch/Hypha/actions/runs/30623546079). These facts are checkpoint-bound and make no claim about a later head.
 - Master DAG and issue packets are authoritative for scope.
 - Open PRs do not authorize merge or ordinary downstream readiness; stacked execution is the explicit operator waiver only.
+- I01 final exact head `8a87fbcac1eded59b96344019406c63b49841ae1` closed the 11-capability SDK requirement/evidence matrix and passed all exact-head lanes.
+- I02 final exact head `40c742cfb9d0a1336f3ca14141ebbf09b6c14d8d` bound expected/observed SDK revision and snapshot digest and passed all exact-head lanes.
+- I03 final exact head `6de688fd26fa3e2b817293e4fee1ee12e81eb8f3` delivered the trust, secret metadata, immutable-origin, accessibility, and future inspector contracts and passed all exact-head lanes.
+- I04 RED commit `5c41b9cbd1f6942400f13d2f5ecb83502609e0d5` made stale/overclaimed public surfaces fail before reconciliation. Docs commit `6cf5e74f0b50508b0a065ceb4a0dbaa1d01ef568` reconciled governing public claims and exact SDK provenance. Final evidence is head-stable and governed by the live I04 PR.

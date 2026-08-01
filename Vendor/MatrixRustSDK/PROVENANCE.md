@@ -32,6 +32,12 @@ The following source commits were ported from the preserved `zenith/macos-26.4-s
 
 The `DeviceSignaturePreparation` debug representation intentionally excludes the signature upload request and exposes only non-secret boolean diagnostics.
 
+## MatrixRTC qualification gap
+
+The selected contract is the exact open-MSC snapshot `ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2`, fingerprint `630c781b782eb94965fb83767a39247f2d127ac31f0c89065f18711b375f8f6d`. Its mechanically checked comparison is recorded in [`../../docs/matrixrtc/sdk-capability-evidence.json`](../../docs/matrixrtc/sdk-capability-evidence.json).
+
+This pinned artifact exposes notification/decline and earlier observation/OpenID surfaces, including a legacy well-known-backed LiveKit convenience signal. It does not expose the complete selected-profile membership, sticky-map, participant-device, recipient-validation, sender-key, bounded-grant, registered-transport, or native-session surface. That convenience signal is diagnostic evidence only and cannot qualify availability. Both this artifact and current upstream evidence are unsupported for native MatrixRTC joining; this provenance entry adds no runtime, transport, media, or production-readiness claim.
+
 ## Build
 
 ```bash
