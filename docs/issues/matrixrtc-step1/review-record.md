@@ -37,6 +37,6 @@ Exact head: `6de688fd26fa3e2b817293e4fee1ee12e81eb8f3`
 - Hosted macOS checks: passed at the exact head.
 - State: open, ready for review, clean, unmerged.
 
-## I04 — live stacked PR
+## I04 — [PR #14](https://github.com/ZenithResearch/Hypha/pull/14)
 
 The exact head, hosted check URLs, and specialist/Lead verdict comments are intentionally maintained on the live PR. Recording a final I04 SHA in the commit that creates that SHA is impossible; making a follow-up commit would invalidate the recorded verdicts. Final operator reconciliation must verify that the live PR is open, clean, ready for review, and unmerged and that every required lane approves the same exact head.

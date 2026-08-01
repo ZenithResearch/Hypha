@@ -25,6 +25,7 @@ PUBLIC_DOC_REQUIREMENTS = {
         "MatrixRTCPeerTrustClassifier",
         "MatrixRTCOriginLifecycleEvaluator",
         "future-only",
+        "Current SDK and production evidence remain unsupported.",
     ),
     ROOT / "docs" / "security-model.md": (
         "## MatrixRTC Step 1",
@@ -39,6 +40,15 @@ PUBLIC_DOC_REQUIREMENTS = {
         "unsupported",
     ),
 }
+FORBIDDEN_PUBLIC_DOC_CLAIMS = (
+    "Released2026_07",
+    "[Voice] [Video]",
+    "[ Chat ] [ Canvas ] [ Call",
+    "Join video call",
+    "Hypha can join MatrixRTC",
+    "production is RTC-ready",
+    "MatrixRTC is implemented",
+)
 
 
 def run_verifier() -> subprocess.CompletedProcess[str]:
@@ -382,11 +392,21 @@ for path, phrases in PUBLIC_DOC_REQUIREMENTS.items():
         )
 
 readme = ROOT / "README.md"
-must_reject_file(
-    "fictional release profile survives in public docs", readme,
-    (readme.read_text(encoding="utf-8") + "\nReleased2026_07\n").encode(),
-    "stale or overclaimed MatrixRTC surface",
-)
+for claim in FORBIDDEN_PUBLIC_DOC_CLAIMS:
+    must_reject_file(
+        f"stale or overclaimed public claim {claim}", readme,
+        (readme.read_text(encoding="utf-8") + f"\n{claim}\n").encode(),
+        "stale or overclaimed MatrixRTC surface",
+    )
+for path in (
+    ROOT / "docs" / "matrixrtc" / "contract-profile.md",
+    ROOT / "docs" / "issues" / "matrixrtc-step1" / "case-study.md",
+):
+    must_reject_file(
+        f"stale call surface in {path.name}", path,
+        (path.read_text(encoding="utf-8") + "\n[Voice] [Video]\n").encode(),
+        "stale or overclaimed MatrixRTC surface",
+    )
 must_reject_file(
     "legacy fallback is promoted in public docs", readme,
     (readme.read_text(encoding="utf-8") + "\nisLivekitRtcSupported() proves availability\n").encode(),

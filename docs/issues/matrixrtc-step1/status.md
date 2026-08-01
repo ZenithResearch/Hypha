@@ -16,7 +16,7 @@ Stacked dependency heads approved before I04:
 
 All three predecessor PRs are open, ready for review, and unmerged. I04 is stacked on the exact I03 head under the explicit no-merge execution waiver.
 
-Current-state authority is the live I04 GitHub PR head plus its hosted check and review APIs. Committed surfaces record completed historical checkpoints, stable scope, and recovery rules only. The final I04 SHA and verdicts must be posted externally because committing them would create another head and invalidate their own claim.
+Current-state authority is live [PR #14](https://github.com/ZenithResearch/Hypha/pull/14) plus its hosted check and review APIs. Committed surfaces record completed historical checkpoints, stable scope, and recovery rules only. The final I04 SHA and verdicts must be posted externally because committing them would create another head and invalidate their own claim.
 
 Production remains unsupported. Step 1 implements contracts, fixtures, pure evaluators, documentation, and offline/static gates only—no MatrixRTC membership, sender keys, grants, media, permissions, call UI, production mutation, or Step 2 runtime.
 

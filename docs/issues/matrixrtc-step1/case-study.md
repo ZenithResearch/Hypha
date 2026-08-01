@@ -33,7 +33,7 @@ Every executable issue remained at residual complexity 3 or lower. At completion
 | I01 | #11 | `8a87fbcac1eded59b96344019406c63b49841ae1` | `main` | two macOS checks passed | open, ready, unmerged |
 | I02 | #12 | `40c742cfb9d0a1336f3ca14141ebbf09b6c14d8d` | `feat/matrixrtc-contract-profile` | two macOS checks passed | open, ready, unmerged |
 | I03 | #13 | `6de688fd26fa3e2b817293e4fee1ee12e81eb8f3` | `feat/matrixrtc-qualification-evaluator` | two macOS checks passed | open, ready, unmerged |
-| I04 | live stacked PR | live exact head | `feat/matrixrtc-trust-origin-contract` | live PR check API | must remain open and unmerged |
+| I04 | [#14](https://github.com/ZenithResearch/Hypha/pull/14) | live exact head | `feat/matrixrtc-trust-origin-contract` | live PR check API | must remain open and unmerged |
 
 The committed I04 row is intentionally head-stable. Its exact SHA, checks, and final verdicts are posted externally on the live PR so recording them cannot create a new head that invalidates itself.
 
@@ -141,9 +141,11 @@ Original normalized scores totaled 492: Step 1 80, Steps 2–4 each 91, Step 5 5
 | Step 5 — inspector UI | 51 | 12.4% |
 | Step 6 — proof/failure paths | 88 | 21.4% |
 
+Displayed shares are independently rounded to one decimal place and therefore total 100.1%; planning uses the exact 412-point denominator.
+
 The original 20–32 sequential-engineering-day estimate implies 16.7–26.8 days for the 412/492 residual share. Step 1 exposed additional SDK/infrastructure and independent-review rework risk, so the revised planning range applies an explicit 10% risk allowance and rounds to **19–30 engineering days**. This is not a price or staffing promise.
 
-Dependency-adjusted order remains: Steps 2 and 3 in parallel after contract qualification; Step 5 against fakes in parallel; Step 4 integration after SDK and authorization seams; Step 6 packages exact-head negative and production evidence. With work beginning Monday 2026-08-03, 19–30 business days yields **2026-08-27 through 2026-09-11**. Five additional contingency business days yield **2026-09-18**. The original expected window was 2026-08-27 through 2026-09-10 with a 2026-09-17 conservative date, so the evidence-backed revision moves the high and conservative bounds by one day rather than claiming that contract-stage agent parallelism removes runtime/infrastructure risk.
+Dependency-adjusted order remains: Steps 2 and 3 in parallel after contract qualification; Step 5 against fakes in parallel; Step 4 integration after SDK and authorization seams; Step 6 packages exact-head negative and production evidence. The date projection counts Monday 2026-08-03 inclusively as business day one, treats business days as Monday–Friday weekdays, and does not subtract regional holidays. On that explicit calendar, 19–30 business days yields **2026-08-27 through 2026-09-11**. Five additional weekday contingency days yield **2026-09-18**. The original expected window was 2026-08-27 through 2026-09-10 with a 2026-09-17 conservative date, so the evidence-backed revision moves the high and conservative bounds by one day rather than claiming that contract-stage agent parallelism removes runtime/infrastructure risk.
 
 ## Non-claims
 

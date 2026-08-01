@@ -19,6 +19,7 @@ README_PATH = ROOT / "README.md"
 ARCHITECTURE_PATH = ROOT / "docs" / "architecture.md"
 SECURITY_PATH = ROOT / "docs" / "security-model.md"
 PROVENANCE_PATH = ROOT / "Vendor" / "MatrixRustSDK" / "PROVENANCE.md"
+CASE_STUDY_PATH = ROOT / "docs" / "issues" / "matrixrtc-step1" / "case-study.md"
 PROFILE_ID = "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2"
 SCHEMA = "ca.hypha.matrixrtc.contract-profile-manifest.v1"
 GENERATED_SWIFT_SHA256 = "7d823dda5f112ebc60887fc0ff238129b49e0173870ad616978f17b3ace5bdbc"
@@ -158,6 +159,7 @@ PUBLIC_DOC_REQUIREMENTS = {
         "MatrixRTCPeerTrustClassifier",
         "MatrixRTCOriginLifecycleEvaluator",
         "future-only",
+        "Current SDK and production evidence remain unsupported.",
     ),
     SECURITY_PATH: (
         "## MatrixRTC Step 1",
@@ -380,6 +382,8 @@ for path, required_phrases in PUBLIC_DOC_REQUIREMENTS.items():
     text = path.read_text(encoding="utf-8")
     for phrase in required_phrases:
         require(phrase in text, f"public MatrixRTC contract claim missing: {path.relative_to(ROOT)}: {phrase}")
+for path in (*PUBLIC_DOC_REQUIREMENTS, CONTRACT_PATH, CASE_STUDY_PATH):
+    text = path.read_text(encoding="utf-8")
     for claim in FORBIDDEN_PUBLIC_DOC_CLAIMS:
         require(claim not in text, f"stale or overclaimed MatrixRTC surface: {path.relative_to(ROOT)}: {claim}")
 for path in (README_PATH, ARCHITECTURE_PATH, SECURITY_PATH):

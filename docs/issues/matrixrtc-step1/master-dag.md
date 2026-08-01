@@ -38,7 +38,7 @@ graph TD
 | I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` | `main` | [#11](https://github.com/ZenithResearch/Hypha/pull/11) | 2 | exact head `8a87fbc`; approved/open/unmerged |
 | I02 | [#8](https://github.com/ZenithResearch/Hypha/issues/8) | `feat/matrixrtc-qualification-evaluator` | `feat/matrixrtc-contract-profile` | [#12](https://github.com/ZenithResearch/Hypha/pull/12) | 3 | exact head `40c742c`; approved/open/unmerged |
 | I03 | [#9](https://github.com/ZenithResearch/Hypha/issues/9) | `feat/matrixrtc-trust-origin-contract` | `feat/matrixrtc-qualification-evaluator` | [#13](https://github.com/ZenithResearch/Hypha/pull/13) | 3 | exact head `6de688f`; approved/open/unmerged |
-| I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` | `feat/matrixrtc-trust-origin-contract` | live stacked PR | 2 | final evidence and exact-head reviews active |
+| I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` | `feat/matrixrtc-trust-origin-contract` | [#14](https://github.com/ZenithResearch/Hypha/pull/14) | 2 | final evidence and exact-head reviews active |
 
 ## Claim gates
 

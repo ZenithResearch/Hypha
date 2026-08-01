@@ -25,7 +25,7 @@ Current-state authority: live PR heads and GitHub check/review APIs. This commit
 | I01 | [#7](https://github.com/ZenithResearch/Hypha/issues/7) | `feat/matrixrtc-contract-profile` / `8a87fbc` | [#11](https://github.com/ZenithResearch/Hypha/pull/11) / `main` | verifier/mutations, 217 tests, build, diff passed | two exact-head checks passed | all specialist + Lead verdicts approved | open, ready, unmerged |
 | I02 | [#8](https://github.com/ZenithResearch/Hypha/issues/8) | `feat/matrixrtc-qualification-evaluator` / `40c742c` | [#12](https://github.com/ZenithResearch/Hypha/pull/12) / I01 | focused 37/full 254 tests, build/verifiers/audits passed | two exact-head checks passed | all specialist + Lead verdicts approved | open, ready, unmerged |
 | I03 | [#9](https://github.com/ZenithResearch/Hypha/issues/9) | `feat/matrixrtc-trust-origin-contract` / `6de688f` | [#13](https://github.com/ZenithResearch/Hypha/pull/13) / I02 | focused 24/full 278 tests, build/verifiers/audits passed | two exact-head checks passed | all specialist + Lead verdicts approved | open, ready, unmerged |
-| I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` / live PR head | live stacked PR / I03 | final package gates must pass | live PR check API | live PR external exact-head verdicts | final evidence active; do not merge |
+| I04 | [#10](https://github.com/ZenithResearch/Hypha/issues/10) | `feat/matrixrtc-contract-reconciliation` / live PR head | [#14](https://github.com/ZenithResearch/Hypha/pull/14) / I03 | final package gates must pass | live PR check API | live PR external exact-head verdicts | final evidence active; do not merge |
 
 ## Recovery checkpoints
 
