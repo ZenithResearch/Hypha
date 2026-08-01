@@ -921,4 +921,41 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(info.contains("ZenithOSIcon"))
         XCTAssertTrue(build.contains("ZenithOSIcon.icns"))
     }
+
+    func testInlineRoomInvitesArePermissionFilteredAndRevalidatedAtSubmit() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let app = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+        let sdk = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClientCore/MatrixRustSDKChatService.swift"),
+            encoding: .utf8
+        )
+
+        for marker in [
+            "MatrixRoomInvitationPolicy.eligibleRooms",
+            "MatrixRoomInviteSheet",
+            "matrix.room.invite.inline",
+            "matrix.room.invite.destination",
+            "matrix.room.invite.userIDs",
+            "matrix.room.invite.submit",
+        ] {
+            XCTAssertTrue(app.contains(marker), "Missing inline room-invite contract: \(marker)")
+        }
+        for marker in [
+            "let powerLevels = try await room.getPowerLevels()",
+            "powerLevels.canUserInvite(userId: room.ownUserId())",
+            "room.inviteUserById(userId: userID)",
+        ] {
+            XCTAssertTrue(sdk.contains(marker), "Missing authoritative invite revalidation: \(marker)")
+        }
+        let permissionCheck = try XCTUnwrap(sdk.range(of: "powerLevels.canUserInvite(userId: room.ownUserId())"))
+        let inviteCall = try XCTUnwrap(sdk.range(of: "room.inviteUserById(userId: userID)"))
+        XCTAssertLessThan(permissionCheck.lowerBound, inviteCall.lowerBound)
+    }
 }

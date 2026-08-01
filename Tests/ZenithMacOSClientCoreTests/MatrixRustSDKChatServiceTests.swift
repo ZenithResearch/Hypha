@@ -462,6 +462,62 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(observedRoomCreationRequests, [request])
     }
 
+    func testServiceForwardsInviteOnlyForCachedEligibleRoom() async throws {
+        let room = MatrixRoomSummary(
+            id: "!eligible:example.org",
+            name: "Eligible",
+            isEncrypted: true,
+            hasInvite: false,
+            canInviteMembers: true
+        )
+        let request = MatrixRoomInviteRequest(
+            roomID: room.id,
+            userIDs: ["@bob:example.org"]
+        )
+        let client = FakeLiveClient()
+        await client.setRooms([room])
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: client),
+            randomStoreKey: { Data(repeating: 2, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "secret")
+
+        try await service.inviteUsers(request)
+
+        let observedRequests = await client.observedRoomInviteRequests()
+        XCTAssertEqual(observedRequests, [request])
+    }
+
+    func testServiceFailsClosedWhenLiveInvitePermissionChanged() async throws {
+        let room = MatrixRoomSummary(
+            id: "!eligible:example.org",
+            name: "Eligible",
+            isEncrypted: true,
+            hasInvite: false,
+            canInviteMembers: true
+        )
+        let client = FakeLiveClient(invitationError: MatrixChatServiceError.unavailable(reason: "Invite permission changed"))
+        await client.setRooms([room])
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: client),
+            randomStoreKey: { Data(repeating: 2, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "secret")
+
+        do {
+            try await service.inviteUsers(
+                MatrixRoomInviteRequest(roomID: room.id, userIDs: ["@bob:example.org"])
+            )
+            XCTFail("Expected changed invite permission to fail closed")
+        } catch {}
+        let observedRequests = await client.observedRoomInviteRequests()
+        XCTAssertEqual(observedRequests, [])
+    }
+
     func testCreatorRoomRemovalLeavesBeforeForgettingAndRefreshesRooms() async throws {
         let ownedRoom = MatrixRoomSummary(
             id: "!owned:example.org",
@@ -728,6 +784,7 @@ private actor FakeLiveClient: MatrixLiveClient {
     private var passwordChange: PasswordChangeRequest?
     private var restored: [MatrixSDKSessionRecord] = []
     private var roomCreationRequests: [MatrixRoomCreationRequest] = []
+    private var roomInviteRequests: [MatrixRoomInviteRequest] = []
     private var roomRemovalRequests: [String] = []
     private var sends: [String] = []
     private let trustState: MatrixDeviceTrustState
@@ -743,6 +800,7 @@ private actor FakeLiveClient: MatrixLiveClient {
     private let sessionError: Error?
     private let syncError: Error?
     private let roomLoadError: Error?
+    private let invitationError: Error?
     private var suspendBootstrap: Bool
     private var bootstrapWaiters: [CheckedContinuation<Void, Never>] = []
 
@@ -752,6 +810,7 @@ private actor FakeLiveClient: MatrixLiveClient {
         sessionError: Error? = nil,
         syncError: Error? = nil,
         roomLoadError: Error? = nil,
+        invitationError: Error? = nil,
         trustState: MatrixDeviceTrustState = .unknown,
         peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable,
         peerVerificationEligibilityError: Error? = nil,
@@ -767,6 +826,7 @@ private actor FakeLiveClient: MatrixLiveClient {
         self.sessionError = sessionError
         self.syncError = syncError
         self.roomLoadError = roomLoadError
+        self.invitationError = invitationError
         self.trustState = trustState
         self.peerVerificationEligibility = peerVerificationEligibility
         self.peerVerificationEligibilityError = peerVerificationEligibilityError
@@ -806,6 +866,10 @@ private actor FakeLiveClient: MatrixLiveClient {
             throw MatrixChatServiceError.unavailable(reason: "Room creation unavailable")
         }
         return createdRoom
+    }
+    func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
+        if let invitationError { throw invitationError }
+        roomInviteRequests.append(request)
     }
     func removeRoom(roomID: String) async throws {
         roomRemovalRequests.append(roomID)
@@ -876,6 +940,7 @@ private actor FakeLiveClient: MatrixLiveClient {
     func observedRecoveryKeys() -> [String] { recoveryKeys }
     func observedPasswordChange() -> PasswordChangeRequest? { passwordChange }
     func observedRoomCreationRequests() -> [MatrixRoomCreationRequest] { roomCreationRequests }
+    func observedRoomInviteRequests() -> [MatrixRoomInviteRequest] { roomInviteRequests }
     func observedRoomRemovalRequests() -> [String] { roomRemovalRequests }
     func sentBodies() -> [String] { sends }
 }
