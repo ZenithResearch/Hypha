@@ -346,7 +346,8 @@ final class MatrixShellSourceContractTests: XCTestCase {
         )
 
         XCTAssertTrue(service.contains("isSpace: info?.isSpace == true"))
-        XCTAssertTrue(shell.contains("let spaces = joinedItems.filter(\\.isSpace)"))
+        XCTAssertTrue(shell.contains("let groups = MatrixSidebarRoomGroups(rooms: rooms)"))
+        XCTAssertTrue(shell.contains("if groups.spaces.isEmpty"))
         XCTAssertTrue(shell.contains("HyphaSpaceView(space: room)"))
         XCTAssertTrue(shell.contains("matrix.space.create.inline"))
         XCTAssertTrue(shell.contains("matrix.room.create.inline"))
@@ -678,7 +679,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "signIn(with credential:",
             "storedSessions()",
             "sidebarSectionTitle(\"Invites\")",
-            "rooms.filter(\\.hasInvite)",
+            "MatrixSidebarRoomGroups(rooms: rooms)",
             "matrix.thread.timeline",
             "matrix.thread.composer",
             "matrix.session.expired",
@@ -944,6 +945,13 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "matrix.room.invite.destination",
             "matrix.room.invite.userIDs",
             "matrix.room.invite.submit",
+            "Confirm invitations",
+            ".confirmationDialog(",
+            "resolvedInviteUserIDs",
+            "sidebarSectionTitle(\"DMs\")",
+            "User found",
+            "Copy invite link",
+            "NSPasteboard.general",
         ] {
             XCTAssertTrue(app.contains(marker), "Missing inline room-invite contract: \(marker)")
         }
@@ -951,11 +959,19 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "let powerLevels = try await room.getPowerLevels()",
             "powerLevels.canUserInvite(userId: room.ownUserId())",
             "room.inviteUserById(userId: userID)",
+            "client.getProfile(userId: userID)",
+            "room.matrixToPermalink()",
         ] {
             XCTAssertTrue(sdk.contains(marker), "Missing authoritative invite revalidation: \(marker)")
         }
         let permissionCheck = try XCTUnwrap(sdk.range(of: "powerLevels.canUserInvite(userId: room.ownUserId())"))
         let inviteCall = try XCTUnwrap(sdk.range(of: "room.inviteUserById(userId: userID)"))
         XCTAssertLessThan(permissionCheck.lowerBound, inviteCall.lowerBound)
+        XCTAssertFalse(sdk.contains("searchUsers("))
+        let dmSection = try XCTUnwrap(app.range(of: "sidebarSectionTitle(\"DMs\")"))
+        let inviteSection = try XCTUnwrap(app.range(of: "sidebarSectionTitle(\"Invites\")"))
+        let spacesSection = try XCTUnwrap(app.range(of: "sidebarCreationHeader(\"Spaces\""))
+        XCTAssertLessThan(dmSection.lowerBound, inviteSection.lowerBound)
+        XCTAssertLessThan(inviteSection.lowerBound, spacesSection.lowerBound)
     }
 }

@@ -1,4 +1,5 @@
 import Accessibility
+import AppKit
 import SwiftUI
 import ZenithMacOSClientCore
 
@@ -865,17 +866,41 @@ final class MatrixAppModel: ObservableObject {
         peerVerificationEligibility = .unavailable
     }
 
-    func inviteUsers(_ invitees: String, to room: MatrixRoomSummary) async -> Bool {
-        guard let coordinator else { return false }
+    func resolvedInviteUserIDs(_ invitees: String) -> [String]? {
         let parsedInvitees = invitees
             .components(separatedBy: CharacterSet(charactersIn: ",\n"))
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let invited = await coordinator.inviteUsers(parsedInvitees, to: room)
+        let activeServerName = activeSessionAccountKey
+            .flatMap { accountKey in savedSessions.first { $0.accountKey == accountKey } }
+            .flatMap { session -> String? in
+                let parts = session.userId.split(separator: ":", maxSplits: 1)
+                guard parts.count == 2, parts[0].hasPrefix("@"), !parts[1].isEmpty else { return nil }
+                return String(parts[1])
+            }
+        return MatrixRoomInvitationPolicy.resolveUserIDs(
+            parsedInvitees,
+            defaultServerName: activeServerName
+        )
+    }
+
+    func inviteUsers(_ userIDs: [String], to room: MatrixRoomSummary) async -> Bool {
+        guard let coordinator else { return false }
+        let invited = await coordinator.inviteUsers(userIDs, to: room)
         roomSyncMessage = invited
             ? "Invitations sent to \(room.name)."
             : "Not all invitations could be confirmed. Your room permission may have changed."
         return invited
+    }
+
+    func lookupInviteUsers(
+        _ userIDs: [String],
+        for room: MatrixRoomSummary
+    ) async -> [MatrixUserLookupResult] {
+        guard let coordinator else { return userIDs.map { _ in .unavailable } }
+        var results: [MatrixUserLookupResult] = []
+        for userID in userIDs {
+            results.append(await coordinator.lookupInviteUser(userID, for: room))
+        }
+        return results
     }
 
     func createRoomOrSpace(
@@ -1205,10 +1230,29 @@ private struct MatrixCompanionShell: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                let invitations = rooms.filter(\.hasInvite)
-                if !invitations.isEmpty {
-                    sidebarSectionTitle("Invites")
-                    ForEach(invitations) { room in
+                let groups = MatrixSidebarRoomGroups(rooms: rooms)
+
+                sidebarSectionTitle("DMs")
+                if groups.directMessages.isEmpty {
+                    Text("No DMs yet.")
+                        .font(.caption)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .padding(.horizontal, ZenithDesign.Space.x2)
+                } else {
+                    ForEach(groups.directMessages) { room in
+                        roomRow(room)
+                    }
+                }
+
+                sidebarSectionTitle("Invites")
+                    .padding(.top, ZenithDesign.Space.x2)
+                if groups.invitations.isEmpty {
+                    Text("No pending invites.")
+                        .font(.caption)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .padding(.horizontal, ZenithDesign.Space.x2)
+                } else {
+                    ForEach(groups.invitations) { room in
                         HStack(spacing: ZenithDesign.Space.x2) {
                             Image(systemName: "envelope.badge.fill")
                                 .foregroundStyle(ZenithDesign.Palette.brand)
@@ -1234,33 +1278,29 @@ private struct MatrixCompanionShell: View {
                     }
                 }
 
-                let joinedItems = rooms.filter { !$0.hasInvite }
-                let spaces = joinedItems.filter(\.isSpace)
-                let joinedRooms = joinedItems.filter { !$0.isSpace }
-
                 sidebarCreationHeader("Spaces", kind: .space)
-                    .padding(.top, invitations.isEmpty ? 0 : ZenithDesign.Space.x2)
-                if spaces.isEmpty {
+                    .padding(.top, ZenithDesign.Space.x2)
+                if groups.spaces.isEmpty {
                     Text("No Spaces yet.")
                         .font(.caption)
                         .foregroundStyle(ZenithDesign.Palette.muted)
                         .padding(.horizontal, ZenithDesign.Space.x2)
                 } else {
-                    ForEach(spaces) { space in
+                    ForEach(groups.spaces) { space in
                         roomRow(space)
                     }
                 }
 
                 sidebarCreationHeader("Rooms", kind: .room)
-                    .padding(.top, invitations.isEmpty && spaces.isEmpty ? 0 : ZenithDesign.Space.x2)
+                    .padding(.top, ZenithDesign.Space.x2)
 
-                if joinedRooms.isEmpty {
+                if groups.rooms.isEmpty {
                     Text("No joined rooms yet.")
                         .font(.caption)
                         .foregroundStyle(ZenithDesign.Palette.muted)
                         .padding(.horizontal, ZenithDesign.Space.x2)
                 } else {
-                    ForEach(joinedRooms) { room in
+                    ForEach(groups.rooms) { room in
                         roomRow(room)
                     }
                 }
@@ -2602,9 +2642,21 @@ private struct MatrixRoomInviteSheet: View {
     @State private var invitees = ""
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var statusMessage: String?
+    @State private var showsInviteConfirmation = false
+    @State private var pendingRoomID = ""
+    @State private var pendingUserIDs: [String] = []
+    @State private var lookupResults: [MatrixUserLookupResult] = []
 
     private var eligibleRooms: [MatrixRoomSummary] {
         MatrixRoomInvitationPolicy.eligibleRooms(from: model.rooms)
+    }
+
+    private var allValidatedUsersExist: Bool {
+        !lookupResults.isEmpty && lookupResults.allSatisfy {
+            if case .exists = $0 { return true }
+            return false
+        }
     }
 
     var body: some View {
@@ -2613,7 +2665,7 @@ private struct MatrixRoomInviteSheet: View {
                 Text("Invite members")
                     .font(ZenithDesign.Typography.corporate(.title2, weight: .semibold))
                     .foregroundStyle(ZenithDesign.Palette.content)
-                Text("Choose a room where your current account can invite members.")
+                Text("Enter complete usernames. Hypha checks only those exact accounts—there is no directory search.")
                     .font(ZenithDesign.Typography.corporate(.callout))
                     .foregroundStyle(ZenithDesign.Palette.muted)
             }
@@ -2631,15 +2683,28 @@ private struct MatrixRoomInviteSheet: View {
                 }
                 .accessibilityIdentifier("matrix.room.invite.destination")
 
-                TextField("Matrix IDs, separated by commas", text: $invitees)
+                TextField("Username or complete Matrix ID", text: $invitees)
                     .textFieldStyle(HyphaTextFieldStyle())
                     .accessibilityIdentifier("matrix.room.invite.userIDs")
 
-                Text("Permission is checked again when you send the invitations.")
+                Text("Permission is checked again immediately before an invitation is sent.")
                     .font(ZenithDesign.Typography.corporate(.caption))
                     .foregroundStyle(ZenithDesign.Palette.muted)
             }
 
+            if !lookupResults.isEmpty {
+                VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+                    ForEach(Array(lookupResults.enumerated()), id: \.offset) { _, result in
+                        lookupResultRow(result)
+                    }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Invitation recipient validation")
+            }
+
+            if let statusMessage {
+                HyphaStatusMessage(message: statusMessage, tone: .success)
+            }
             if let errorMessage {
                 HyphaStatusMessage(message: errorMessage, tone: .warning)
             }
@@ -2650,11 +2715,15 @@ private struct MatrixRoomInviteSheet: View {
                 }
                 Spacer()
                 HyphaButton(
-                    title: isSubmitting ? "Inviting…" : "Send invitations",
+                    title: submitButtonTitle,
                     systemImage: "person.badge.plus",
                     variant: .primary
                 ) {
-                    submit()
+                    if allValidatedUsersExist {
+                        prepareConfirmation()
+                    } else {
+                        validateRecipients()
+                    }
                 }
                 .disabled(
                     isSubmitting
@@ -2665,10 +2734,65 @@ private struct MatrixRoomInviteSheet: View {
             }
         }
         .padding(ZenithDesign.Space.x5)
-        .frame(width: 520)
+        .frame(width: 560)
         .background(ZenithDesign.Palette.base)
         .onAppear { selectFirstEligibleRoomIfNeeded() }
-        .onChange(of: model.rooms) { _, _ in selectFirstEligibleRoomIfNeeded() }
+        .onChange(of: model.rooms) { _, _ in
+            selectFirstEligibleRoomIfNeeded()
+            clearValidation()
+        }
+        .onChange(of: selectedRoomID) { _, _ in clearValidation() }
+        .onChange(of: invitees) { _, _ in clearValidation() }
+        .confirmationDialog(
+            "Confirm invitations",
+            isPresented: $showsInviteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Send \(pendingUserIDs.count == 1 ? "invitation" : "invitations")") {
+                submitConfirmedInvitations()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            let roomName = eligibleRooms.first(where: { $0.id == pendingRoomID })?.name ?? "the selected room"
+            Text("Invite \(pendingUserIDs.joined(separator: ", ")) to \(roomName)?")
+        }
+    }
+
+    private var submitButtonTitle: String {
+        if isSubmitting { return lookupResults.isEmpty ? "Checking…" : "Inviting…" }
+        return allValidatedUsersExist ? "Review invitations" : "Check recipients"
+    }
+
+    @ViewBuilder
+    private func lookupResultRow(_ result: MatrixUserLookupResult) -> some View {
+        switch result {
+        case let .exists(userID, displayName):
+            HyphaStatusMessage(
+                message: "User found: \(displayName ?? userID) (\(userID))",
+                tone: .success
+            )
+        case let .notFound(userID, inviteLink):
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+                HyphaStatusMessage(
+                    message: "No Matrix account exists for \(userID).",
+                    tone: .warning
+                )
+                Text("Share the room link for context. It does not bypass invite-only membership; invite them again after they create an account.")
+                    .font(ZenithDesign.Typography.corporate(.caption))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                HyphaButton(title: "Copy invite link", systemImage: "doc.on.doc", variant: .secondary) {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(inviteLink, forType: .string)
+                    statusMessage = "Invite link copied."
+                }
+                .accessibilityHint("Copies the selected room's Matrix link")
+            }
+        case .unavailable:
+            HyphaStatusMessage(
+                message: "Hypha could not validate this exact account. Nothing was invited.",
+                tone: .warning
+            )
+        }
     }
 
     private func selectFirstEligibleRoomIfNeeded() {
@@ -2676,15 +2800,65 @@ private struct MatrixRoomInviteSheet: View {
         selectedRoomID = eligibleRooms.first?.id ?? ""
     }
 
-    private func submit() {
+    private func clearValidation() {
+        lookupResults = []
+        pendingRoomID = ""
+        pendingUserIDs = []
+        errorMessage = nil
+        statusMessage = nil
+    }
+
+    private func validateRecipients() {
         guard !isSubmitting,
               let room = eligibleRooms.first(where: { $0.id == selectedRoomID }) else { return }
+        guard let resolvedUserIDs = model.resolvedInviteUserIDs(invitees) else {
+            errorMessage = "Enter a local username or a complete Matrix ID such as @name:server."
+            return
+        }
         isSubmitting = true
         errorMessage = nil
+        statusMessage = nil
         Task {
-            if await model.inviteUsers(invitees, to: room) {
+            let results = await model.lookupInviteUsers(resolvedUserIDs, for: room)
+            lookupResults = results
+            pendingRoomID = room.id
+            pendingUserIDs = results.allSatisfy {
+                if case .exists = $0 { return true }
+                return false
+            } ? resolvedUserIDs : []
+            if results.contains(.unavailable) {
+                errorMessage = "Recipient validation is unavailable. No invitation was sent."
+            }
+            isSubmitting = false
+        }
+    }
+
+    private func prepareConfirmation() {
+        guard allValidatedUsersExist,
+              !pendingUserIDs.isEmpty,
+              eligibleRooms.contains(where: { $0.id == pendingRoomID }) else {
+            clearValidation()
+            errorMessage = "Validate the recipients again before inviting them."
+            return
+        }
+        showsInviteConfirmation = true
+    }
+
+    private func submitConfirmedInvitations() {
+        guard !isSubmitting,
+              !pendingUserIDs.isEmpty,
+              let room = eligibleRooms.first(where: { $0.id == pendingRoomID }) else {
+            errorMessage = "The selected room is no longer eligible for invitations."
+            return
+        }
+        isSubmitting = true
+        errorMessage = nil
+        let userIDs = pendingUserIDs
+        Task {
+            if await model.inviteUsers(userIDs, to: room) {
                 isPresented = false
             } else {
+                clearValidation()
                 errorMessage = "Not all invitations could be confirmed. Refresh room membership and your invite permission."
             }
             isSubmitting = false

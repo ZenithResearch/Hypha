@@ -24,6 +24,7 @@ public struct MatrixRoomSummary: Identifiable, Equatable, Sendable {
     public let hasInvite: Bool
     public let isCreatedByCurrentUser: Bool
     public let isSpace: Bool
+    public let isDirect: Bool
     public let topic: String?
     public let canInviteMembers: Bool
 
@@ -34,6 +35,7 @@ public struct MatrixRoomSummary: Identifiable, Equatable, Sendable {
         hasInvite: Bool,
         isCreatedByCurrentUser: Bool = false,
         isSpace: Bool = false,
+        isDirect: Bool = false,
         topic: String? = nil,
         canInviteMembers: Bool = false
     ) {
@@ -43,9 +45,31 @@ public struct MatrixRoomSummary: Identifiable, Equatable, Sendable {
         self.hasInvite = hasInvite
         self.isCreatedByCurrentUser = isCreatedByCurrentUser
         self.isSpace = isSpace
+        self.isDirect = isDirect
         self.topic = topic
         self.canInviteMembers = canInviteMembers
     }
+}
+
+public struct MatrixSidebarRoomGroups: Equatable, Sendable {
+    public let directMessages: [MatrixRoomSummary]
+    public let invitations: [MatrixRoomSummary]
+    public let spaces: [MatrixRoomSummary]
+    public let rooms: [MatrixRoomSummary]
+
+    public init(rooms: [MatrixRoomSummary]) {
+        invitations = rooms.filter(\.hasInvite)
+        let joined = rooms.filter { !$0.hasInvite }
+        directMessages = joined.filter { $0.isDirect && !$0.isSpace }
+        spaces = joined.filter(\.isSpace)
+        self.rooms = joined.filter { !$0.isSpace && !$0.isDirect }
+    }
+}
+
+public enum MatrixUserLookupResult: Equatable, Sendable {
+    case exists(userID: String, displayName: String?)
+    case notFound(userID: String, inviteLink: String)
+    case unavailable
 }
 
 public struct MatrixTimelineEvent: Identifiable, Equatable, Sendable {
@@ -213,6 +237,53 @@ public enum MatrixRoomInvitationPolicy {
             .filter { !$0.hasInvite && !$0.isSpace && $0.canInviteMembers }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
+
+    public static func resolveUserIDs(
+        _ values: [String],
+        defaultServerName: String?
+    ) -> [String]? {
+        let serverName = defaultServerName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var seen = Set<String>()
+        var resolved: [String] = []
+        for value in values {
+            let candidate = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !candidate.isEmpty else { continue }
+            guard candidate.count <= 1_024 else { return nil }
+            let userID: String
+            if candidate.hasPrefix("@") {
+                let body = candidate.dropFirst()
+                guard let separator = body.firstIndex(of: ":") else { return nil }
+                let localpart = body[..<separator]
+                let server = body[body.index(after: separator)...]
+                guard !localpart.isEmpty,
+                      !server.isEmpty,
+                      !candidate.unicodeScalars.contains(where: CharacterSet.whitespacesAndNewlines.contains) else {
+                    return nil
+                }
+                userID = candidate
+            } else {
+                guard validLocalpart(candidate),
+                      let serverName,
+                      !serverName.isEmpty,
+                      !serverName.unicodeScalars.contains(where: CharacterSet.whitespacesAndNewlines.contains) else {
+                    return nil
+                }
+                userID = "@\(candidate):\(serverName)"
+            }
+            if seen.insert(userID).inserted {
+                guard resolved.count < 10 else { return nil }
+                resolved.append(userID)
+            }
+        }
+        return resolved.isEmpty ? nil : resolved
+    }
+
+    private static func validLocalpart(_ value: String) -> Bool {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789._=-/")
+        return !value.isEmpty
+            && value.count <= 255
+            && value.unicodeScalars.allSatisfy(allowed.contains)
+    }
 }
 
 public enum MatrixDeviceTrustState: Equatable, Sendable {
@@ -322,6 +393,7 @@ public protocol MatrixChatService: Sendable {
     func timeline(for roomID: String) async throws -> [MatrixTimelineEvent]
     func sendText(_ body: String, to roomID: String) async throws
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary
+    func lookupInviteUser(userID: String, roomID: String) async throws -> MatrixUserLookupResult
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws
     func removeRoom(roomID: String) async throws -> [MatrixRoomSummary]
     func encryptionRecoveryState(trustState: MatrixDeviceTrustState) async throws -> MatrixRecoveryState
@@ -382,6 +454,9 @@ public extension MatrixChatService {
     }
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary {
         throw MatrixChatServiceError.unavailable(reason: "Room creation is unavailable")
+    }
+    func lookupInviteUser(userID: String, roomID: String) async throws -> MatrixUserLookupResult {
+        .unavailable
     }
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Room invitations are unavailable")
@@ -576,6 +651,18 @@ public final class MatrixChatCoordinator {
             state = .rooms(rooms)
         }
         return rooms
+    }
+
+    public func lookupInviteUser(
+        _ userID: String,
+        for room: MatrixRoomSummary
+    ) async -> MatrixUserLookupResult {
+        guard room.canInviteMembers, !room.hasInvite, !room.isSpace else { return .unavailable }
+        do {
+            return try await service.lookupInviteUser(userID: userID, roomID: room.id)
+        } catch {
+            return .unavailable
+        }
     }
 
     public func inviteUsers(_ userIDs: [String], to room: MatrixRoomSummary) async -> Bool {
