@@ -122,6 +122,36 @@ final class MatrixRoomInvitationTests: XCTestCase {
         XCTAssertEqual(service.lookupRequests, ["@mgpi:example.org"])
     }
 
+    func testAuthoritativeAdminSnapshotValidatesExactLocalAccountWithoutProfileSearch() {
+        let users = [
+            MatrixAdminUserSummary(
+                userID: "@mgpi:example.org",
+                isAdministrator: false,
+                isDeactivated: false,
+                isGuest: false,
+                userType: nil
+            ),
+        ]
+
+        XCTAssertEqual(
+            MatrixRoomInvitationPolicy.localAccountLookupResult(
+                userID: "@mgpi:example.org",
+                roomID: "!general:example.org",
+                users: users
+            ),
+            .exists(userID: "@mgpi:example.org", displayName: nil)
+        )
+        guard case let .notFound(userID, inviteLink) = MatrixRoomInvitationPolicy.localAccountLookupResult(
+            userID: "@missing:example.org",
+            roomID: "!general:example.org",
+            users: users
+        ) else {
+            return XCTFail("Expected exact missing local account result")
+        }
+        XCTAssertEqual(userID, "@missing:example.org")
+        XCTAssertEqual(inviteLink, "https://matrix.to/#/!general:example.org")
+    }
+
     func testCoordinatorRejectsRoomWithoutInvitePermissionBeforeCallingService() async {
         let service = InviteRecordingService()
         let coordinator = MatrixChatCoordinator(service: service)

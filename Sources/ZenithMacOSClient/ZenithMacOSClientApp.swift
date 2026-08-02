@@ -866,19 +866,22 @@ final class MatrixAppModel: ObservableObject {
         peerVerificationEligibility = .unavailable
     }
 
-    func resolvedInviteUserIDs(_ invitees: String) -> [String]? {
-        let parsedInvitees = invitees
-            .components(separatedBy: CharacterSet(charactersIn: ",\n"))
-        let activeServerName = activeSessionAccountKey
+    private var activeMatrixServerName: String? {
+        activeSessionAccountKey
             .flatMap { accountKey in savedSessions.first { $0.accountKey == accountKey } }
             .flatMap { session -> String? in
                 let parts = session.userId.split(separator: ":", maxSplits: 1)
                 guard parts.count == 2, parts[0].hasPrefix("@"), !parts[1].isEmpty else { return nil }
                 return String(parts[1])
             }
+    }
+
+    func resolvedInviteUserIDs(_ invitees: String) -> [String]? {
+        let parsedInvitees = invitees
+            .components(separatedBy: CharacterSet(charactersIn: ",\n"))
         return MatrixRoomInvitationPolicy.resolveUserIDs(
             parsedInvitees,
-            defaultServerName: activeServerName
+            defaultServerName: activeMatrixServerName
         )
     }
 
@@ -896,9 +899,24 @@ final class MatrixAppModel: ObservableObject {
         for room: MatrixRoomSummary
     ) async -> [MatrixUserLookupResult] {
         guard let coordinator else { return userIDs.map { _ in .unavailable } }
+        if adminAccessState == .authorized {
+            await refreshAdministratorSnapshot()
+        }
+        let authoritativeLocalUsers = adminAccessState == .authorized ? adminSnapshot?.users : nil
         var results: [MatrixUserLookupResult] = []
         for userID in userIDs {
-            results.append(await coordinator.lookupInviteUser(userID, for: room))
+            let parts = userID.split(separator: ":", maxSplits: 1)
+            let targetServerName = parts.count == 2 ? String(parts[1]) : nil
+            if let authoritativeLocalUsers,
+               targetServerName == activeMatrixServerName {
+                results.append(MatrixRoomInvitationPolicy.localAccountLookupResult(
+                    userID: userID,
+                    roomID: room.id,
+                    users: authoritativeLocalUsers
+                ))
+            } else {
+                results.append(await coordinator.lookupInviteUser(userID, for: room))
+            }
         }
         return results
     }

@@ -288,6 +288,20 @@ public enum MatrixRoomInvitationPolicy {
         return resolved.isEmpty ? nil : resolved
     }
 
+    public static func localAccountLookupResult(
+        userID: String,
+        roomID: String,
+        users: [MatrixAdminUserSummary]
+    ) -> MatrixUserLookupResult {
+        if users.contains(where: { $0.userID == userID && !$0.isDeactivated && !$0.isGuest }) {
+            return .exists(userID: userID, displayName: nil)
+        }
+        return .notFound(
+            userID: userID,
+            inviteLink: "https://matrix.to/#/\(roomID)"
+        )
+    }
+
     private static func validLocalpart(_ value: String) -> Bool {
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789._=-/")
         return !value.isEmpty
