@@ -990,4 +990,39 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(app.contains("case .success: ZenithDesign.Palette.success"))
         XCTAssertFalse(app.contains("Text(roomSyncMessage)\n                        .font(.caption)\n                        .foregroundStyle(ZenithDesign.Palette.error)"))
     }
+
+    func testAdministratorAccountDeletionUsesSynapseEraseAndDisclosesRetainedTrail() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let sheet = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/MatrixAdminSheet.swift"),
+            encoding: .utf8
+        )
+        let client = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClientCore/MatrixSynapseAdminClient.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(sheet.contains("Delete account permanently?"))
+        XCTAssertTrue(sheet.contains("retains the Matrix ID and event references"))
+        XCTAssertTrue(client.contains("path: \"/_synapse/admin/v1/deactivate/\\(encoded(userID))\""))
+        XCTAssertTrue(client.contains("json: [\"erase\": true]"))
+    }
+
+    func testFirstManualPasswordLoginForcesDurablePasswordResetBeforeChat() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let app = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(app.contains("requiresInitialPasswordReset"))
+        XCTAssertTrue(app.contains("pendingInitialPasswordResetAccountKeys"))
+        XCTAssertTrue(app.contains("authenticationMethod: .manualPassword"))
+        XCTAssertTrue(app.contains("MatrixMandatoryPasswordResetSheet"))
+        XCTAssertTrue(app.contains(".interactiveDismissDisabled(true)"))
+        XCTAssertTrue(app.contains("logoutOtherDevices: requiresCompletion ? true : logoutOtherDevices"))
+        XCTAssertTrue(app.contains("completeInitialPasswordReset"))
+    }
 }

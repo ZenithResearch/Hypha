@@ -95,6 +95,7 @@ final class MatrixAppModel: ObservableObject {
     @Published var savedSessions: [MatrixSDKSessionRecord] = []
     @Published var savedCredentials: [HyphaMatrixCredentialDescriptor] = []
     @Published var activeSessionAccountKey: String?
+    @Published private(set) var requiresInitialPasswordReset = false
     @Published private(set) var isAuthenticationOperationInFlight = false
     @Published private(set) var adminAccessState: MatrixAppAdminAccessState = .unknown
     @Published private(set) var adminSnapshot: MatrixAdminSnapshot?
@@ -106,6 +107,7 @@ final class MatrixAppModel: ObservableObject {
         "ca", "zenith-research", "mobile-macos", "matrix", "homeserver",
     ].joined(separator: ".")
     private static let legacyDefaultsSuite = ["ca", "zenithresearch", "mobile", "macos"].joined(separator: ".")
+    private static let pendingInitialPasswordResetAccountKeys = "ca.zenithresearch.hypha.pending-initial-password-reset-account-keys"
     private let defaults = UserDefaults.standard
     private let legacyDefaults = UserDefaults(suiteName: MatrixAppModel.legacyDefaultsSuite)
     private let healthChecker: MatrixHomeserverHealthChecker
@@ -224,6 +226,7 @@ final class MatrixAppModel: ObservableObject {
         savedSessions = []
         savedCredentials = []
         activeSessionAccountKey = nil
+        requiresInitialPasswordReset = false
         username = ""
         password = ""
         savePasswordToApplePasswords = false
@@ -317,9 +320,15 @@ final class MatrixAppModel: ObservableObject {
         guard let coordinator else { return }
         guard beginAuthenticationOperation() else { return }
         defer { finishAuthenticationOperation() }
-        let usernameForRequest = username
+        let usernameForRequest = username.trimmingCharacters(in: .whitespacesAndNewlines)
         let passwordForRequest = password
         let shouldSaveInApplePasswords = savePasswordToApplePasswords
+        let candidateAccountKey = activeConfiguration.map {
+            MatrixRustSDKChatService.accountKey(username: usernameForRequest, homeserver: $0.homeserver)
+        }
+        let hadExistingSession = candidateAccountKey.map { accountKey in
+            savedSessions.contains { $0.accountKey == accountKey }
+        } ?? false
         password = ""
         savePasswordToApplePasswords = false
         await coordinator.signIn(username: usernameForRequest, password: passwordForRequest)
@@ -328,6 +337,14 @@ final class MatrixAppModel: ObservableObject {
         await refreshAdministratorAccess()
         if let configuration = activeConfiguration {
             refreshSavedSessions(configuration: configuration)
+            if case .rooms = state,
+               let candidateAccountKey,
+               MatrixInitialPasswordResetPolicy.requiresReset(
+                   authenticationMethod: .manualPassword,
+                   hadExistingSession: hadExistingSession
+               ) {
+                markInitialPasswordResetRequired(accountKey: candidateAccountKey)
+            }
             if case .rooms = state, shouldSaveInApplePasswords {
                 await saveInApplePasswords(
                     password: passwordForRequest,
@@ -447,9 +464,34 @@ final class MatrixAppModel: ObservableObject {
         password = ""
         savePasswordToApplePasswords = false
         rooms = []
+        requiresInitialPasswordReset = false
         resetSecurityState()
         resetAdministratorState()
         state = .signedOut(message: nil)
+    }
+
+    private func markInitialPasswordResetRequired(accountKey: String) {
+        var pending = Set(defaults.stringArray(forKey: Self.pendingInitialPasswordResetAccountKeys) ?? [])
+        pending.insert(accountKey)
+        defaults.set(Array(pending).sorted(), forKey: Self.pendingInitialPasswordResetAccountKeys)
+        requiresInitialPasswordReset = activeSessionAccountKey == accountKey
+    }
+
+    func completeInitialPasswordReset() {
+        guard let accountKey = activeSessionAccountKey else { return }
+        var pending = Set(defaults.stringArray(forKey: Self.pendingInitialPasswordResetAccountKeys) ?? [])
+        pending.remove(accountKey)
+        defaults.set(Array(pending).sorted(), forKey: Self.pendingInitialPasswordResetAccountKeys)
+        requiresInitialPasswordReset = false
+    }
+
+    private func refreshInitialPasswordResetRequirement() {
+        guard let accountKey = activeSessionAccountKey else {
+            requiresInitialPasswordReset = false
+            return
+        }
+        let pending = Set(defaults.stringArray(forKey: Self.pendingInitialPasswordResetAccountKeys) ?? [])
+        requiresInitialPasswordReset = pending.contains(accountKey)
     }
 
     @discardableResult
@@ -462,10 +504,12 @@ final class MatrixAppModel: ObservableObject {
                 )
             }
             activeSessionAccountKey = try sessionVault.loadSession()?.accountKey
+            refreshInitialPasswordResetRequirement()
             return true
         } catch {
             savedSessions = []
             activeSessionAccountKey = nil
+            requiresInitialPasswordReset = false
             return false
         }
     }
@@ -632,6 +676,9 @@ final class MatrixAppModel: ObservableObject {
         )
         switch result {
         case .success:
+            if requiresInitialPasswordReset {
+                completeInitialPasswordReset()
+            }
             var updatedApplePasswords = false
             if saveInApplePasswords {
                 guard let configuration = activeConfiguration,
@@ -787,7 +834,7 @@ final class MatrixAppModel: ObservableObject {
             guard coordinator === self.coordinator else { return }
             clearLocalSessions(for: user.userID)
             await publishAdministratorMutationSuccess(
-                "Deactivated and erased \(user.userID) on this homeserver.",
+                "Deleted \(user.userID)'s active account and profile data. Synapse retained the MXID tombstone and event references.",
                 coordinator: coordinator
             )
         } catch {
@@ -852,6 +899,8 @@ final class MatrixAppModel: ObservableObject {
             adminMessage = "Check the account or room details and try again."
         case .protectedAccount:
             adminMessage = "Hypha will not deactivate the active administrator account."
+        case .credentialNotEstablished:
+            adminMessage = "The account record exists, but the homeserver did not confirm a usable local password. Reset or delete the account before handing it off."
         case .invalidResponse, .serverRejected, nil:
             adminMessage = "The homeserver rejected the administrative operation. No success was assumed."
         }
@@ -1132,7 +1181,17 @@ private struct MatrixCompanionShell: View {
             MatrixFirstDevicePasswordSheet(model: model, isPresented: $showsFirstDevicePassword)
         }
         .sheet(isPresented: $showsPasswordChange) {
-            MatrixChangePasswordSheet(model: model, isPresented: $showsPasswordChange)
+            MatrixChangePasswordSheet(
+                model: model,
+                isPresented: $showsPasswordChange,
+                requiresCompletion: false
+            )
+        }
+        .sheet(isPresented: Binding(
+            get: { model.requiresInitialPasswordReset },
+            set: { _ in }
+        )) {
+            MatrixMandatoryPasswordResetSheet(model: model)
         }
         .sheet(isPresented: $showsAdministration) {
             MatrixAdminSheet(model: model, isPresented: $showsAdministration)
@@ -2268,6 +2327,19 @@ private struct ZenithMessageComposer: View {
     }
 }
 
+private struct MatrixMandatoryPasswordResetSheet: View {
+    @ObservedObject var model: MatrixAppModel
+
+    var body: some View {
+        MatrixChangePasswordSheet(
+            model: model,
+            isPresented: .constant(true),
+            requiresCompletion: true
+        )
+        .interactiveDismissDisabled(true)
+    }
+}
+
 private struct MatrixChangePasswordSheet: View {
     private enum CredentialResult: Equatable {
         case noneStored
@@ -2286,6 +2358,7 @@ private struct MatrixChangePasswordSheet: View {
 
     @ObservedObject var model: MatrixAppModel
     @Binding var isPresented: Bool
+    let requiresCompletion: Bool
     @State private var currentPassword = ""
     @State private var newPassword = ""
     @State private var confirmation = ""
@@ -2305,7 +2378,7 @@ private struct MatrixChangePasswordSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: ZenithDesign.Space.x4) {
-            Text("Change password")
+            Text(requiresCompletion ? "Replace temporary password" : "Change password")
                 .font(ZenithDesign.Typography.corporate(.title2, weight: .semibold))
 
             switch submissionState {
@@ -2329,7 +2402,9 @@ private struct MatrixChangePasswordSheet: View {
                 }
 
             case .idle, .submitting, .failed:
-                Text("Use the current account password to authorize this change. Hypha never logs or displays either password.")
+                Text(requiresCompletion
+                     ? "This is the first password login for this account on Hypha. Replace the temporary password before entering chat."
+                     : "Use the current account password to authorize this change. Hypha never logs or displays either password.")
                     .font(ZenithDesign.Typography.corporate(.callout))
                     .foregroundStyle(ZenithDesign.Palette.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -2363,9 +2438,15 @@ private struct MatrixChangePasswordSheet: View {
                         .foregroundStyle(ZenithDesign.Palette.error)
                 }
 
-                Toggle("Sign out other Hypha devices after changing the password", isOn: $logoutOtherDevices)
-                    .font(ZenithDesign.Typography.corporate(.callout))
-                    .disabled(isSubmitting)
+                if requiresCompletion {
+                    Label("Other devices will be signed out after the temporary password is replaced.", systemImage: "rectangle.stack.badge.minus")
+                        .font(ZenithDesign.Typography.corporate(.callout))
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                } else {
+                    Toggle("Sign out other Hypha devices after changing the password", isOn: $logoutOtherDevices)
+                        .font(ZenithDesign.Typography.corporate(.callout))
+                        .disabled(isSubmitting)
+                }
 
                 if model.applePasswordsAvailable {
                     Toggle("Update in Apple Passwords", isOn: $saveInApplePasswords)
@@ -2383,12 +2464,14 @@ private struct MatrixChangePasswordSheet: View {
                 }
 
                 HStack {
-                    Button("Cancel") {
-                        clearSecrets()
-                        isPresented = false
+                    if !requiresCompletion {
+                        Button("Cancel") {
+                            clearSecrets()
+                            isPresented = false
+                        }
+                        .buttonStyle(HyphaButtonStyle(.secondary))
+                        .disabled(isSubmitting)
                     }
-                    .buttonStyle(HyphaButtonStyle(.secondary))
-                    .disabled(isSubmitting)
 
                     Spacer()
 
@@ -2413,7 +2496,7 @@ private struct MatrixChangePasswordSheet: View {
         }
         .padding(ZenithDesign.Space.x6)
         .frame(width: 500)
-        .interactiveDismissDisabled(isSubmitting)
+        .interactiveDismissDisabled(requiresCompletion || isSubmitting)
         .onDisappear { clearSecrets() }
     }
 
@@ -2422,7 +2505,7 @@ private struct MatrixChangePasswordSheet: View {
         let request = (
             currentPassword: currentPassword,
             newPassword: newPassword,
-            logoutOtherDevices: logoutOtherDevices,
+            logoutOtherDevices: requiresCompletion ? true : logoutOtherDevices,
             saveInApplePasswords: saveInApplePasswords
         )
         clearSecrets()

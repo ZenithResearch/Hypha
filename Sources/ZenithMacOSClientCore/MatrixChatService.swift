@@ -178,6 +178,21 @@ public struct MatrixCrossSigningDiagnosticReceipt: Equatable, Sendable {
     }
 }
 
+public enum MatrixInitialPasswordResetPolicy {
+    public enum AuthenticationMethod: Equatable, Sendable {
+        case manualPassword
+        case inviteTokenRegistration
+        case savedCredential
+    }
+
+    public static func requiresReset(
+        authenticationMethod: AuthenticationMethod,
+        hadExistingSession: Bool
+    ) -> Bool {
+        authenticationMethod == .manualPassword && !hadExistingSession
+    }
+}
+
 public enum MatrixRoomKind: String, CaseIterable, Equatable, Sendable {
     case room
     case space
