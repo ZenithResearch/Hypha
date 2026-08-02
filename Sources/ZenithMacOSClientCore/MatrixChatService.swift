@@ -252,15 +252,25 @@ public enum MatrixRoomInvitationPolicy {
             let userID: String
             if candidate.hasPrefix("@") {
                 let body = candidate.dropFirst()
-                guard let separator = body.firstIndex(of: ":") else { return nil }
-                let localpart = body[..<separator]
-                let server = body[body.index(after: separator)...]
-                guard !localpart.isEmpty,
-                      !server.isEmpty,
-                      !candidate.unicodeScalars.contains(where: CharacterSet.whitespacesAndNewlines.contains) else {
-                    return nil
+                if let separator = body.firstIndex(of: ":") {
+                    let localpart = body[..<separator]
+                    let server = body[body.index(after: separator)...]
+                    guard !localpart.isEmpty,
+                          !server.isEmpty,
+                          !candidate.unicodeScalars.contains(where: CharacterSet.whitespacesAndNewlines.contains) else {
+                        return nil
+                    }
+                    userID = candidate
+                } else {
+                    let localpart = String(body)
+                    guard validLocalpart(localpart),
+                          let serverName,
+                          !serverName.isEmpty,
+                          !serverName.unicodeScalars.contains(where: CharacterSet.whitespacesAndNewlines.contains) else {
+                        return nil
+                    }
+                    userID = "@\(localpart):\(serverName)"
                 }
-                userID = candidate
             } else {
                 guard validLocalpart(candidate),
                       let serverName,

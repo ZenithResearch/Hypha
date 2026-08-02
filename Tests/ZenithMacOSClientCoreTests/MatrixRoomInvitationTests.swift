@@ -53,10 +53,14 @@ final class MatrixRoomInvitationTests: XCTestCase {
     func testLocalUsernamesResolveAgainstTheActiveMatrixServerBeforeConfirmation() {
         XCTAssertEqual(
             MatrixRoomInvitationPolicy.resolveUserIDs(
-                ["mgpi", "@remote:elsewhere.example", "mgpi"],
+                ["mgpi", "@alice", "@remote:elsewhere.example", "mgpi"],
                 defaultServerName: "zenith-research.ca"
             ),
-            ["@mgpi:zenith-research.ca", "@remote:elsewhere.example"]
+            [
+                "@mgpi:zenith-research.ca",
+                "@alice:zenith-research.ca",
+                "@remote:elsewhere.example",
+            ]
         )
     }
 
