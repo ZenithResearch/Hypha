@@ -490,6 +490,32 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(observedRequests, [request])
     }
 
+    func testServiceForwardsExactUserLookupOnlyForCachedEligibleRoom() async throws {
+        let room = MatrixRoomSummary(
+            id: "!eligible:example.org",
+            name: "Eligible",
+            isEncrypted: true,
+            hasInvite: false,
+            canInviteMembers: true
+        )
+        let expected = MatrixUserLookupResult.exists(userID: "@mgpi:example.org", displayName: "MGPI")
+        let client = FakeLiveClient(userLookupResult: expected)
+        await client.setRooms([room])
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: client),
+            randomStoreKey: { Data(repeating: 2, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "secret")
+
+        let result = try await service.lookupInviteUser(userID: "@mgpi:example.org", roomID: room.id)
+
+        let observedRequests = await client.observedUserLookupRequests()
+        XCTAssertEqual(result, expected)
+        XCTAssertEqual(observedRequests, ["@mgpi:example.org"])
+    }
+
     func testServiceFailsClosedWhenLiveInvitePermissionChanged() async throws {
         let room = MatrixRoomSummary(
             id: "!eligible:example.org",
@@ -824,6 +850,7 @@ private actor FakeLiveClient: MatrixLiveClient {
     private var restored: [MatrixSDKSessionRecord] = []
     private var roomCreationRequests: [MatrixRoomCreationRequest] = []
     private var roomInviteRequests: [MatrixRoomInviteRequest] = []
+    private var userLookupRequests: [String] = []
     private var roomRemovalRequests: [String] = []
     private var sends: [String] = []
     private let trustState: MatrixDeviceTrustState
@@ -840,6 +867,7 @@ private actor FakeLiveClient: MatrixLiveClient {
     private let syncError: Error?
     private let roomLoadError: Error?
     private let invitationError: Error?
+    private let userLookupResult: MatrixUserLookupResult
     private var suspendBootstrap: Bool
     private var bootstrapWaiters: [CheckedContinuation<Void, Never>] = []
 
@@ -850,6 +878,7 @@ private actor FakeLiveClient: MatrixLiveClient {
         syncError: Error? = nil,
         roomLoadError: Error? = nil,
         invitationError: Error? = nil,
+        userLookupResult: MatrixUserLookupResult = .unavailable,
         trustState: MatrixDeviceTrustState = .unknown,
         peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable,
         peerVerificationEligibilityError: Error? = nil,
@@ -866,6 +895,7 @@ private actor FakeLiveClient: MatrixLiveClient {
         self.syncError = syncError
         self.roomLoadError = roomLoadError
         self.invitationError = invitationError
+        self.userLookupResult = userLookupResult
         self.trustState = trustState
         self.peerVerificationEligibility = peerVerificationEligibility
         self.peerVerificationEligibilityError = peerVerificationEligibilityError
@@ -905,6 +935,10 @@ private actor FakeLiveClient: MatrixLiveClient {
             throw MatrixChatServiceError.unavailable(reason: "Room creation unavailable")
         }
         return createdRoom
+    }
+    func lookupInviteUser(userID: String, roomID: String) async throws -> MatrixUserLookupResult {
+        userLookupRequests.append(userID)
+        return userLookupResult
     }
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
         if let invitationError { throw invitationError }
@@ -980,6 +1014,7 @@ private actor FakeLiveClient: MatrixLiveClient {
     func observedPasswordChange() -> PasswordChangeRequest? { passwordChange }
     func observedRoomCreationRequests() -> [MatrixRoomCreationRequest] { roomCreationRequests }
     func observedRoomInviteRequests() -> [MatrixRoomInviteRequest] { roomInviteRequests }
+    func observedUserLookupRequests() -> [String] { userLookupRequests }
     func observedRoomRemovalRequests() -> [String] { roomRemovalRequests }
     func sentBodies() -> [String] { sends }
 }

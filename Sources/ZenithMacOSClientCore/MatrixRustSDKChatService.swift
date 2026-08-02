@@ -133,6 +133,7 @@ public protocol MatrixLiveClient: Sendable {
     func timeline(roomID: String) async throws -> [MatrixTimelineEvent]
     func sendText(_ body: String, roomID: String) async throws
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary
+    func lookupInviteUser(userID: String, roomID: String) async throws -> MatrixUserLookupResult
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws
     func removeRoom(roomID: String) async throws
     func encryptionRecoveryState(trustState: MatrixDeviceTrustState) async throws -> MatrixRecoveryState
@@ -159,6 +160,9 @@ public extension MatrixLiveClient {
 
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary {
         throw MatrixChatServiceError.unavailable(reason: "Room creation is unavailable")
+    }
+    func lookupInviteUser(userID: String, roomID: String) async throws -> MatrixUserLookupResult {
+        .unavailable
     }
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Room invitations are unavailable")
@@ -366,6 +370,20 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         } catch {
             throw mapRuntimeError(error, fallbackReason: "Encrypted room creation failed")
         }
+    }
+
+    public func lookupInviteUser(
+        userID: String,
+        roomID: String
+    ) async throws -> MatrixUserLookupResult {
+        guard let client,
+              let room = roomsByID[roomID],
+              room.canInviteMembers,
+              !room.hasInvite,
+              !room.isSpace else {
+            throw MatrixChatServiceError.unavailable(reason: "Room invitation lookup is unavailable")
+        }
+        return try await client.lookupInviteUser(userID: userID, roomID: roomID)
     }
 
     public func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
@@ -1634,12 +1652,33 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
                 hasInvite: room.membership() == .invited,
                 isCreatedByCurrentUser: isCreatedByCurrentUser,
                 isSpace: info?.isSpace == true,
+                isDirect: await room.isDirect(),
                 topic: info?.topic,
                 canInviteMembers: canInviteMembers
             ))
         }
         roomByID = retained
         return summaries.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    public func lookupInviteUser(
+        userID: String,
+        roomID: String
+    ) async throws -> MatrixUserLookupResult {
+        guard let room = roomByID[roomID], room.membership() == .joined else {
+            throw MatrixChatServiceError.unavailable(reason: "Room invitation lookup is unavailable")
+        }
+        do {
+            let profile = try await client.getProfile(userId: userID)
+            guard profile.userId == userID else { return .unavailable }
+            return .exists(userID: userID, displayName: profile.displayName)
+        } catch let error as ClientError {
+            if case let .MatrixApi(kind, _, _, _) = error, kind == .notFound {
+                let inviteLink = try await room.matrixToPermalink()
+                return .notFound(userID: userID, inviteLink: inviteLink)
+            }
+            throw error
+        }
     }
 
     public func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
