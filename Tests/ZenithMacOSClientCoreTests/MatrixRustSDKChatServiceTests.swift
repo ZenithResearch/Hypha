@@ -518,6 +518,45 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(observedRequests, [])
     }
 
+    func testServiceRejectsCachedPendingInvitationAndSpaceBeforeLiveInvite() async throws {
+        for blockedRoom in [
+            MatrixRoomSummary(
+                id: "!pending:example.org",
+                name: "Pending",
+                isEncrypted: true,
+                hasInvite: true,
+                canInviteMembers: true
+            ),
+            MatrixRoomSummary(
+                id: "!space:example.org",
+                name: "Space",
+                isEncrypted: false,
+                hasInvite: false,
+                isSpace: true,
+                canInviteMembers: true
+            ),
+        ] {
+            let client = FakeLiveClient()
+            await client.setRooms([blockedRoom])
+            let service = MatrixRustSDKChatService(
+                configuration: .production,
+                vault: MemorySessionVault(),
+                clientFactory: FakeLiveClientFactory(client: client),
+                randomStoreKey: { Data(repeating: 2, count: 32) }
+            )
+            _ = try await service.signIn(username: "alice", password: "secret")
+
+            do {
+                try await service.inviteUsers(
+                    MatrixRoomInviteRequest(roomID: blockedRoom.id, userIDs: ["@bob:example.org"])
+                )
+                XCTFail("Expected cached pending invitation or Space to fail closed")
+            } catch {}
+            let observedRequests = await client.observedRoomInviteRequests()
+            XCTAssertEqual(observedRequests, [])
+        }
+    }
+
     func testCreatorRoomRemovalLeavesBeforeForgettingAndRefreshesRooms() async throws {
         let ownedRoom = MatrixRoomSummary(
             id: "!owned:example.org",

@@ -370,7 +370,10 @@ public actor MatrixRustSDKChatService: MatrixChatService {
 
     public func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
         guard let client else { throw MatrixChatServiceError.sessionExpired }
-        guard roomsByID[request.roomID]?.canInviteMembers == true,
+        guard let room = roomsByID[request.roomID],
+              room.canInviteMembers,
+              !room.hasInvite,
+              !room.isSpace,
               !request.userIDs.isEmpty else {
             throw MatrixChatServiceError.unavailable(reason: "You cannot invite members to this room")
         }
