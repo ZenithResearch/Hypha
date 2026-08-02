@@ -974,4 +974,20 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertLessThan(dmSection.lowerBound, inviteSection.lowerBound)
         XCTAssertLessThan(inviteSection.lowerBound, spacesSection.lowerBound)
     }
+
+    func testSidebarSuccessMessagesUseSuccessColor() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let app = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(app.contains("roomSyncMessageTone = invited ? .success : .error"))
+        XCTAssertTrue(app.contains("case .success: ZenithDesign.Palette.success"))
+        XCTAssertFalse(app.contains("Text(roomSyncMessage)\n                        .font(.caption)\n                        .foregroundStyle(ZenithDesign.Palette.error)"))
+    }
 }

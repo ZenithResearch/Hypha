@@ -63,6 +63,12 @@ enum MatrixAppAdminAccessState: Equatable {
     case denied
 }
 
+enum MatrixAppMessageTone: Equatable {
+    case success
+    case warning
+    case error
+}
+
 @MainActor
 final class MatrixAppModel: ObservableObject {
     typealias ServiceFactory = (MatrixProductConfiguration) -> any MatrixChatService
@@ -85,6 +91,7 @@ final class MatrixAppModel: ObservableObject {
     @Published var showsFirstRunGuidance = false
     @Published var isSyncingRooms = false
     @Published var roomSyncMessage: String?
+    @Published var roomSyncMessageTone: MatrixAppMessageTone = .error
     @Published var savedSessions: [MatrixSDKSessionRecord] = []
     @Published var savedCredentials: [HyphaMatrixCredentialDescriptor] = []
     @Published var activeSessionAccountKey: String?
@@ -362,6 +369,7 @@ final class MatrixAppModel: ObservableObject {
                     try credentialStore.finalizeAuthenticatedMigration(credential)
                 } catch {
                     roomSyncMessage = "Signed in, but Hypha could not finish credential migration."
+                    roomSyncMessageTone = .warning
                 }
             }
             refreshSavedCredentials(configuration: configuration)
@@ -412,6 +420,7 @@ final class MatrixAppModel: ObservableObject {
             refreshSavedSessions(configuration: configuration)
         } catch {
             roomSyncMessage = "Hypha could not delete the selected local session."
+            roomSyncMessageTone = .error
         }
     }
 
@@ -423,6 +432,7 @@ final class MatrixAppModel: ObservableObject {
             refreshSavedCredentials(configuration: configuration)
         } catch {
             roomSyncMessage = "Hypha could not delete the selected saved password."
+            roomSyncMessageTone = .error
         }
     }
 
@@ -484,6 +494,7 @@ final class MatrixAppModel: ObservableObject {
         guard let domain = configuration.homeserver.host else {
             if announce {
                 roomSyncMessage = "\(successContext), but Apple Passwords could not identify this homeserver."
+                roomSyncMessageTone = .warning
             }
             return false
         }
@@ -495,11 +506,13 @@ final class MatrixAppModel: ObservableObject {
             )
             if announce {
                 roomSyncMessage = "\(successContext). Password saved in Apple Passwords."
+                roomSyncMessageTone = .success
             }
             return true
         } catch {
             if announce {
                 roomSyncMessage = "\(successContext), but Apple Passwords did not save the password."
+                roomSyncMessageTone = .warning
             }
             return false
         }
@@ -526,6 +539,7 @@ final class MatrixAppModel: ObservableObject {
             applyState(from: coordinator)
         } catch {
             roomSyncMessage = "Room sync failed. Check your connection and try again."
+            roomSyncMessageTone = .error
         }
     }
 
@@ -891,6 +905,7 @@ final class MatrixAppModel: ObservableObject {
         roomSyncMessage = invited
             ? "Invitations sent to \(room.name)."
             : "Not all invitations could be confirmed. Your room permission may have changed."
+        roomSyncMessageTone = invited ? .success : .error
         return invited
     }
 
@@ -953,6 +968,7 @@ final class MatrixAppModel: ObservableObject {
     func removeRoom(_ room: MatrixRoomSummary) async {
         guard let coordinator, room.isCreatedByCurrentUser else {
             roomSyncMessage = "Only the account that created this room can remove it."
+            roomSyncMessageTone = .warning
             return
         }
         let removed = await coordinator.removeRoom(room)
@@ -961,8 +977,10 @@ final class MatrixAppModel: ObservableObject {
             timelineRefreshTask?.cancel()
             rooms.removeAll { $0.id == room.id }
             roomSyncMessage = "Room left and forgotten for this account."
+            roomSyncMessageTone = .success
         } else {
             roomSyncMessage = "Room could not be removed. It remains available to this account."
+            roomSyncMessageTone = .error
         }
     }
 
@@ -1214,6 +1232,14 @@ private struct MatrixCompanionShell: View {
         }
     }
 
+    private var roomSyncMessageColor: Color {
+        switch model.roomSyncMessageTone {
+        case .success: ZenithDesign.Palette.success
+        case .warning: ZenithDesign.Palette.warning
+        case .error: ZenithDesign.Palette.error
+        }
+    }
+
     private func roomList(_ rooms: [MatrixRoomSummary]) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
@@ -1244,7 +1270,7 @@ private struct MatrixCompanionShell: View {
                 if let roomSyncMessage = model.roomSyncMessage {
                     Text(roomSyncMessage)
                         .font(.caption)
-                        .foregroundStyle(ZenithDesign.Palette.error)
+                        .foregroundStyle(roomSyncMessageColor)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
