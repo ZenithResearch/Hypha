@@ -8,6 +8,7 @@ public enum MatrixAdminClientError: Error, Equatable, Sendable {
     case offline
     case invalidResponse
     case serverRejected
+    case credentialNotEstablished
 }
 
 public struct MatrixAdminUserSummary: Identifiable, Equatable, Sendable {
@@ -215,7 +216,22 @@ public struct MatrixSynapseAdminClient: MatrixAdminClient, Sendable {
               !user.isDeactivated else {
             throw mappedError(for: response.statusCode)
         }
-        return user
+        let verification = try await perform(
+            method: "GET",
+            path: "/_synapse/admin/v2/users/\(encoded(expectedUserID))"
+        )
+        guard verification.statusCode == 200,
+              let object = jsonObject(verification.body),
+              let verifiedUser = parseUser(object),
+              verifiedUser.userID == expectedUserID,
+              verifiedUser.isAdministrator == administrator,
+              !verifiedUser.isDeactivated,
+              object["locked"] as? Bool != true,
+              let passwordHash = object["password_hash"] as? String,
+              !passwordHash.isEmpty else {
+            throw MatrixAdminClientError.credentialNotEstablished
+        }
+        return verifiedUser
     }
 
     public func createRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility = .inviteOnly) async throws -> MatrixAdminRoomSummary {

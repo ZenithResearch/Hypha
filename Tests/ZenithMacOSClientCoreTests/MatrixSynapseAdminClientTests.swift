@@ -38,6 +38,14 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
                 "is_guest": false,
                 "user_type": NSNull(),
             ]),
+            .json(status: 200, body: [
+                "name": "@new.user:example.org",
+                "admin": true,
+                "deactivated": false,
+                "is_guest": false,
+                "user_type": NSNull(),
+                "password_hash": "stored-hash-redacted",
+            ]),
         ])
         let client = MatrixSynapseAdminClient(
             homeserver: URL(string: "https://synapse.example.org")!,
@@ -55,6 +63,7 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
         XCTAssertEqual(user.userID, "@new.user:example.org")
         XCTAssertTrue(user.isAdministrator)
         let requests = await transport.requests()
+        XCTAssertEqual(requests.count, 2)
         let request = try XCTUnwrap(requests.first)
         XCTAssertEqual(request.httpMethod, "PUT")
         XCTAssertEqual(request.url?.path, "/_synapse/admin/v2/users/@new.user:example.org")
@@ -64,6 +73,37 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
         XCTAssertEqual(json["admin"] as? Bool, true)
         XCTAssertEqual(json["password"] as? String, "temporary-password-value")
         XCTAssertFalse(String(data: body, encoding: .utf8)?.contains("secret-token-material") == true)
+        XCTAssertEqual(requests.last?.httpMethod, "GET")
+        XCTAssertEqual(requests.last?.url?.path, "/_synapse/admin/v2/users/@new.user:example.org")
+    }
+
+    func testAccountCreationFailsClosedWhenSynapseDoesNotConfirmStoredLocalPassword() async {
+        let account = [
+            "name": "@new.user:example.org",
+            "admin": false,
+            "deactivated": false,
+            "is_guest": false,
+            "user_type": NSNull(),
+        ] as [String: Any]
+        let transport = RecordingAdminTransport(responses: [
+            .json(status: 200, body: account),
+            .json(status: 200, body: account),
+        ])
+        let client = MatrixSynapseAdminClient(
+            homeserver: URL(string: "https://synapse.example.org")!,
+            currentUserID: "@operator:example.org",
+            accessToken: "secret-token-material",
+            transport: transport
+        )
+
+        await XCTAssertThrowsAdminError(
+            try await client.createAccount(
+                localpart: "new.user",
+                temporaryPassword: "temporary-password-value",
+                administrator: false
+            ),
+            expected: .credentialNotEstablished
+        )
     }
 
     func testInvalidLocalpartFailsBeforeTransportOrCredentialUse() async {

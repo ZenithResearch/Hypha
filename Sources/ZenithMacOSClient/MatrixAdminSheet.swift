@@ -69,7 +69,7 @@ struct MatrixAdminSheet: View {
             Text("The new user will be able to create and deactivate users, including other administrators. The active administrator remains protected from self-deactivation.")
         }
         .confirmationDialog(
-            "Deactivate and erase this account?",
+            "Delete account permanently?",
             isPresented: Binding(
                 get: { userPendingDeactivation != nil },
                 set: { if !$0 { userPendingDeactivation = nil } }
@@ -77,13 +77,13 @@ struct MatrixAdminSheet: View {
             titleVisibility: .visible,
             presenting: userPendingDeactivation
         ) { user in
-            Button("Deactivate and erase", role: .destructive) {
+            Button("Delete account", role: .destructive) {
                 userPendingDeactivation = nil
                 Task { await model.deactivateAdministratorManagedAccount(user) }
             }
             Button("Cancel", role: .cancel) { userPendingDeactivation = nil }
         } message: { user in
-            Text("This disables \(user.isAdministrator ? "administrator " : "")\(user.userID), signs out its devices, and erases profile data on this homeserver. Synapse does not permit recreating the same Matrix ID afterward.")
+            Text("This permanently disables \(user.isAdministrator ? "administrator " : "")\(user.userID), signs out every device, and erases profile data. Synapse retains the Matrix ID and event references so room history remains internally consistent; the ID cannot be recreated.")
         }
         .confirmationDialog(
             "Log out every device for this account?",
@@ -264,11 +264,11 @@ struct MatrixAdminSheet: View {
                                 .font(ZenithDesign.Typography.technical(.caption2, weight: .semibold))
                                 .foregroundStyle(ZenithDesign.Palette.muted)
                         } else {
-                            Button("Deactivate…", role: .destructive) {
+                            Button("Delete…", role: .destructive) {
                                 userPendingDeactivation = user
                             }
                             .disabled(model.isAdminOperationInFlight)
-                            .accessibilityLabel("Deactivate and erase \(user.userID)")
+                            .accessibilityLabel("Delete \(user.userID)")
                         }
                     }
                     .padding(.vertical, ZenithDesign.Space.x2)
