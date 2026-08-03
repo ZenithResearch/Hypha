@@ -320,7 +320,13 @@ final class MatrixAppModel: ObservableObject {
         guard let coordinator else { return }
         guard beginAuthenticationOperation() else { return }
         defer { finishAuthenticationOperation() }
-        let usernameForRequest = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let enteredUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        let usernameForRequest = activeConfiguration.flatMap {
+            MatrixPasswordLoginPolicy.normalizeUsername(
+                enteredUsername,
+                activeServerName: $0.homeserver.host ?? ""
+            )
+        } ?? enteredUsername
         let passwordForRequest = password
         let shouldSaveInApplePasswords = savePasswordToApplePasswords
         let candidateAccountKey = activeConfiguration.map {
@@ -2409,30 +2415,37 @@ private struct MatrixChangePasswordSheet: View {
                     .foregroundStyle(ZenithDesign.Palette.muted)
                     .fixedSize(horizontal: false, vertical: true)
 
-                SecureField("Current password", text: $currentPassword)
-                    .textContentType(.password)
-                    .textFieldStyle(ZenithInputStyle())
-                    .privacySensitive()
-                    .disabled(isSubmitting)
-                    .accessibilityIdentifier("matrix.password.current")
-                SecureField("New password", text: $newPassword)
-                    .textContentType(.newPassword)
-                    .textFieldStyle(ZenithInputStyle())
-                    .privacySensitive()
-                    .disabled(isSubmitting)
-                    .accessibilityIdentifier("matrix.password.new")
-                SecureField("Confirm new password", text: $confirmation)
-                    .textContentType(.newPassword)
-                    .textFieldStyle(ZenithInputStyle())
-                    .privacySensitive()
-                    .disabled(isSubmitting)
-                    .accessibilityIdentifier("matrix.password.confirmation")
+                HyphaRevealablePasswordField(
+                    title: "Current password",
+                    text: $currentPassword,
+                    accessibilityIdentifier: "matrix.password.current"
+                )
+                .disabled(isSubmitting)
+                HyphaRevealablePasswordField(
+                    title: "New password",
+                    text: $newPassword,
+                    accessibilityIdentifier: "matrix.password.new",
+                    isNewPassword: true
+                )
+                .disabled(isSubmitting)
+                HyphaRevealablePasswordField(
+                    title: "Confirm new password",
+                    text: $confirmation,
+                    accessibilityIdentifier: "matrix.password.confirmation",
+                    isNewPassword: true
+                )
+                .disabled(isSubmitting)
 
-                if !confirmation.isEmpty && !passwordsMatch {
-                    Text("The new passwords do not match.")
-                        .font(ZenithDesign.Typography.corporate(.caption))
-                        .foregroundStyle(ZenithDesign.Palette.error)
-                } else if !newPassword.isEmpty && newPassword == currentPassword {
+                if !confirmation.isEmpty {
+                    Label(
+                        passwordsMatch ? "Passwords match" : "Passwords do not match",
+                        systemImage: passwordsMatch ? "checkmark.circle.fill" : "xmark.circle.fill"
+                    )
+                    .font(ZenithDesign.Typography.corporate(.caption, weight: .medium))
+                    .foregroundStyle(passwordsMatch ? ZenithDesign.Palette.success : ZenithDesign.Palette.error)
+                    .accessibilityIdentifier("matrix.password.match")
+                }
+                if !newPassword.isEmpty && newPassword == currentPassword {
                     Text("Choose a password different from the current password.")
                         .font(ZenithDesign.Typography.corporate(.caption))
                         .foregroundStyle(ZenithDesign.Palette.error)

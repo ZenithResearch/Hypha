@@ -200,16 +200,27 @@ struct MatrixAdminSheet: View {
                 .textContentType(.username)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("matrix.admin.account.username")
-            SecureField("Temporary password", text: $temporaryPassword)
-                .textContentType(.newPassword)
-                .textFieldStyle(.roundedBorder)
-                .privacySensitive()
-                .accessibilityIdentifier("matrix.admin.account.password")
-            SecureField("Confirm temporary password", text: $passwordConfirmation)
-                .textContentType(.newPassword)
-                .textFieldStyle(.roundedBorder)
-                .privacySensitive()
-                .accessibilityIdentifier("matrix.admin.account.password.confirmation")
+            HyphaRevealablePasswordField(
+                title: "Temporary password",
+                text: $temporaryPassword,
+                accessibilityIdentifier: "matrix.admin.account.password",
+                isNewPassword: true
+            )
+            HyphaRevealablePasswordField(
+                title: "Confirm temporary password",
+                text: $passwordConfirmation,
+                accessibilityIdentifier: "matrix.admin.account.password.confirmation",
+                isNewPassword: true
+            )
+            if !passwordConfirmation.isEmpty {
+                Label(
+                    temporaryPassword == passwordConfirmation ? "Passwords match" : "Passwords do not match",
+                    systemImage: temporaryPassword == passwordConfirmation ? "checkmark.circle.fill" : "xmark.circle.fill"
+                )
+                .font(ZenithDesign.Typography.corporate(.caption, weight: .medium))
+                .foregroundStyle(temporaryPassword == passwordConfirmation ? ZenithDesign.Palette.success : ZenithDesign.Palette.error)
+                .accessibilityIdentifier("matrix.admin.account.password-match")
+            }
 
             Picker("Role", selection: $selectedRole) {
                 ForEach(MatrixAdminAccountRole.allCases) { role in
@@ -221,10 +232,18 @@ struct MatrixAdminSheet: View {
 
             Button("Create user", action: submitAccountCreation)
                 .buttonStyle(HyphaButtonStyle(.primary))
-                .disabled(model.isAdminOperationInFlight)
+                .disabled(!canSubmitAccountCreation)
                 .accessibilityIdentifier("matrix.admin.account.create")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var canSubmitAccountCreation: Bool {
+        !model.isAdminOperationInFlight
+            && !localpart.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && temporaryPassword.count >= 12
+            && !passwordConfirmation.isEmpty
+            && temporaryPassword == passwordConfirmation
     }
 
     private var accountSection: some View {

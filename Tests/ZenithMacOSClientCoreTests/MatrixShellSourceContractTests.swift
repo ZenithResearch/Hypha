@@ -43,11 +43,15 @@ final class MatrixShellSourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/Auth/HyphaAuthenticationViews.swift"),
             encoding: .utf8
         )
+        let passwordFieldSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/HyphaRevealablePasswordField.swift"),
+            encoding: .utf8
+        )
         let entitlements = try String(
             contentsOf: root.appendingPathComponent("Resources/ZenithMacOSClient.apple-passwords.entitlements"),
             encoding: .utf8
         )
-        let source = [appSource, authSource, entitlements].joined(separator: "\n")
+        let source = [appSource, authSource, passwordFieldSource, entitlements].joined(separator: "\n")
 
         for marker in [
             "Save in Apple Passwords",
@@ -373,7 +377,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(appSource.contains("SecureField(\"Password\""))
+        XCTAssertTrue(appSource.contains("HyphaRevealablePasswordField("))
         XCTAssertTrue(appSource.contains("title: \"Sign in with password\""))
         XCTAssertTrue(appSource.contains("retrySignIn(username: credential.username"))
         XCTAssertTrue(coreSource.contains("case savedCredentialUnavailable"))
@@ -1024,5 +1028,34 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(app.contains(".interactiveDismissDisabled(true)"))
         XCTAssertTrue(app.contains("logoutOtherDevices: requiresCompletion ? true : logoutOtherDevices"))
         XCTAssertTrue(app.contains("completeInitialPasswordReset"))
+    }
+
+    func testPasswordEntrySupportsVisibilityAndInlineConfirmationChecks() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let repositoryRoot = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let authentication = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Sources/ZenithMacOSClient/Auth/HyphaAuthenticationViews.swift"),
+            encoding: .utf8
+        )
+        let administration = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Sources/ZenithMacOSClient/MatrixAdminSheet.swift"),
+            encoding: .utf8
+        )
+        let app = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(authentication.contains("HyphaRevealablePasswordField"))
+        XCTAssertTrue(administration.contains("HyphaRevealablePasswordField"))
+        XCTAssertTrue(app.contains("HyphaRevealablePasswordField"))
+        XCTAssertTrue(authentication.contains("Passwords match"))
+        XCTAssertTrue(administration.contains("Passwords match"))
+        XCTAssertTrue(app.contains("Passwords match"))
+        XCTAssertTrue(administration.contains("temporaryPassword == passwordConfirmation"))
+        XCTAssertTrue(app.contains("newPassword == confirmation"))
     }
 }

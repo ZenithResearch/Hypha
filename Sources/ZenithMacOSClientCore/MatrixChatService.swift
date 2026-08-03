@@ -178,6 +178,31 @@ public struct MatrixCrossSigningDiagnosticReceipt: Equatable, Sendable {
     }
 }
 
+public enum MatrixPasswordLoginPolicy {
+    public static func normalizeUsername(
+        _ rawValue: String,
+        activeServerName: String
+    ) -> String? {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let serverName = activeServerName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !trimmed.isEmpty, !serverName.isEmpty else { return nil }
+
+        let withoutSigil = trimmed.hasPrefix("@") ? String(trimmed.dropFirst()) : trimmed
+        let components = withoutSigil.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        guard let localpart = components.first.map(String.init), isValidLocalpart(localpart) else { return nil }
+        if components.count == 2 {
+            guard components[1].lowercased() == serverName else { return nil }
+        }
+        return "@\(localpart.lowercased()):\(serverName)"
+    }
+
+    private static func isValidLocalpart(_ value: String) -> Bool {
+        guard !value.isEmpty else { return false }
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._=-")
+        return value.unicodeScalars.allSatisfy(allowed.contains)
+    }
+}
+
 public enum MatrixInitialPasswordResetPolicy {
     public enum AuthenticationMethod: Equatable, Sendable {
         case manualPassword
