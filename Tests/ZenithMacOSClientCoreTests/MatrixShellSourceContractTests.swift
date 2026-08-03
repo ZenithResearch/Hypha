@@ -1074,6 +1074,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(updater.contains("https://github.com/ZenithResearch/Hypha.git"))
         XCTAssertTrue(updater.contains("fetch --force --prune origin main"))
         XCTAssertTrue(updater.contains("checkout --detach --force FETCH_HEAD"))
+        XCTAssertTrue(updater.contains("lfs pull origin main"))
         XCTAssertTrue(updater.contains("HYPHA_SIGNING_MODE=adhoc ./build-app.sh"))
         XCTAssertTrue(updater.contains("codesign --verify --deep --strict"))
         XCTAssertTrue(updater.contains("$BUILT_APP/Contents/Resources/update-from-main.sh"))
