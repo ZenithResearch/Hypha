@@ -1070,6 +1070,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(updater.contains("checkout --detach --force FETCH_HEAD"))
         XCTAssertTrue(updater.contains("HYPHA_SIGNING_MODE=adhoc ./build-app.sh"))
         XCTAssertTrue(updater.contains("codesign --verify --deep --strict"))
+        XCTAssertTrue(updater.contains("$BUILT_APP/Contents/Resources/update-from-main.sh"))
         XCTAssertTrue(updater.contains("mv \"$STAGED_APP\" \"$INSTALL_APP\""))
         XCTAssertFalse(updater.contains("git pull"))
         XCTAssertFalse(updater.contains("sudo"))
