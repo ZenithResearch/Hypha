@@ -1157,6 +1157,7 @@ private enum HyphaAuthRoute {
 
 private struct MatrixCompanionShell: View {
     @ObservedObject var model: MatrixAppModel
+    @StateObject private var updater = HyphaUpdateController()
     @State private var showsRecovery = false
     @State private var showsRecoverySetup = false
     @State private var showsNewRoom = false
@@ -1573,6 +1574,26 @@ private struct MatrixCompanionShell: View {
                     Label("Manage saved passwords", systemImage: "key.slash")
                 }
                 .accessibilityIdentifier("matrix.password.manage")
+            }
+            Divider()
+            Button {
+                updater.updateFromGitHubMain()
+            } label: {
+                Label(
+                    updater.state == .updating ? "Updating from GitHub main…" : "Update from GitHub main",
+                    systemImage: "arrow.triangle.2.circlepath"
+                )
+            }
+            .disabled(updater.state == .updating)
+            .accessibilityIdentifier("hypha.update.main")
+            if let statusText = updater.statusText {
+                Text(statusText)
+            }
+            if updater.state == .installed {
+                Button("Restart Hypha") {
+                    updater.restart()
+                }
+                .accessibilityIdentifier("hypha.update.restart")
             }
             Divider()
             Button {

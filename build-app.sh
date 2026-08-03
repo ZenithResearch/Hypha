@@ -54,6 +54,8 @@ PY
 cp "$ROOT/.build/release/ZenithMacOSClient" "$EXECUTABLE"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/Resources/ZenithOSIcon.icns" "$APP/Contents/Resources/ZenithOSIcon.icns"
+cp "$ROOT/scripts/update-from-main.sh" "$APP/Contents/Resources/update-from-main.sh"
+chmod 755 "$APP/Contents/Resources/update-from-main.sh"
 LICENSE_RESOURCES="$APP/Contents/Resources/Licenses"
 mkdir -p "$LICENSE_RESOURCES"
 cp "$ROOT/LICENSE" "$LICENSE_RESOURCES/AGPL-3.0-or-later.txt"

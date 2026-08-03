@@ -1039,6 +1039,43 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(app.contains("completeInitialPasswordReset"))
     }
 
+    func testApplicationUpdaterFetchesBuildsAndInstallsLatestGitHubMainWithoutMergingActiveCheckout() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let app = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+        let controller = try String(
+            contentsOf: root.appendingPathComponent("Sources/ZenithMacOSClient/HyphaUpdateController.swift"),
+            encoding: .utf8
+        )
+        let updater = try String(
+            contentsOf: root.appendingPathComponent("scripts/update-from-main.sh"),
+            encoding: .utf8
+        )
+        let build = try String(
+            contentsOf: root.appendingPathComponent("build-app.sh"),
+            encoding: .utf8
+        )
+
+        for marker in ["Update from GitHub main", "Restart Hypha"] {
+            XCTAssertTrue(app.contains(marker), "Missing updater UI contract: \(marker)")
+        }
+        XCTAssertTrue(controller.contains("forResource: \"update-from-main\""))
+        XCTAssertTrue(controller.contains("withExtension: \"sh\""))
+        XCTAssertTrue(controller.contains("Process()"))
+        XCTAssertTrue(updater.contains("https://github.com/ZenithResearch/Hypha.git"))
+        XCTAssertTrue(updater.contains("fetch --force --prune origin main"))
+        XCTAssertTrue(updater.contains("checkout --detach --force FETCH_HEAD"))
+        XCTAssertTrue(updater.contains("HYPHA_SIGNING_MODE=adhoc ./build-app.sh"))
+        XCTAssertTrue(updater.contains("codesign --verify --deep --strict"))
+        XCTAssertTrue(updater.contains("mv \"$STAGED_APP\" \"$INSTALL_APP\""))
+        XCTAssertFalse(updater.contains("git pull"))
+        XCTAssertFalse(updater.contains("sudo"))
+        XCTAssertTrue(build.contains("update-from-main.sh"))
+    }
+
     func testPasswordEntrySupportsVisibilityAndInlineConfirmationChecks() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let repositoryRoot = testFile
