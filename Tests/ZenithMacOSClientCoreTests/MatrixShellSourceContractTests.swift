@@ -956,6 +956,9 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "User found",
             "Copy invite link",
             "NSPasteboard.general",
+            "Accept invite",
+            "Accept this invitation?",
+            "acceptInvitation(to:",
         ] {
             XCTAssertTrue(app.contains(marker), "Missing inline room-invite contract: \(marker)")
         }
@@ -965,6 +968,8 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "room.inviteUserById(userId: userID)",
             "client.getProfile(userId: userID)",
             "room.matrixToPermalink()",
+            "room.membership() == .invited",
+            "try await room.join()",
         ] {
             XCTAssertTrue(sdk.contains(marker), "Missing authoritative invite revalidation: \(marker)")
         }

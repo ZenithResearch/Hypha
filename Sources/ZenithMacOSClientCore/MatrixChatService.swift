@@ -459,6 +459,7 @@ public protocol MatrixChatService: Sendable {
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary
     func lookupInviteUser(userID: String, roomID: String) async throws -> MatrixUserLookupResult
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws
+    func acceptInvitation(roomID: String) async throws -> [MatrixRoomSummary]
     func removeRoom(roomID: String) async throws -> [MatrixRoomSummary]
     func encryptionRecoveryState(trustState: MatrixDeviceTrustState) async throws -> MatrixRecoveryState
     func setupEncryptionRecovery() async throws -> String
@@ -524,6 +525,9 @@ public extension MatrixChatService {
     }
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Room invitations are unavailable")
+    }
+    func acceptInvitation(roomID: String) async throws -> [MatrixRoomSummary] {
+        throw MatrixChatServiceError.unavailable(reason: "Invitation acceptance is unavailable")
     }
     func removeRoom(roomID: String) async throws -> [MatrixRoomSummary] {
         throw MatrixChatServiceError.unavailable(reason: "Room removal is unavailable")
@@ -739,6 +743,17 @@ public final class MatrixChatCoordinator {
               chatAuthority == .available else { return false }
         do {
             try await service.inviteUsers(request)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    public func acceptInvitation(to room: MatrixRoomSummary) async -> Bool {
+        guard room.hasInvite, chatAuthority == .available else { return false }
+        do {
+            let rooms = try await service.acceptInvitation(roomID: room.id)
+            state = .rooms(rooms)
             return true
         } catch {
             return false

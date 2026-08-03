@@ -964,6 +964,17 @@ final class MatrixAppModel: ObservableObject {
         return invited
     }
 
+    func acceptInvitation(to room: MatrixRoomSummary) async -> Bool {
+        guard let coordinator, room.hasInvite else { return false }
+        let accepted = await coordinator.acceptInvitation(to: room)
+        applyState(from: coordinator)
+        roomSyncMessage = accepted
+            ? "Accepted invitation to \(room.name)."
+            : "Could not accept the invitation. It may no longer be pending."
+        roomSyncMessageTone = accepted ? .success : .error
+        return accepted
+    }
+
     func lookupInviteUsers(
         _ userIDs: [String],
         for room: MatrixRoomSummary
@@ -1147,6 +1158,8 @@ private struct MatrixCompanionShell: View {
     @State private var showsPasswordChange = false
     @State private var showsAdministration = false
     @State private var roomPendingRemoval: MatrixRoomSummary?
+    @State private var roomPendingAcceptance: MatrixRoomSummary?
+    @State private var invitationAcceptanceInFlightID: String?
     @State private var credentialPendingDeletion: HyphaMatrixCredentialDescriptor?
     @State private var authRoute: HyphaAuthRoute = .landing
 
@@ -1373,6 +1386,12 @@ private struct MatrixCompanionShell: View {
                                     .foregroundStyle(ZenithDesign.Palette.muted)
                             }
                             Spacer()
+                            Button(invitationAcceptanceInFlightID == room.id ? "Accepting…" : "Accept invite") {
+                                roomPendingAcceptance = room
+                            }
+                            .buttonStyle(HyphaButtonStyle(.secondary))
+                            .disabled(invitationAcceptanceInFlightID != nil)
+                            .accessibilityIdentifier("matrix.room.invite.accept")
                         }
                         .padding(.horizontal, ZenithDesign.Space.x3)
                         .padding(.vertical, ZenithDesign.Space.x2)
@@ -1437,6 +1456,28 @@ private struct MatrixCompanionShell: View {
             Button("Cancel", role: .cancel) { roomPendingRemoval = nil }
         } message: { room in
             Text("This removes \(room.name) from the active account by leaving and forgetting it. Matrix does not erase copies held by other members or servers.")
+        }
+        .confirmationDialog(
+            "Accept this invitation?",
+            isPresented: Binding(
+                get: { roomPendingAcceptance != nil },
+                set: { if !$0 { roomPendingAcceptance = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: roomPendingAcceptance
+        ) { room in
+            Button("Accept invite") {
+                roomPendingAcceptance = nil
+                invitationAcceptanceInFlightID = room.id
+                Task {
+                    _ = await model.acceptInvitation(to: room)
+                    invitationAcceptanceInFlightID = nil
+                }
+            }
+            .accessibilityIdentifier("matrix.room.invite.accept.confirm")
+            Button("Cancel", role: .cancel) { roomPendingAcceptance = nil }
+        } message: { room in
+            Text("Join \(room.name) with the active Matrix account?")
         }
     }
 
