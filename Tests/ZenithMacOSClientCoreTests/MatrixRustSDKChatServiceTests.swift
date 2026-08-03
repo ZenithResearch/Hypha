@@ -186,6 +186,26 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(try vault.loadSession()?.homeserverURL, "https://synapse.zenith-research.ca/")
     }
 
+    func testSignInMapsHomeserverApprovalGateToActionableFailure() async throws {
+        let client = FakeLiveClient(loginError: ClientError.MatrixApi(
+            kind: .unknown,
+            code: "M_USER_AWAITING_APPROVAL",
+            msg: "redacted homeserver message",
+            details: nil
+        ))
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: client),
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+
+        await XCTAssertThrowsMatrixError(
+            try await service.signIn(username: "alice", password: "not-recorded"),
+            expected: .unavailable(reason: "Account is awaiting homeserver approval")
+        )
+    }
+
     func testSignInReportsInitialSyncStageWithoutLeakingUnderlyingError() async throws {
         let vault = MemorySessionVault()
         let client = FakeLiveClient(syncError: FixtureSDKError("secret-token-material"))

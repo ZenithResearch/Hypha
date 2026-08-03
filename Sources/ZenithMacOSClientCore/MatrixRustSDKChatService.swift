@@ -649,9 +649,18 @@ public actor MatrixRustSDKChatService: MatrixChatService {
     }
 
     private func mapLoginError(_ error: Error) -> MatrixChatServiceError {
-        if case let ClientError.MatrixApi(kind, _, _, _)? = error as? ClientError,
-           kind == .forbidden {
-            return .invalidCredentials
+        if case let ClientError.MatrixApi(kind, code, _, _)? = error as? ClientError {
+            switch code.uppercased() {
+            case "M_USER_AWAITING_APPROVAL":
+                return .unavailable(reason: "Account is awaiting homeserver approval")
+            case "M_USER_DEACTIVATED":
+                return .unavailable(reason: "Account has been deleted or deactivated")
+            default:
+                break
+            }
+            if kind == .forbidden || code.uppercased() == "M_FORBIDDEN" {
+                return .invalidCredentials
+            }
         }
         let description = String(describing: error).lowercased()
         if description.contains("forbidden") || description.contains("m_forbidden") || description.contains("invalid username or password") {

@@ -183,11 +183,12 @@ struct HyphaPasswordSignInView: View {
                     .textContentType(.username)
                     .textFieldStyle(HyphaTextFieldStyle())
                     .accessibilityIdentifier("matrix.login.username")
-                SecureField("Password", text: $model.password)
-                    .textContentType(.password)
-                    .textFieldStyle(HyphaTextFieldStyle())
-                    .accessibilityIdentifier("matrix.login.password")
-                    .onSubmit { submitIfReady() }
+                HyphaRevealablePasswordField(
+                    title: "Password",
+                    text: $model.password,
+                    accessibilityIdentifier: "matrix.login.password",
+                    onSubmit: submitIfReady
+                )
 
                 if model.applePasswordsAvailable {
                     Toggle("Save in Apple Passwords", isOn: $model.savePasswordToApplePasswords)
@@ -291,14 +292,28 @@ struct HyphaRegistrationView: View {
                 .textContentType(.username)
                 .textFieldStyle(HyphaTextFieldStyle())
                 .accessibilityIdentifier("matrix.registration.username")
-            SecureField("Password", text: $password)
-                .textContentType(.newPassword)
-                .textFieldStyle(HyphaTextFieldStyle())
-                .accessibilityIdentifier("matrix.registration.password")
-            SecureField("Confirm password", text: $confirmation)
-                .textContentType(.newPassword)
-                .textFieldStyle(HyphaTextFieldStyle())
-                .accessibilityIdentifier("matrix.registration.confirmation")
+            HyphaRevealablePasswordField(
+                title: "Password",
+                text: $password,
+                accessibilityIdentifier: "matrix.registration.password",
+                isNewPassword: true
+            )
+            HyphaRevealablePasswordField(
+                title: "Confirm password",
+                text: $confirmation,
+                accessibilityIdentifier: "matrix.registration.confirmation",
+                isNewPassword: true
+            )
+            if !confirmation.isEmpty {
+                Label(
+                    password == confirmation ? "Passwords match" : "Passwords do not match",
+                    systemImage: password == confirmation ? "checkmark.circle.fill" : "xmark.circle.fill"
+                )
+                .font(ZenithDesign.Typography.corporate(size: 12, weight: .medium))
+                .foregroundStyle(password == confirmation ? ZenithDesign.Palette.success : ZenithDesign.Palette.error)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("matrix.registration.password-match")
+            }
             SecureField("Invite token", text: $inviteToken)
                 .textFieldStyle(HyphaTextFieldStyle())
                 .accessibilityIdentifier("matrix.registration.token")
@@ -342,6 +357,7 @@ struct HyphaRegistrationView: View {
             && !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !password.isEmpty
             && !confirmation.isEmpty
+            && password == confirmation
             && !inviteToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
