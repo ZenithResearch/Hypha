@@ -967,12 +967,21 @@ final class MatrixAppModel: ObservableObject {
     func acceptInvitation(to room: MatrixRoomSummary) async -> Bool {
         guard let coordinator, room.hasInvite else { return false }
         let accepted = await coordinator.acceptInvitation(to: room)
-        applyState(from: coordinator)
         roomSyncMessage = accepted
-            ? "Accepted invitation to \(room.name)."
+            ? "Invitation accepted. Sync rooms to show it."
             : "Could not accept the invitation. It may no longer be pending."
         roomSyncMessageTone = accepted ? .success : .error
         return accepted
+    }
+
+    func declineInvitation(to room: MatrixRoomSummary) async -> Bool {
+        guard let coordinator, room.hasInvite else { return false }
+        let declined = await coordinator.declineInvitation(to: room)
+        roomSyncMessage = declined
+            ? "Invitation declined. Sync rooms to refresh the list."
+            : "Could not decline the invitation. It may no longer be pending."
+        roomSyncMessageTone = declined ? .success : .error
+        return declined
     }
 
     func lookupInviteUsers(
@@ -1159,6 +1168,7 @@ private struct MatrixCompanionShell: View {
     @State private var showsAdministration = false
     @State private var roomPendingRemoval: MatrixRoomSummary?
     @State private var roomPendingAcceptance: MatrixRoomSummary?
+    @State private var roomPendingDecline: MatrixRoomSummary?
     @State private var invitationAcceptanceInFlightID: String?
     @State private var credentialPendingDeletion: HyphaMatrixCredentialDescriptor?
     @State private var authRoute: HyphaAuthRoute = .landing
@@ -1386,12 +1396,35 @@ private struct MatrixCompanionShell: View {
                                     .foregroundStyle(ZenithDesign.Palette.muted)
                             }
                             Spacer()
-                            Button(invitationAcceptanceInFlightID == room.id ? "Accepting…" : "Accept invite") {
-                                roomPendingAcceptance = room
+                            HStack(spacing: ZenithDesign.Space.x2) {
+                                Button {
+                                    roomPendingAcceptance = room
+                                } label: {
+                                    Image(systemName: "checkmark.circle")
+                                        .font(.system(size: 15, weight: .regular))
+                                        .foregroundStyle(ZenithDesign.Palette.success)
+                                        .frame(width: 22, height: 22)
+                                }
+                                .buttonStyle(.plain)
+                                .contentShape(Circle())
+                                .disabled(invitationAcceptanceInFlightID != nil)
+                                .accessibilityLabel("Accept invite")
+                                .accessibilityIdentifier("matrix.room.invite.accept")
+
+                                Button {
+                                    roomPendingDecline = room
+                                } label: {
+                                    Image(systemName: "xmark.circle")
+                                        .font(.system(size: 15, weight: .regular))
+                                        .foregroundStyle(ZenithDesign.Palette.muted)
+                                        .frame(width: 22, height: 22)
+                                }
+                                .buttonStyle(.plain)
+                                .contentShape(Circle())
+                                .disabled(invitationAcceptanceInFlightID != nil)
+                                .accessibilityLabel("Decline invite")
+                                .accessibilityIdentifier("matrix.room.invite.decline")
                             }
-                            .buttonStyle(HyphaButtonStyle(.secondary))
-                            .disabled(invitationAcceptanceInFlightID != nil)
-                            .accessibilityIdentifier("matrix.room.invite.accept")
                         }
                         .padding(.horizontal, ZenithDesign.Space.x3)
                         .padding(.vertical, ZenithDesign.Space.x2)
@@ -1478,6 +1511,28 @@ private struct MatrixCompanionShell: View {
             Button("Cancel", role: .cancel) { roomPendingAcceptance = nil }
         } message: { room in
             Text("Join \(room.name) with the active Matrix account?")
+        }
+        .confirmationDialog(
+            "Decline this invitation?",
+            isPresented: Binding(
+                get: { roomPendingDecline != nil },
+                set: { if !$0 { roomPendingDecline = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: roomPendingDecline
+        ) { room in
+            Button("Decline invite", role: .destructive) {
+                roomPendingDecline = nil
+                invitationAcceptanceInFlightID = room.id
+                Task {
+                    _ = await model.declineInvitation(to: room)
+                    invitationAcceptanceInFlightID = nil
+                }
+            }
+            .accessibilityIdentifier("matrix.room.invite.decline.confirm")
+            Button("Cancel", role: .cancel) { roomPendingDecline = nil }
+        } message: { room in
+            Text("Decline the invitation to \(room.name) for the active Matrix account?")
         }
     }
 

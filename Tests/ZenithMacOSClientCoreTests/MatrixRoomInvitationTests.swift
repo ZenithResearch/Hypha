@@ -195,14 +195,11 @@ final class MatrixRoomInvitationTests: XCTestCase {
         )
     }
 
-    func testCoordinatorAcceptsOnlyPendingInvitationAndRefreshesRooms() async {
-        let joined = MatrixRoomSummary(
-            id: "!pending:example.org", name: "Pending", isEncrypted: true, hasInvite: false
-        )
-        let service = InviteRecordingService(acceptedRooms: [joined])
+    func testCoordinatorAcceptsAndDeclinesOnlyPendingInvitationsWithoutMutatingRoomsBeforeSync() async {
+        let service = InviteRecordingService()
         let coordinator = MatrixChatCoordinator(service: service)
         let pending = MatrixRoomSummary(
-            id: joined.id, name: joined.name, isEncrypted: true, hasInvite: true
+            id: "!pending:example.org", name: "Pending", isEncrypted: true, hasInvite: true
         )
         let ordinary = MatrixRoomSummary(
             id: "!joined:example.org", name: "Joined", isEncrypted: true, hasInvite: false
@@ -214,7 +211,12 @@ final class MatrixRoomInvitationTests: XCTestCase {
         XCTAssertFalse(rejected)
         XCTAssertTrue(accepted)
         XCTAssertEqual(service.acceptedRoomIDs, [pending.id])
-        XCTAssertEqual(coordinator.state, .rooms([joined]))
+        XCTAssertEqual(coordinator.state, .signedOut(message: nil))
+        let declineRejected = await coordinator.declineInvitation(to: ordinary)
+        let declined = await coordinator.declineInvitation(to: pending)
+        XCTAssertFalse(declineRejected)
+        XCTAssertTrue(declined)
+        XCTAssertEqual(service.declinedRoomIDs, [pending.id])
     }
 }
 
@@ -222,15 +224,11 @@ private final class InviteRecordingService: MatrixChatService, @unchecked Sendab
     var requests: [MatrixRoomInviteRequest] = []
     var lookupRequests: [String] = []
     var acceptedRoomIDs: [String] = []
+    var declinedRoomIDs: [String] = []
     let lookupResult: MatrixUserLookupResult
-    let acceptedRooms: [MatrixRoomSummary]
 
-    init(
-        lookupResult: MatrixUserLookupResult = .unavailable,
-        acceptedRooms: [MatrixRoomSummary] = []
-    ) {
+    init(lookupResult: MatrixUserLookupResult = .unavailable) {
         self.lookupResult = lookupResult
-        self.acceptedRooms = acceptedRooms
     }
 
     func restore() async throws -> [MatrixRoomSummary] { [] }
@@ -242,9 +240,9 @@ private final class InviteRecordingService: MatrixChatService, @unchecked Sendab
         return lookupResult
     }
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws { requests.append(request) }
-    func acceptInvitation(roomID: String) async throws -> [MatrixRoomSummary] {
+    func acceptInvitation(roomID: String) async throws {
         acceptedRoomIDs.append(roomID)
-        return acceptedRooms
     }
+    func declineInvitation(roomID: String) async throws { declinedRoomIDs.append(roomID) }
     func logout() async throws {}
 }

@@ -135,7 +135,8 @@ public protocol MatrixLiveClient: Sendable {
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary
     func lookupInviteUser(userID: String, roomID: String) async throws -> MatrixUserLookupResult
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws
-    func acceptInvitation(roomID: String) async throws -> [MatrixRoomSummary]
+    func acceptInvitation(roomID: String) async throws
+    func declineInvitation(roomID: String) async throws
     func removeRoom(roomID: String) async throws
     func encryptionRecoveryState(trustState: MatrixDeviceTrustState) async throws -> MatrixRecoveryState
     func setupEncryptionRecovery() async throws -> String
@@ -168,8 +169,11 @@ public extension MatrixLiveClient {
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Room invitations are unavailable")
     }
-    func acceptInvitation(roomID: String) async throws -> [MatrixRoomSummary] {
+    func acceptInvitation(roomID: String) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Invitation acceptance is unavailable")
+    }
+    func declineInvitation(roomID: String) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Invitation decline is unavailable")
     }
     func removeRoom(roomID: String) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Room removal is unavailable")
@@ -406,17 +410,27 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
     }
 
-    public func acceptInvitation(roomID: String) async throws -> [MatrixRoomSummary] {
+    public func acceptInvitation(roomID: String) async throws {
         guard let client else { throw MatrixChatServiceError.sessionExpired }
         guard let room = roomsByID[roomID], room.hasInvite else {
             throw MatrixChatServiceError.unavailable(reason: "This room invitation is no longer pending")
         }
         do {
-            let rooms = try await client.acceptInvitation(roomID: roomID)
-            remember(rooms)
-            return rooms
+            try await client.acceptInvitation(roomID: roomID)
         } catch {
             throw mapRuntimeError(error, fallbackReason: "Room invitation acceptance failed")
+        }
+    }
+
+    public func declineInvitation(roomID: String) async throws {
+        guard let client else { throw MatrixChatServiceError.sessionExpired }
+        guard let room = roomsByID[roomID], room.hasInvite else {
+            throw MatrixChatServiceError.unavailable(reason: "This room invitation is no longer pending")
+        }
+        do {
+            try await client.declineInvitation(roomID: roomID)
+        } catch {
+            throw mapRuntimeError(error, fallbackReason: "Room invitation decline failed")
         }
     }
 
@@ -1721,13 +1735,18 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
         }
     }
 
-    public func acceptInvitation(roomID: String) async throws -> [MatrixRoomSummary] {
+    public func acceptInvitation(roomID: String) async throws {
         guard let room = roomByID[roomID], room.membership() == .invited else {
             throw MatrixChatServiceError.unavailable(reason: "This room invitation is no longer pending")
         }
         try await room.join()
-        try await syncOnce()
-        return try await joinedRooms()
+    }
+
+    public func declineInvitation(roomID: String) async throws {
+        guard let room = roomByID[roomID], room.membership() == .invited else {
+            throw MatrixChatServiceError.unavailable(reason: "This room invitation is no longer pending")
+        }
+        try await room.leave()
     }
 
     static func mapAuthoritativeDeviceVerificationState(
