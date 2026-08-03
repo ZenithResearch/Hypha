@@ -30,6 +30,11 @@ git -C "$SOURCE_DIR" remote set-url origin "$REMOTE_URL"
 git -C "$SOURCE_DIR" -c core.hooksPath=/dev/null fetch --force --prune origin main
 git -C "$SOURCE_DIR" checkout --detach --force FETCH_HEAD
 git -C "$SOURCE_DIR" clean -ffdqx
+if ! git lfs version >/dev/null 2>&1; then
+  echo "Git LFS is required to download Hypha's pinned SDK artifact." >&2
+  exit 5
+fi
+git -C "$SOURCE_DIR" lfs pull origin main
 git -C "$SOURCE_DIR" -c core.hooksPath=/dev/null submodule sync --recursive
 git -C "$SOURCE_DIR" -c core.hooksPath=/dev/null submodule update --init --recursive --force
 
