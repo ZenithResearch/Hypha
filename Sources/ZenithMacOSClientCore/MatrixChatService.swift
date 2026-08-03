@@ -459,7 +459,8 @@ public protocol MatrixChatService: Sendable {
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary
     func lookupInviteUser(userID: String, roomID: String) async throws -> MatrixUserLookupResult
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws
-    func acceptInvitation(roomID: String) async throws -> [MatrixRoomSummary]
+    func acceptInvitation(roomID: String) async throws
+    func declineInvitation(roomID: String) async throws
     func removeRoom(roomID: String) async throws -> [MatrixRoomSummary]
     func encryptionRecoveryState(trustState: MatrixDeviceTrustState) async throws -> MatrixRecoveryState
     func setupEncryptionRecovery() async throws -> String
@@ -526,8 +527,11 @@ public extension MatrixChatService {
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Room invitations are unavailable")
     }
-    func acceptInvitation(roomID: String) async throws -> [MatrixRoomSummary] {
+    func acceptInvitation(roomID: String) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Invitation acceptance is unavailable")
+    }
+    func declineInvitation(roomID: String) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Invitation decline is unavailable")
     }
     func removeRoom(roomID: String) async throws -> [MatrixRoomSummary] {
         throw MatrixChatServiceError.unavailable(reason: "Room removal is unavailable")
@@ -752,8 +756,17 @@ public final class MatrixChatCoordinator {
     public func acceptInvitation(to room: MatrixRoomSummary) async -> Bool {
         guard room.hasInvite, chatAuthority == .available else { return false }
         do {
-            let rooms = try await service.acceptInvitation(roomID: room.id)
-            state = .rooms(rooms)
+            try await service.acceptInvitation(roomID: room.id)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    public func declineInvitation(to room: MatrixRoomSummary) async -> Bool {
+        guard room.hasInvite, chatAuthority == .available else { return false }
+        do {
+            try await service.declineInvitation(roomID: room.id)
             return true
         } catch {
             return false
