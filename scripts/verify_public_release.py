@@ -44,7 +44,7 @@ BINARY_HASHES = {
 CRITICAL_POLICY_HASHES = {
     ".github/workflows/ci.yml": "7619938b56be3dc9f8ababf0446a2a26f2da2dc43e37f0f8974c0b965f9bc195",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
-    "build-app.sh": "cf0fb549796569ca366080f42cac92b83ae9aeccf6bca686c29bd78d6b1452c0",
+    "build-app.sh": "61e7ed442aace067a9d036ee58dca3fb1c8da0971f93bc3b50af503500ceca92",
     "scripts/verify_app_licenses.py": "62cedfdd0c4590c79ec3d66d1f38fe61caee767403d5629c13107697190823ce",
     "scripts/generate_zenith_icon.py": "f91f71cdf8309fe9217e06cafd0477c32faa380c66b4f31feedc8d0944250b18",
     "Resources/ZenithOSIcon.svg": "b553714e443d6ab856295676f92ee363d9b9ccfb8a0a6711e73ce9780fe2ac78",
