@@ -1167,6 +1167,7 @@ private struct MatrixCompanionShell: View {
     @State private var showsSecurityCenter = false
     @State private var showsPasswordChange = false
     @State private var showsAdministration = false
+    @State private var showsSettings = false
     @State private var roomPendingRemoval: MatrixRoomSummary?
     @State private var roomPendingAcceptance: MatrixRoomSummary?
     @State private var roomPendingDecline: MatrixRoomSummary?
@@ -1225,6 +1226,18 @@ private struct MatrixCompanionShell: View {
         }
         .sheet(isPresented: $showsAdministration) {
             MatrixAdminSheet(model: model, isPresented: $showsAdministration)
+        }
+        .sheet(isPresented: $showsSettings) {
+            NavigationStack {
+                settingsView
+                    .navigationTitle("Settings")
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showsSettings = false }
+                        }
+                    }
+            }
+            .frame(minWidth: 480, idealWidth: 520, minHeight: 260)
         }
         .sheet(isPresented: $showsSecurityCenter) {
             NavigationStack {
@@ -1291,7 +1304,13 @@ private struct MatrixCompanionShell: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(ZenithDesign.Palette.base)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    showsSettings = true
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .accessibilityIdentifier("hypha.settings")
                 securityToolbarMenu
             }
         }
@@ -1537,6 +1556,44 @@ private struct MatrixCompanionShell: View {
         }
     }
 
+    private var settingsView: some View {
+        Form {
+            Section("Application Updates") {
+                Text("Pull the latest main branch from the canonical Hypha GitHub remote, rebuild the app locally, verify it, and install it in place.")
+                    .font(.callout)
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+
+                Button {
+                    updater.updateFromGitHubMain()
+                } label: {
+                    Label(
+                        updater.state == .updating ? "Updating from GitHub main…" : "Update from GitHub main",
+                        systemImage: "arrow.triangle.2.circlepath"
+                    )
+                }
+                .buttonStyle(HyphaButtonStyle(.primary))
+                .disabled(updater.state == .updating)
+                .accessibilityIdentifier("hypha.update.main")
+
+                if let statusText = updater.statusText {
+                    Text(statusText)
+                        .font(.caption)
+                        .foregroundStyle(updater.state == .failed ? ZenithDesign.Palette.error : ZenithDesign.Palette.muted)
+                }
+
+                if updater.state == .installed {
+                    Button("Restart Hypha") {
+                        updater.restart()
+                    }
+                    .buttonStyle(HyphaButtonStyle(.secondary))
+                    .accessibilityIdentifier("hypha.update.restart")
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding(ZenithDesign.Space.x3)
+    }
+
     private var accountSwitcher: some View {
         Menu {
             ForEach(model.savedSessions, id: \.accountKey) { session in
@@ -1574,26 +1631,6 @@ private struct MatrixCompanionShell: View {
                     Label("Manage saved passwords", systemImage: "key.slash")
                 }
                 .accessibilityIdentifier("matrix.password.manage")
-            }
-            Divider()
-            Button {
-                updater.updateFromGitHubMain()
-            } label: {
-                Label(
-                    updater.state == .updating ? "Updating from GitHub main…" : "Update from GitHub main",
-                    systemImage: "arrow.triangle.2.circlepath"
-                )
-            }
-            .disabled(updater.state == .updating)
-            .accessibilityIdentifier("hypha.update.main")
-            if let statusText = updater.statusText {
-                Text(statusText)
-            }
-            if updater.state == .installed {
-                Button("Restart Hypha") {
-                    updater.restart()
-                }
-                .accessibilityIdentifier("hypha.update.restart")
             }
             Divider()
             Button {

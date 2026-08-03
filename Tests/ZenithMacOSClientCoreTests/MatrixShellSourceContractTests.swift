@@ -1059,7 +1059,13 @@ final class MatrixShellSourceContractTests: XCTestCase {
             encoding: .utf8
         )
 
-        for marker in ["Update from GitHub main", "Restart Hypha"] {
+        for marker in [
+            "Update from GitHub main",
+            "Restart Hypha",
+            "navigationTitle(\"Settings\")",
+            "Section(\"Application Updates\")",
+            "hypha.settings",
+        ] {
             XCTAssertTrue(app.contains(marker), "Missing updater UI contract: \(marker)")
         }
         XCTAssertTrue(controller.contains("forResource: \"update-from-main\""))
