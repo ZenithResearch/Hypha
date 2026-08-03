@@ -34,6 +34,7 @@ if ! git lfs version >/dev/null 2>&1; then
   echo "Git LFS is required to download Hypha's pinned SDK artifact." >&2
   exit 5
 fi
+git -C "$SOURCE_DIR" lfs install --local --skip-smudge
 git -C "$SOURCE_DIR" lfs pull origin main
 git -C "$SOURCE_DIR" -c core.hooksPath=/dev/null submodule sync --recursive
 git -C "$SOURCE_DIR" -c core.hooksPath=/dev/null submodule update --init --recursive --force
@@ -42,8 +43,9 @@ cd "$SOURCE_DIR"
 HYPHA_SIGNING_MODE=adhoc ./build-app.sh
 BUILT_APP="$SOURCE_DIR/Hypha.app"
 codesign --verify --deep --strict "$BUILT_APP"
-if [[ ! -x "$BUILT_APP/Contents/Resources/update-from-main.sh" ]]; then
-  echo "GitHub main does not yet contain the self-update contract; the current app was left unchanged." >&2
+if [[ ! -x "$BUILT_APP/Contents/Resources/update-from-main.sh" ]] || \
+   ! grep -Fq 'lfs install --local --skip-smudge' "$BUILT_APP/Contents/Resources/update-from-main.sh"; then
+  echo "GitHub main does not yet contain the current self-update contract; the current app was left unchanged." >&2
   exit 4
 fi
 
