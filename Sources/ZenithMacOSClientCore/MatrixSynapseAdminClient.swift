@@ -207,6 +207,7 @@ public struct MatrixSynapseAdminClient: MatrixAdminClient, Sendable {
                 "password": temporaryPassword,
                 "admin": administrator,
                 "deactivated": false,
+                "approved": true,
             ]
         )
         guard response.statusCode == 200,
@@ -227,6 +228,7 @@ public struct MatrixSynapseAdminClient: MatrixAdminClient, Sendable {
               verifiedUser.isAdministrator == administrator,
               !verifiedUser.isDeactivated,
               object["locked"] as? Bool != true,
+              object["approved"] as? Bool != false,
               let passwordHash = object["password_hash"] as? String,
               !passwordHash.isEmpty else {
             throw MatrixAdminClientError.credentialNotEstablished
