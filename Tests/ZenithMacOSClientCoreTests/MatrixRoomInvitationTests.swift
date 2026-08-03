@@ -194,15 +194,43 @@ final class MatrixRoomInvitationTests: XCTestCase {
             )]
         )
     }
+
+    func testCoordinatorAcceptsOnlyPendingInvitationAndRefreshesRooms() async {
+        let joined = MatrixRoomSummary(
+            id: "!pending:example.org", name: "Pending", isEncrypted: true, hasInvite: false
+        )
+        let service = InviteRecordingService(acceptedRooms: [joined])
+        let coordinator = MatrixChatCoordinator(service: service)
+        let pending = MatrixRoomSummary(
+            id: joined.id, name: joined.name, isEncrypted: true, hasInvite: true
+        )
+        let ordinary = MatrixRoomSummary(
+            id: "!joined:example.org", name: "Joined", isEncrypted: true, hasInvite: false
+        )
+
+        let rejected = await coordinator.acceptInvitation(to: ordinary)
+        let accepted = await coordinator.acceptInvitation(to: pending)
+
+        XCTAssertFalse(rejected)
+        XCTAssertTrue(accepted)
+        XCTAssertEqual(service.acceptedRoomIDs, [pending.id])
+        XCTAssertEqual(coordinator.state, .rooms([joined]))
+    }
 }
 
 private final class InviteRecordingService: MatrixChatService, @unchecked Sendable {
     var requests: [MatrixRoomInviteRequest] = []
     var lookupRequests: [String] = []
+    var acceptedRoomIDs: [String] = []
     let lookupResult: MatrixUserLookupResult
+    let acceptedRooms: [MatrixRoomSummary]
 
-    init(lookupResult: MatrixUserLookupResult = .unavailable) {
+    init(
+        lookupResult: MatrixUserLookupResult = .unavailable,
+        acceptedRooms: [MatrixRoomSummary] = []
+    ) {
         self.lookupResult = lookupResult
+        self.acceptedRooms = acceptedRooms
     }
 
     func restore() async throws -> [MatrixRoomSummary] { [] }
@@ -214,5 +242,9 @@ private final class InviteRecordingService: MatrixChatService, @unchecked Sendab
         return lookupResult
     }
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws { requests.append(request) }
+    func acceptInvitation(roomID: String) async throws -> [MatrixRoomSummary] {
+        acceptedRoomIDs.append(roomID)
+        return acceptedRooms
+    }
     func logout() async throws {}
 }
