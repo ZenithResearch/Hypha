@@ -107,7 +107,7 @@ final class MatrixLiveSessionSmokeTests: XCTestCase {
 
         let senderVault = LiveRegistrationSessionVault()
         let receiverVault = LiveRegistrationSessionVault()
-        let sender = MatrixRustSDKChatService(
+        var sender: MatrixRustSDKChatService! = MatrixRustSDKChatService(
             configuration: configuration,
             vault: senderVault,
             clientFactory: MatrixRustLiveClientFactory(configuration: configuration, rootDirectory: senderRoot)
@@ -148,18 +148,45 @@ final class MatrixLiveSessionSmokeTests: XCTestCase {
             if matchingContent != nil { break }
             try await Task<Never, Never>.sleep(for: .milliseconds(500))
         }
-        if let resultPath = environment["HYPHA_MATRIX_LIVE_RESULT_FILE"] {
-            try senderRoom.id.write(toFile: resultPath, atomically: true, encoding: .utf8)
-        }
-        _ = try? await receiver.removeRoom(roomID: senderRoom.id)
-        _ = try? await sender.removeRoom(roomID: senderRoom.id)
-        try? await sender.logout()
-        try? await receiver.logout()
-
         guard case let .text(value)? = matchingContent else {
             return XCTFail("The post-sync cross-account event did not decrypt on the receiving session")
         }
         XCTAssertEqual(value, body)
+
+        await sender.suspend()
+        sender = nil
+        try await Task<Never, Never>.sleep(for: .milliseconds(100))
+        let returnBody = "Hypha restored-account sync verification \(UUID().uuidString)"
+        try await receiver.sendText(returnBody, to: senderRoom.id)
+
+        let restoredSender = MatrixRustSDKChatService(
+            configuration: configuration,
+            vault: senderVault,
+            clientFactory: MatrixRustLiveClientFactory(configuration: configuration, rootDirectory: senderRoot)
+        )
+        _ = try await restoredSender.restore()
+        var restoredContent: MatrixTimelineEvent.Content?
+        for _ in 0..<40 {
+            let events = try await restoredSender.timeline(for: senderRoom.id)
+            restoredContent = events.first(where: { event in
+                if case let .text(value) = event.content { return value == returnBody }
+                return false
+            })?.content
+            if restoredContent != nil { break }
+            try await Task<Never, Never>.sleep(for: .milliseconds(500))
+        }
+        if let resultPath = environment["HYPHA_MATRIX_LIVE_RESULT_FILE"] {
+            try senderRoom.id.write(toFile: resultPath, atomically: true, encoding: .utf8)
+        }
+        _ = try? await receiver.removeRoom(roomID: senderRoom.id)
+        _ = try? await restoredSender.removeRoom(roomID: senderRoom.id)
+        try? await restoredSender.logout()
+        try? await receiver.logout()
+
+        guard case let .text(restoredValue)? = restoredContent else {
+            return XCTFail("The restored account consumed the peer event during sync without publishing it to the timeline")
+        }
+        XCTAssertEqual(restoredValue, returnBody)
     }
 
     func testDisposableFirstRunRegistrationCreatesOneDurableEncryptedSession() async throws {

@@ -113,6 +113,28 @@ final class MatrixRustSDKCompatibilityTests: XCTestCase {
         XCTAssertFalse(source.contains("client.encryption().recover(recoveryKey: recoveryKey)"))
     }
 
+    func testRestoredClientBindsKnownRoomTimelinesBeforeConsumingSyncEvents() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let repositoryRoot = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent(
+                "Sources/ZenithMacOSClientCore/MatrixRustSDKChatService.swift"
+            ),
+            encoding: .utf8
+        )
+        let syncStart = try XCTUnwrap(source.range(of: "    public func syncOnce() async throws {"))
+        let continuousStart = try XCTUnwrap(
+            source.range(of: "    public func startContinuousSync()", range: syncStart.upperBound..<source.endIndex)
+        )
+        let syncSource = String(source[syncStart.lowerBound..<continuousStart.lowerBound])
+        let bindingCall = try XCTUnwrap(syncSource.range(of: "prepareKnownRoomTimelinesForSync"))
+        let syncCall = try XCTUnwrap(syncSource.range(of: "client.syncOnceV2"))
+        XCTAssertLessThan(bindingCall.lowerBound, syncCall.lowerBound)
+    }
+
     func testRemoteSendAcknowledgementRejectsLocalEchoesAndPreexistingEvents() {
         let preexisting = MatrixTimelineEvent(
             id: "$old",
