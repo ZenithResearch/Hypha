@@ -49,6 +49,15 @@ if baseline.returncode != 0:
 license_path = ROOT / "LICENSE"
 must_reject("fake AGPL phrase", license_path, b"GNU AFFERO GENERAL PUBLIC LICENSE\n")
 
+readme_path = ROOT / "README.md"
+readme = readme_path.read_bytes()
+home_relative_internal_path = b"~/" + b".hermes/" + b"session-state\n"
+must_reject(
+    "home-relative internal path in tracked public text",
+    readme_path,
+    readme + b"\n" + home_relative_internal_path,
+)
+
 workflow_path = ROOT / ".github" / "workflows" / "ci.yml"
 workflow = workflow_path.read_text(encoding="utf-8")
 must_reject(

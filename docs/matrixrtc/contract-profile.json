@@ -1,0 +1,409 @@
+{
+  "canonicalization": "SHA-256 of UTF-8 JSON for the profile object with keys sorted and separators ',' ':'",
+  "profile": {
+    "excluded_evidence": [
+      "org.matrix.msc3401.call.member",
+      "m.rtc_foci",
+      "isLivekitRtcSupported",
+      "MSC4515_widget_transport_discovery",
+      "raw_response_body",
+      "authorization_header",
+      "matrix_access_token_value",
+      "openid_token_value",
+      "sender_key_value",
+      "transport_grant_value"
+    ],
+    "future_product_contract": {
+      "account_switch": {
+        "required_actions": [
+          "Leave and switch",
+          "Cancel"
+        ]
+      },
+      "affordance": {
+        "location": "selected_room_top_right",
+        "operable_when_unavailable": true,
+        "selected_room_only": true,
+        "unavailable_action": "expose_unavailable_reason"
+      },
+      "concurrency": {
+        "conflicting_second_call": "blocked"
+      },
+      "incoming": {
+        "answers": false,
+        "auto_opens": false,
+        "connects": false,
+        "requests_permission": false,
+        "steals_focus": false
+      },
+      "inspector": {
+        "close_leaves_call": false,
+        "escape_leaves_call": false,
+        "surface": "messages_like_trailing_inspector"
+      },
+      "same_account_room_navigation": {
+        "origin_account": "immutable",
+        "origin_room": "immutable",
+        "preservation": "may_preserve_only_while_visibly_bound_to_origin",
+        "return_action": "Return to origin"
+      },
+      "scope": "future_only_nonruntime",
+      "states": [
+        "unavailable",
+        "incoming",
+        "pre_join",
+        "active"
+      ],
+      "unavailable_reason": {
+        "accessibility_hint": "required",
+        "accessibility_label": "required",
+        "visible_fields": [
+          "title",
+          "description",
+          "recovery"
+        ]
+      }
+    },
+    "id": "ca.hypha.matrixrtc.open-msc-snapshot.2026-07-30.2",
+    "identifiers": {
+      "apis": {
+        "delayed_event_get": {
+          "stable": "GET /_matrix/client/v1/delayed_events/{delay_id}",
+          "unstable": null,
+          "unstable_status": "no unstable alias specified by the pinned MSC4140 snapshot"
+        },
+        "delayed_event_list": {
+          "stable": "GET /_matrix/client/v1/delayed_events",
+          "unstable": "GET /_matrix/client/unstable/org.matrix.msc4140/delayed_events"
+        },
+        "delayed_event_manage": {
+          "actions": [
+            "send",
+            "cancel",
+            "restart"
+          ],
+          "stable": "POST /_matrix/client/v1/delayed_events/{delay_id}/{action}",
+          "unstable": "POST /_matrix/client/unstable/org.matrix.msc4140/delayed_events/{delay_id}/{action}"
+        },
+        "delayed_event_schedule": {
+          "stable": "PUT /_matrix/client/v3/rooms/{roomId}/delayed_event/{eventType}/{txnId}",
+          "unstable": "PUT /_matrix/client/unstable/org.matrix.msc4140/rooms/{roomId}/delayed_event/{eventType}/{txnId}"
+        },
+        "livekit_delegate_delayed_leave": {
+          "proposal_route": "POST /_matrix/client/v1/rtc/livekit/delegate_delayed_leave"
+        },
+        "livekit_federation_token": {
+          "proposal_route": "POST /_matrix/federation/v1/rtc/livekit/get_token"
+        },
+        "livekit_token": {
+          "proposal_route": "POST /_matrix/client/v1/rtc/livekit/get_token"
+        },
+        "transport_registry": {
+          "authentication": "matrix_access_token",
+          "stable": "GET /_matrix/client/v1/rtc/transports",
+          "unstable": "GET /_matrix/client/unstable/org.matrix.msc4143/rtc/transports"
+        }
+      },
+      "application": {
+        "call_id_field": "m.call.id",
+        "default_room_slot": "m.call#ROOM",
+        "intent_field": "m.call.intent",
+        "type": "m.call"
+      },
+      "capabilities": {
+        "delayed_events": {
+          "stable": "m.delayed_events",
+          "unstable": "org.matrix.msc4140.delayed_events"
+        }
+      },
+      "encryption": {
+        "stable": "m.per_member",
+        "unstable": "org.matrix.msc4143.per_member"
+      },
+      "event_fields": {
+        "delayed_event_unsigned_id": {
+          "stable": "delay_id",
+          "unstable": "org.matrix.msc4140.delay_id"
+        }
+      },
+      "feature_flags": {
+        "delayed_events": {
+          "stable_identifiers": "org.matrix.msc4140.stable",
+          "unstable": "org.matrix.msc4140"
+        },
+        "matrixrtc": {
+          "stable_identifiers": "org.matrix.msc4143.stable",
+          "unstable": "org.matrix.msc4143"
+        },
+        "sticky_events": {
+          "stable_identifiers": null,
+          "unstable": "org.matrix.msc4354"
+        }
+      },
+      "room_events": {
+        "decline": {
+          "stable": "m.rtc.decline",
+          "unstable": "org.matrix.msc4310.rtc.decline"
+        },
+        "member": {
+          "stable": "m.rtc.member",
+          "state_key": null,
+          "sticky_key": "member.id",
+          "unstable": "org.matrix.msc4143.rtc.member"
+        },
+        "notification": {
+          "stable": "m.rtc.notification",
+          "unstable": "org.matrix.msc4075.rtc.notification"
+        },
+        "slot": {
+          "stable": "m.rtc.slot",
+          "state_key": "{application_type}#{application_slot_id}",
+          "unstable": "org.matrix.msc4143.rtc.slot"
+        }
+      },
+      "sticky_events": {
+        "content_map_key": {
+          "stable": "sticky_key",
+          "unstable": "msc4354_sticky_key"
+        },
+        "pdu_object": {
+          "stable": "sticky",
+          "unstable": "msc4354_sticky"
+        },
+        "send_query_parameter": {
+          "stable": "sticky_duration_ms",
+          "unstable": "org.matrix.msc4354.sticky_duration_ms"
+        },
+        "sliding_sync_extension": {
+          "stable": null,
+          "unstable": "org.matrix.msc4354.sticky_events"
+        },
+        "sync_section": {
+          "stable": "sticky",
+          "unstable": "msc4354_sticky"
+        },
+        "unsigned_ttl_field": {
+          "stable": "unsigned.sticky_duration_ttl_ms",
+          "unstable": "unsigned.msc4354_sticky_duration_ttl_ms"
+        }
+      },
+      "to_device_events": {
+        "encryption_key": {
+          "stable": "m.rtc.encryption_key",
+          "unstable": "org.matrix.msc4143.rtc.encryption_key"
+        },
+        "ring_ack": {
+          "stable": "m.call.ring.ack",
+          "unstable": "org.matrix.msc4075.call.ring.ack"
+        }
+      }
+    },
+    "kind": "open_msc_snapshot",
+    "non_claims": [
+      "native_session_available",
+      "production_rtc_ready",
+      "livekit_authorized",
+      "sender_keys_implemented",
+      "media_implemented",
+      "call_ui_implemented"
+    ],
+    "production_evidence": {
+      "credential_mode": "unauthenticated_sanitized",
+      "observed_date": "2026-07-31",
+      "qualification": "unsupported",
+      "stable_transport_registry": {
+        "errcode": "M_UNRECOGNIZED",
+        "http_status": 404
+      },
+      "versions": {
+        "http_status": 200,
+        "org_matrix_msc4143": "missing",
+        "org_matrix_msc4143_stable": "missing"
+      },
+      "well_known": {
+        "has_m_rtc_foci": false,
+        "http_status": 200
+      }
+    },
+    "proposals": [
+      {
+        "content_sha256": "78f14c6467a28600094c6837bab55706c0f75c4f535e671503e9fb4a11e04103",
+        "head": "3236b007aaceee73e579e33990dd3ec5e07841e4",
+        "msc": 4143,
+        "source_path": "proposals/4143-matrix-rtc.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "6becf1e8e177e9cd28fea0f668b097be703775459d5141266970169dfaf7c8ab",
+        "head": "15770e6988f307499519b0cb294b95ed494171b6",
+        "msc": 4140,
+        "source_path": "proposals/4140-delayed-events-futures.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "007d7b33c29dbb2108f3df96dc9e6bd766f3e84399f18f205b44bda7a26f979c",
+        "head": "afdcf273e507152699ffb0cbfa3f364550f2b112",
+        "msc": 4195,
+        "source_path": "proposals/4195-matrixrtc-livekit.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "29b0307635ac3524786cd1352fd8bbaaaa488160974561a371cf735841ec0e23",
+        "head": "5add2f0c96974c4996a6e5e0907018117cbb5934",
+        "msc": 4196,
+        "source_path": "proposals/4196-matrixrtc-m-call.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "b28513416ed3cedd81fb3d0f4b521a893a2ddf18929f58817469d7f5eadd325a",
+        "head": "39cc54743a4f2187fdee1a69909b4a84eb7af014",
+        "msc": 4075,
+        "source_path": "proposals/4075-rtc-notification-event.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "a75e97e72de589c6b23b1d95ad542f202935f8e170a42dcbc96734689743e375",
+        "head": "67687dc381f56c626edf6e00a2bd2c5e2d04e56b",
+        "msc": 4310,
+        "source_path": "proposals/4310-MatrixRTC-call-decline.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "22aef4423a8b42561aff9e1e1333a0cfc10500c5275a3ea29359f66b275d9ae4",
+        "head": "db488faa1c3f234847dada8d17893d60626e869d",
+        "msc": 4519,
+        "source_path": "proposals/4519-rtc-transports-registry.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "1a89c37ee7b0add4e55ebef2cce0d6ccb14ecb88e18a4dfdce498737b465ee02",
+        "head": "74fc75e1dc1301230cc3fcb7435205bf4f567ef8",
+        "msc": 4354,
+        "source_path": "proposals/4354-sticky-events.md",
+        "status": "open"
+      },
+      {
+        "content_sha256": "d070a21fe3d793a3f8f2088b9a00937a4b6e43118eccd502fcac09a0650c3a7b",
+        "head": "a066bdbdf625b7efe98fdf84bf4a8c64fe5f6eb0",
+        "msc": 4518,
+        "source_path": "proposals/4518-registries.md",
+        "status": "open"
+      }
+    ],
+    "protocol_requirements": {
+      "ephemeral_map": {
+        "deletion": "send a sticky event containing the sticky key with application-specific fields omitted",
+        "expiry": "expire entries when event stickiness ends",
+        "key_tuple": [
+          "room_id",
+          "sender",
+          "type",
+          "content.sticky_key"
+        ],
+        "membership_sticky_key": "content.sticky_key MUST equal member.id",
+        "refresh": "reuse the same sticky key and sticky duration",
+        "tie_break": [
+          "highest origin_server_ts + sticky.duration_ms",
+          "highest lexicographical event_id"
+        ]
+      },
+      "registry": {
+        "discovery_entries_must_be_registered": true,
+        "entry_fields": [
+          "opaque transport type",
+          "stable or unstable status",
+          "transport specification link"
+        ],
+        "livekit_exception": "livekit is the pinned unstable type rather than msc4195.livekit",
+        "process_authority": "MSC4518 registry process",
+        "unknown_transport_types_permitted": false
+      },
+      "sticky_event": {
+        "duration_ms_max": 3600000,
+        "duration_ms_min": 0,
+        "expiry_formula": "min(received_ts, origin_server_ts) + min(sticky.duration_ms, 3600000)",
+        "member_events_must_be_sticky": true
+      }
+    },
+    "required_capabilities": [
+      "exact_snapshot_integrity",
+      "selected_identifier_family",
+      "server_profile_advertisement",
+      "authenticated_transport_registry_without_fallback",
+      "slot_open_close",
+      "member_join_refresh_leave",
+      "sticky_event_delivery",
+      "ephemeral_map_materialization",
+      "delayed_leave_deadman_switch",
+      "profile_aware_participant_device_snapshot",
+      "notification_and_decline",
+      "per_member_sender_key_lifecycle",
+      "recipient_device_validation",
+      "bounded_transport_grant",
+      "registered_transport_type_validation",
+      "complete_native_session_surface",
+      "origin_account_room_device_binding"
+    ],
+    "sdk_matrix": {
+      "current_upstream_source": {
+        "authenticated_transport_registry": true,
+        "bounded_transport_grant": false,
+        "commit": "43565c555072cc8002450ece96bd5a90e2b4a0b5",
+        "complete_native_session_surface": false,
+        "ffi_convenience_falls_back_to_well_known": true,
+        "ffi_direct_authenticated_transport_registry": false,
+        "notification_and_decline": true,
+        "profile_aware_participant_device_snapshot": false,
+        "recipient_device_validation": false,
+        "registered_transport_type_validation": false,
+        "source_evidence": {
+          "bindings/matrix-sdk-ffi/CHANGELOG.md": "51d4f3bd0cdb4ad97ccac22a6706d47f6a323031247b10143238af3660270f36",
+          "bindings/matrix-sdk-ffi/src/client.rs": "a79e76aef6e116e98123c0bb4f1a38e25a24aca24b8e1e729bea84f7c9ffea45",
+          "crates/matrix-sdk/src/client/mod.rs": "181447b458753b9854917c840fe97e0b7d3f357aeceb82f2a2990ee41d2b3510"
+        },
+        "sticky_event_ephemeral_map_surface": false
+      },
+      "pinned_hypha_artifact": {
+        "artifact": "26.07.23-zenith.10",
+        "artifact_sha256": "ca8796d0f065ade3787de2f18693afd940914ce2e35f807ccf479d2f14c5c565",
+        "authenticated_transport_registry": false,
+        "bounded_transport_grant": false,
+        "complete_native_session_surface": false,
+        "delayed_leave_lifecycle": false,
+        "ffi_decline_surface": true,
+        "ffi_legacy_active_call_observation": true,
+        "ffi_notification_projection": true,
+        "ffi_openid_token_surface": true,
+        "generated_swift_sha256": "7d823dda5f112ebc60887fc0ff238129b49e0173870ad616978f17b3ace5bdbc",
+        "legacy_well_known_livekit_boolean": true,
+        "notification_and_decline": true,
+        "profile_aware_participant_device_snapshot": false,
+        "recipient_device_validation": false,
+        "registered_transport_type_validation": false,
+        "sender_key_lifecycle": false,
+        "slot_member_lifecycle": false,
+        "source_commit": "f4889ec898e77d8b8c9013adadd77f3d0901fc2d",
+        "source_evidence": {
+          "bindings/matrix-sdk-ffi/CHANGELOG.md": "51d4f3bd0cdb4ad97ccac22a6706d47f6a323031247b10143238af3660270f36",
+          "bindings/matrix-sdk-ffi/src/client.rs": "d84a7703f32f14d1e77acb44ead2a93f276f2c58b344e9df541e0e3d4f328e50"
+        },
+        "sticky_event_ephemeral_map_surface": false
+      },
+      "selected_profile_requires": {
+        "authenticated_transport_registry_without_fallback": true,
+        "bounded_transport_grant": true,
+        "complete_native_session_surface": true,
+        "delayed_leave_lifecycle": true,
+        "notification_and_decline": true,
+        "profile_aware_participant_device_snapshot": true,
+        "recipient_device_validation": true,
+        "registered_transport_type_validation": true,
+        "sender_key_lifecycle": true,
+        "slot_member_lifecycle": true,
+        "sticky_event_ephemeral_map_surface": true
+      }
+    }
+  },
+  "profile_fingerprint_sha256": "630c781b782eb94965fb83767a39247f2d127ac31f0c89065f18711b375f8f6d",
+  "schema": "ca.hypha.matrixrtc.contract-profile-manifest.v1"
+}
