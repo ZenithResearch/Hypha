@@ -1126,6 +1126,32 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(service.contains("logout_devices"))
     }
 
+    func testSavedAccountSwitchUsesImmediateAuthoritativeRefresh() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let repositoryRoot = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        let switchStart = try XCTUnwrap(source.range(of: "    func switchSession("))
+        let deleteStart = try XCTUnwrap(
+            source.range(of: "    func deleteLocalSession(", range: switchStart.upperBound..<source.endIndex)
+        )
+        let switchSource = String(source[switchStart.lowerBound..<deleteStart.lowerBound])
+        XCTAssertTrue(switchSource.contains("restoreAndRefreshForAccountSwitch"))
+
+        let credentialStart = try XCTUnwrap(source.range(of: "    func signIn(with credential:"))
+        let sessionSwitchStart = try XCTUnwrap(
+            source.range(of: "    func switchSession(", range: credentialStart.upperBound..<source.endIndex)
+        )
+        let credentialSource = String(source[credentialStart.lowerBound..<sessionSwitchStart.lowerBound])
+        XCTAssertTrue(credentialSource.contains("signInAndRefreshForAccountSwitch"))
+    }
+
     func testPasswordEntrySupportsVisibilityAndInlineConfirmationChecks() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let repositoryRoot = testFile

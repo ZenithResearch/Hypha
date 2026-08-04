@@ -94,6 +94,37 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .rooms([room]))
     }
 
+    func testAccountSwitchRestoreImmediatelyRefreshesAuthoritativeRooms() async {
+        let stale = MatrixRoomSummary(id: "room-1", name: "General", isEncrypted: true, hasInvite: false)
+        let current = MatrixRoomSummary(id: "room-2", name: "Current", isEncrypted: true, hasInvite: false)
+        let service = FakeMatrixChatService(restoredRooms: [stale])
+        service.refreshedRooms = [stale, current]
+        let coordinator = MatrixChatCoordinator(service: service)
+
+        let rooms = await coordinator.restoreAndRefreshForAccountSwitch()
+
+        XCTAssertEqual(rooms, [stale, current])
+        XCTAssertEqual(service.roomRefreshRequests, 1)
+        XCTAssertEqual(coordinator.state, .rooms([stale, current]))
+    }
+
+    func testSavedPasswordAccountSwitchImmediatelyRefreshesAuthoritativeRooms() async {
+        let stale = MatrixRoomSummary(id: "room-1", name: "General", isEncrypted: true, hasInvite: false)
+        let current = MatrixRoomSummary(id: "room-2", name: "Current", isEncrypted: true, hasInvite: false)
+        let service = FakeMatrixChatService(restoredRooms: [stale])
+        service.refreshedRooms = [stale, current]
+        let coordinator = MatrixChatCoordinator(service: service)
+
+        let rooms = await coordinator.signInAndRefreshForAccountSwitch(
+            username: "beaver",
+            password: "not-recorded"
+        )
+
+        XCTAssertEqual(rooms, [stale, current])
+        XCTAssertEqual(service.roomRefreshRequests, 1)
+        XCTAssertEqual(coordinator.state, .rooms([stale, current]))
+    }
+
     func testManualRoomRefreshReturnsNewInvitesAndUpdatesRoomState() async throws {
         let joined = MatrixRoomSummary(id: "room-1", name: "Design", isEncrypted: true, hasInvite: false)
         let invited = MatrixRoomSummary(id: "room-2", name: "Review", isEncrypted: true, hasInvite: true)

@@ -395,7 +395,10 @@ final class MatrixAppModel: ObservableObject {
             self.coordinator = coordinator
             username = credential.username
             password = ""
-            await coordinator.signIn(username: credential.username, password: savedPassword)
+            _ = await coordinator.signInAndRefreshForAccountSwitch(
+                username: credential.username,
+                password: savedPassword
+            )
             applyState(from: coordinator)
             applySecurityState(from: coordinator)
             await refreshAdministratorAccess()
@@ -429,7 +432,7 @@ final class MatrixAppModel: ObservableObject {
             try sessionVault.activateSession(accountKey: session.accountKey)
             let coordinator = MatrixChatCoordinator(service: serviceFactory(configuration))
             self.coordinator = coordinator
-            await coordinator.restore()
+            _ = await coordinator.restoreAndRefreshForAccountSwitch()
             applyState(from: coordinator)
             applySecurityState(from: coordinator)
             await refreshAdministratorAccess()
