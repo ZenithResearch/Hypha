@@ -1709,7 +1709,15 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
     }
 
     public func syncOnce() async throws {
+        try await prepareKnownRoomTimelinesForSync()
         _ = try await client.syncOnceV2(settings: SyncSettingsV2(timeoutMs: 0, fullState: true))
+    }
+
+    private func prepareKnownRoomTimelinesForSync() async throws {
+        let knownRooms = try await joinedRooms()
+        for room in knownRooms where !room.hasInvite && !room.isSpace {
+            _ = try await timelineBinding(roomID: room.id)
+        }
     }
 
     public func startContinuousSync() async {
