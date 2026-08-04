@@ -547,7 +547,9 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(generatedBinding.contains("func getStateEventRaw(eventType:"))
         XCTAssertTrue(service.contains("\"passphrase-v1\""))
         XCTAssertTrue(service.contains(".passphrase(passphrase: storeKey.base64EncodedString())"))
-        XCTAssertTrue(service.contains("saveStoreKey(generated, accountKey: accountKey)"))
+        XCTAssertTrue(service.contains("saveStoreKey(storeKey, accountKey: accountKey)"))
+        XCTAssertTrue(service.contains("resetStore(accountKey: accountKey)"))
+        XCTAssertTrue(service.contains("deleteStoreKey(accountKey: accountKey)"))
         XCTAssertTrue(service.contains("encryption.authoritativeDeviceVerificationState()"))
         XCTAssertTrue(service.contains("encryption.diagnoseAndSignOwnDevice()"))
         let productionAuthoritySource = service + coordinatorSource

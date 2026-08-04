@@ -43,6 +43,7 @@ public protocol MatrixSDKSessionVault: Sendable {
     func deleteSession(accountKey: String) throws
     func loadStoreKey(accountKey: String) throws -> Data?
     func saveStoreKey(_ value: Data, accountKey: String) throws
+    func deleteStoreKey(accountKey: String) throws
     func finalizeLegacyMigrationAfterRestore(accountKey: String) throws
 }
 
@@ -59,6 +60,7 @@ public extension MatrixSDKSessionVault {
         return session
     }
 
+    func deleteStoreKey(accountKey: String) throws {}
     func finalizeLegacyMigrationAfterRestore(accountKey: String) throws {}
 }
 
@@ -200,6 +202,11 @@ public extension MatrixLiveClient {
 
 public protocol MatrixLiveClientFactory: Sendable {
     func make(accountKey: String, storeKey: Data) async throws -> any MatrixLiveClient
+    func resetStore(accountKey: String) async throws
+}
+
+public extension MatrixLiveClientFactory {
+    func resetStore(accountKey: String) async throws {}
 }
 
 public actor MatrixRustSDKChatService: MatrixChatService {
@@ -290,18 +297,16 @@ public actor MatrixRustSDKChatService: MatrixChatService {
             return rooms
         }
 
-        let storeKey: Data
-        if let existing = try vault.loadStoreKey(accountKey: accountKey) {
-            guard existing.count == 32 else { throw MatrixChatServiceError.recoveryRequired }
-            storeKey = existing
-        } else {
-            let generated = try randomStoreKey()
-            guard generated.count == 32 else {
-                throw MatrixChatServiceError.unavailable(reason: "Unable to create encrypted Matrix store")
-            }
-            try vault.saveStoreKey(generated, accountKey: accountKey)
-            storeKey = generated
+        if let abandonedStoreKey = try vault.loadStoreKey(accountKey: accountKey) {
+            guard abandonedStoreKey.count == 32 else { throw MatrixChatServiceError.recoveryRequired }
+            try await clientFactory.resetStore(accountKey: accountKey)
+            try vault.deleteStoreKey(accountKey: accountKey)
         }
+        let storeKey = try randomStoreKey()
+        guard storeKey.count == 32 else {
+            throw MatrixChatServiceError.unavailable(reason: "Unable to create encrypted Matrix store")
+        }
+        try vault.saveStoreKey(storeKey, accountKey: accountKey)
 
         let liveClient = try await clientFactory.make(accountKey: accountKey, storeKey: storeKey)
         do {
@@ -1042,6 +1047,18 @@ public final class MatrixEncryptedSessionVault: MatrixSDKSessionVault, HyphaMatr
         }
     }
 
+    public func deleteStoreKey(accountKey: String) throws {
+        try synchronized {
+            guard Self.isValidAccountKey(accountKey) else {
+                throw MatrixChatServiceError.recoveryRequired
+            }
+            let key = try prepareVault()
+            guard var record = try loadAccount(accountKey: accountKey, key: key) else { return }
+            record.storeKey = nil
+            try writeAccount(record, key: key)
+        }
+    }
+
     public func credentials() throws -> [HyphaMatrixCredentialDescriptor] {
         try synchronized {
             let key = try prepareVault()
@@ -1549,6 +1566,19 @@ public struct MatrixRustLiveClientFactory: MatrixLiveClientFactory {
             throw MatrixChatServiceError.unavailable(reason: "Matrix SDK changed the configured homeserver")
         }
         return MatrixRustLiveClient(client: client)
+    }
+
+    public func resetStore(accountKey: String) async throws {
+        guard accountKey.count == 64,
+              accountKey.allSatisfy({ $0.isHexDigit && !$0.isUppercase }) else {
+            throw MatrixChatServiceError.recoveryRequired
+        }
+        let storeDirectory = rootDirectory
+            .appendingPathComponent("passphrase-v1", isDirectory: true)
+            .appendingPathComponent(accountKey, isDirectory: true)
+        if FileManager.default.fileExists(atPath: storeDirectory.path) {
+            try FileManager.default.removeItem(at: storeDirectory)
+        }
     }
 
     static func migrateLegacyRootIfNeeded(

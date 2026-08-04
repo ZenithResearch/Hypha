@@ -136,6 +136,32 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(continuousSyncStartCount, 1)
     }
 
+    func testPasswordSignInResetsAbandonedCryptoStoreWhenNoSessionRemains() async throws {
+        let accountKey = MatrixRustSDKChatService.accountKey(
+            username: "beaver",
+            homeserver: MatrixProductConfiguration.production.homeserver
+        )
+        let abandonedStoreKey = Data(repeating: 0xA5, count: 32)
+        let replacementStoreKey = Data(repeating: 0xB6, count: 32)
+        let vault = MemorySessionVault()
+        try vault.saveStoreKey(abandonedStoreKey, accountKey: accountKey)
+        let factory = FakeLiveClientFactory(client: FakeLiveClient())
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: factory,
+            randomStoreKey: { replacementStoreKey }
+        )
+
+        _ = try await service.signIn(username: "beaver", password: "not-recorded")
+
+        let resetAccountKeys = await factory.resetAccountKeys()
+        let madeStoreKeys = await factory.madeStoreKeys()
+        XCTAssertEqual(resetAccountKeys, [accountKey])
+        XCTAssertEqual(madeStoreKeys, [replacementStoreKey])
+        XCTAssertEqual(try vault.loadedStoreKey(), replacementStoreKey)
+    }
+
     func testManualRoomRefreshRestartsSyncAndReturnsNewInvites() async throws {
         let joined = MatrixRoomSummary(
             id: "!joined:example.org",
@@ -844,6 +870,7 @@ private final class MemorySessionVault: MatrixSDKSessionVault, @unchecked Sendab
     func deleteSession() throws { lock.withLock { session = nil } }
     func loadStoreKey(accountKey: String) throws -> Data? { lock.withLock { storeKey } }
     func saveStoreKey(_ value: Data, accountKey: String) throws { lock.withLock { storeKey = value } }
+    func deleteStoreKey(accountKey: String) throws { lock.withLock { storeKey = nil } }
     func loadedStoreKey() throws -> Data? { lock.withLock { storeKey } }
 }
 
@@ -1042,13 +1069,19 @@ private actor FakeLiveClient: MatrixLiveClient {
 private actor FakeLiveClientFactory: MatrixLiveClientFactory {
     private let client: FakeLiveClient
     private var makes = 0
+    private var resets: [String] = []
+    private var storeKeys: [Data] = []
 
     init(client: FakeLiveClient) { self.client = client }
     func make(accountKey: String, storeKey: Data) async throws -> any MatrixLiveClient {
         makes += 1
+        storeKeys.append(storeKey)
         return client
     }
+    func resetStore(accountKey: String) async throws { resets.append(accountKey) }
     func makeCount() -> Int { makes }
+    func resetAccountKeys() -> [String] { resets }
+    func madeStoreKeys() -> [Data] { storeKeys }
 }
 
 private actor FakePasswordSessionReauthenticator: MatrixPasswordSessionReauthenticating {
