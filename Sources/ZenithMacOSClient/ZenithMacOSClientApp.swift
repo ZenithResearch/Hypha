@@ -1033,22 +1033,30 @@ final class MatrixAppModel: ObservableObject {
 
     func acceptInvitation(to room: MatrixRoomSummary) async -> Bool {
         guard let coordinator, room.hasInvite else { return false }
-        let accepted = await coordinator.acceptInvitation(to: room)
-        roomSyncMessage = accepted
-            ? "Invitation accepted. Sync rooms to show it."
-            : "Could not accept the invitation. It may no longer be pending."
-        roomSyncMessageTone = accepted ? .success : .error
-        return accepted
+        guard let refreshedRooms = await coordinator.acceptInvitation(to: room) else {
+            roomSyncMessage = "Could not accept the invitation. It may no longer be pending."
+            roomSyncMessageTone = .error
+            return false
+        }
+        rooms = refreshedRooms
+        applyState(from: coordinator)
+        roomSyncMessage = "Invitation accepted."
+        roomSyncMessageTone = .success
+        return true
     }
 
     func declineInvitation(to room: MatrixRoomSummary) async -> Bool {
         guard let coordinator, room.hasInvite else { return false }
-        let declined = await coordinator.declineInvitation(to: room)
-        roomSyncMessage = declined
-            ? "Invitation declined. Sync rooms to refresh the list."
-            : "Could not decline the invitation. It may no longer be pending."
-        roomSyncMessageTone = declined ? .success : .error
-        return declined
+        guard let refreshedRooms = await coordinator.declineInvitation(to: room) else {
+            roomSyncMessage = "Could not decline the invitation. It may no longer be pending."
+            roomSyncMessageTone = .error
+            return false
+        }
+        rooms = refreshedRooms
+        applyState(from: coordinator)
+        roomSyncMessage = "Invitation declined."
+        roomSyncMessageTone = .success
+        return true
     }
 
     func lookupInviteUsers(
@@ -1524,6 +1532,7 @@ private struct MatrixCompanionShell: View {
                             )
                         )
                         .accessibilityIdentifier("matrix.room.invite")
+                        .id("matrix.invitation.\(room.id)")
                     }
                 }
 
@@ -1551,6 +1560,7 @@ private struct MatrixCompanionShell: View {
                 } else {
                     ForEach(groups.rooms) { room in
                         roomRow(room)
+                            .id("matrix.joined-room.\(room.id)")
                     }
                 }
             }
