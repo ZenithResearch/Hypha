@@ -658,6 +658,39 @@ public final class MatrixChatCoordinator {
         }
     }
 
+    public func restoreAndRefreshForAccountSwitch() async -> [MatrixRoomSummary]? {
+        state = .restoring
+        do {
+            _ = try await service.restore()
+            let rooms = try await service.refreshRooms()
+            state = .rooms(rooms)
+            await refreshTrustState()
+            await refreshRecoveryState()
+            return rooms
+        } catch {
+            state = map(error, room: nil)
+            return nil
+        }
+    }
+
+    public func signInAndRefreshForAccountSwitch(
+        username: String,
+        password: String
+    ) async -> [MatrixRoomSummary]? {
+        state = .restoring
+        do {
+            _ = try await service.signIn(username: username, password: password)
+            let rooms = try await service.refreshRooms()
+            state = .rooms(rooms)
+            await refreshTrustState()
+            await refreshRecoveryState()
+            return rooms
+        } catch {
+            state = map(error, room: nil)
+            return nil
+        }
+    }
+
     public func changePassword(
         currentPassword: String,
         newPassword: String,

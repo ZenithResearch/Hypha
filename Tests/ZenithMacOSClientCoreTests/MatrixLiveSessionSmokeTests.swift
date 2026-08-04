@@ -83,6 +83,85 @@ final class MatrixLiveSessionSmokeTests: XCTestCase {
         }
     }
 
+    func testLiveEncryptedRoomSharesKeysWithNewlyJoinedPeer() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["HYPHA_MATRIX_LIVE_CROSS_ACCOUNT"] == "1" else {
+            throw XCTSkip("Set HYPHA_MATRIX_LIVE_CROSS_ACCOUNT=1 with disposable production credentials")
+        }
+        guard let senderUsername = environment["HYPHA_MATRIX_LIVE_SENDER_USERNAME"],
+              let senderPassword = environment["HYPHA_MATRIX_LIVE_SENDER_PASSWORD"],
+              let receiverUsername = environment["HYPHA_MATRIX_LIVE_RECEIVER_USERNAME"],
+              let receiverPassword = environment["HYPHA_MATRIX_LIVE_RECEIVER_PASSWORD"] else {
+            throw XCTSkip("Disposable sender and receiver credentials are required")
+        }
+
+        let configuration = MatrixProductConfiguration.production
+        let senderRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("hypha-live-sender-\(UUID().uuidString)", isDirectory: true)
+        let receiverRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("hypha-live-receiver-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: senderRoot)
+            try? FileManager.default.removeItem(at: receiverRoot)
+        }
+
+        let senderVault = LiveRegistrationSessionVault()
+        let receiverVault = LiveRegistrationSessionVault()
+        let sender = MatrixRustSDKChatService(
+            configuration: configuration,
+            vault: senderVault,
+            clientFactory: MatrixRustLiveClientFactory(configuration: configuration, rootDirectory: senderRoot)
+        )
+        let receiver = MatrixRustSDKChatService(
+            configuration: configuration,
+            vault: receiverVault,
+            clientFactory: MatrixRustLiveClientFactory(configuration: configuration, rootDirectory: receiverRoot)
+        )
+
+        _ = try await receiver.signIn(username: receiverUsername, password: receiverPassword)
+        _ = try await sender.signIn(username: senderUsername, password: senderPassword)
+        let roomName = "Hypha live E2EE \(UUID().uuidString)"
+        let senderRoom = try await sender.createEncryptedRoom(.init(name: roomName))
+        _ = try await sender.refreshRooms()
+        try await sender.inviteUsers(.init(
+            roomID: senderRoom.id,
+            userIDs: ["@\(receiverUsername):synapse.zenith-research.ca"]
+        ))
+        let invitedRooms = try await receiver.refreshRooms()
+        let invitation = try XCTUnwrap(invitedRooms.first { $0.id == senderRoom.id && $0.hasInvite })
+        try await receiver.acceptInvitation(roomID: invitation.id)
+        let receiverRooms = try await receiver.refreshRooms()
+        XCTAssertTrue(receiverRooms.contains { $0.id == senderRoom.id && !$0.hasInvite && $0.isEncrypted })
+        _ = try await sender.refreshRooms()
+
+        let body = "Hypha cross-account E2EE verification \(UUID().uuidString)"
+        try await sender.sendText(body, to: senderRoom.id)
+        _ = try await receiver.refreshRooms()
+
+        var matchingContent: MatrixTimelineEvent.Content?
+        for _ in 0..<40 {
+            let events = try await receiver.timeline(for: senderRoom.id)
+            matchingContent = events.first(where: { event in
+                if case let .text(value) = event.content { return value == body }
+                return false
+            })?.content
+            if matchingContent != nil { break }
+            try await Task<Never, Never>.sleep(for: .milliseconds(500))
+        }
+        if let resultPath = environment["HYPHA_MATRIX_LIVE_RESULT_FILE"] {
+            try senderRoom.id.write(toFile: resultPath, atomically: true, encoding: .utf8)
+        }
+        _ = try? await receiver.removeRoom(roomID: senderRoom.id)
+        _ = try? await sender.removeRoom(roomID: senderRoom.id)
+        try? await sender.logout()
+        try? await receiver.logout()
+
+        guard case let .text(value)? = matchingContent else {
+            return XCTFail("The post-sync cross-account event did not decrypt on the receiving session")
+        }
+        XCTAssertEqual(value, body)
+    }
+
     func testDisposableFirstRunRegistrationCreatesOneDurableEncryptedSession() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard environment["ZENITH_MATRIX_LIVE_REGISTRATION"] == "1" else {
