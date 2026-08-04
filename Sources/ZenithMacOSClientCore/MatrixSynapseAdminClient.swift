@@ -35,6 +35,20 @@ public struct MatrixAdminUserSummary: Identifiable, Equatable, Sendable {
     }
 }
 
+public struct MatrixPasswordResetRequest: Identifiable, Equatable, Sendable {
+    public let userID: String
+    public let requestID: String
+    public let requestedAtMilliseconds: Int64
+
+    public var id: String { requestID }
+
+    public init(userID: String, requestID: String, requestedAtMilliseconds: Int64) {
+        self.userID = userID
+        self.requestID = requestID
+        self.requestedAtMilliseconds = requestedAtMilliseconds
+    }
+}
+
 public struct MatrixAdminRoomSummary: Identifiable, Equatable, Sendable {
     public let roomID: String
     public let name: String
@@ -82,6 +96,11 @@ public protocol MatrixAdminClient: Sendable {
     func logoutAccount(userID: String) async throws
     func deactivateAccount(userID: String) async throws
     func purgeRoom(roomID: String) async throws
+    func requestPasswordReset(requestID: String, requestedAtMilliseconds: Int64) async throws -> MatrixPasswordResetRequest
+    func currentPasswordResetRequest() async throws -> MatrixPasswordResetRequest?
+    func completePasswordResetRequest(completedAtMilliseconds: Int64) async throws
+    func passwordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest]
+    func resetPassword(for request: MatrixPasswordResetRequest, temporaryPassword: String) async throws
 }
 
 public struct MatrixAdminHTTPResponse: Sendable {
@@ -144,6 +163,7 @@ public actor MatrixURLSessionAdminTransport: MatrixAdminHTTPTransport {
 
 public struct MatrixSynapseAdminClient: MatrixAdminClient, Sendable {
     private static let localpartPattern = try! NSRegularExpression(pattern: "^[a-z0-9._=-]+$")
+    private static let passwordResetAccountDataType = "ca.zenithresearch.hypha.password_reset_request"
 
     private let homeserver: URL
     private let currentUserID: String
@@ -234,6 +254,146 @@ public struct MatrixSynapseAdminClient: MatrixAdminClient, Sendable {
             throw MatrixAdminClientError.credentialNotEstablished
         }
         return verifiedUser
+    }
+
+    public func requestPasswordReset(
+        requestID: String = UUID().uuidString,
+        requestedAtMilliseconds: Int64 = Int64(Date().timeIntervalSince1970 * 1_000)
+    ) async throws -> MatrixPasswordResetRequest {
+        guard validUserID(currentUserID), UUID(uuidString: requestID) != nil, requestedAtMilliseconds > 0 else {
+            throw MatrixAdminClientError.invalidInput
+        }
+        let request = MatrixPasswordResetRequest(
+            userID: currentUserID,
+            requestID: requestID,
+            requestedAtMilliseconds: requestedAtMilliseconds
+        )
+        let response = try await perform(
+            method: "PUT",
+            path: passwordResetClientPath(userID: currentUserID),
+            json: [
+                "status": "pending",
+                "request_id": request.requestID,
+                "requested_at_ms": request.requestedAtMilliseconds,
+            ]
+        )
+        guard response.statusCode == 200 else { throw mappedError(for: response.statusCode) }
+        return request
+    }
+
+    public func currentPasswordResetRequest() async throws -> MatrixPasswordResetRequest? {
+        guard validUserID(currentUserID) else { throw MatrixAdminClientError.invalidInput }
+        let response = try await perform(
+            method: "GET",
+            path: passwordResetClientPath(userID: currentUserID)
+        )
+        if response.statusCode == 404 { return nil }
+        guard response.statusCode == 200 else { throw mappedError(for: response.statusCode) }
+        return parsePasswordResetRequest(response.body, expectedUserID: currentUserID)
+    }
+
+    public func completePasswordResetRequest(
+        completedAtMilliseconds: Int64 = Int64(Date().timeIntervalSince1970 * 1_000)
+    ) async throws {
+        guard validUserID(currentUserID), completedAtMilliseconds > 0 else {
+            throw MatrixAdminClientError.invalidInput
+        }
+        let response = try await perform(
+            method: "PUT",
+            path: passwordResetClientPath(userID: currentUserID),
+            json: [
+                "status": "completed",
+                "completed_at_ms": completedAtMilliseconds,
+            ]
+        )
+        guard response.statusCode == 200 else { throw mappedError(for: response.statusCode) }
+    }
+
+    public func passwordResetRequests(
+        users: [MatrixAdminUserSummary]
+    ) async throws -> [MatrixPasswordResetRequest] {
+        guard try await isAdministrator() else { throw MatrixAdminClientError.notAdministrator }
+        var requests: [MatrixPasswordResetRequest] = []
+        for user in users where !user.isDeactivated && !user.isGuest {
+            let response = try await perform(
+                method: "GET",
+                path: passwordResetAdminPath(userID: user.userID)
+            )
+            if response.statusCode == 404 { continue }
+            guard response.statusCode == 200 else { throw mappedError(for: response.statusCode) }
+            if let request = parsePasswordResetRequest(response.body, expectedUserID: user.userID) {
+                requests.append(request)
+            }
+        }
+        return requests.sorted {
+            if $0.requestedAtMilliseconds == $1.requestedAtMilliseconds { return $0.userID < $1.userID }
+            return $0.requestedAtMilliseconds < $1.requestedAtMilliseconds
+        }
+    }
+
+    public func resetPassword(
+        for request: MatrixPasswordResetRequest,
+        temporaryPassword: String
+    ) async throws {
+        guard validUserID(request.userID), request.userID != currentUserID,
+              UUID(uuidString: request.requestID) != nil, validPassword(temporaryPassword) else {
+            throw MatrixAdminClientError.invalidInput
+        }
+        guard try await isAdministrator() else {
+            throw MatrixAdminClientError.notAdministrator
+        }
+        let requestResponse = try await perform(
+            method: "GET",
+            path: passwordResetAdminPath(userID: request.userID)
+        )
+        guard requestResponse.statusCode == 200,
+              parsePasswordResetRequest(requestResponse.body, expectedUserID: request.userID) == request else {
+            throw MatrixAdminClientError.serverRejected
+        }
+        let accountResponse = try await perform(
+            method: "GET",
+            path: "/_synapse/admin/v2/users/\(encoded(request.userID))"
+        )
+        guard accountResponse.statusCode == 200,
+              let account = jsonObject(accountResponse.body),
+              let user = parseUser(account),
+              user.userID == request.userID,
+              !user.isDeactivated,
+              account["locked"] as? Bool != true,
+              account["approved"] as? Bool != false,
+              let previousHash = account["password_hash"] as? String,
+              !previousHash.isEmpty else {
+            throw MatrixAdminClientError.credentialNotEstablished
+        }
+        let resetResponse = try await perform(
+            method: "PUT",
+            path: "/_synapse/admin/v2/users/\(encoded(request.userID))",
+            json: [
+                "password": temporaryPassword,
+                "admin": user.isAdministrator,
+                "deactivated": false,
+                "approved": true,
+                "logout_devices": true,
+            ]
+        )
+        guard resetResponse.statusCode == 200 else { throw mappedError(for: resetResponse.statusCode) }
+        let verification = try await perform(
+            method: "GET",
+            path: "/_synapse/admin/v2/users/\(encoded(request.userID))"
+        )
+        guard verification.statusCode == 200,
+              let verified = jsonObject(verification.body),
+              let verifiedUser = parseUser(verified),
+              verifiedUser.userID == request.userID,
+              verifiedUser.isAdministrator == user.isAdministrator,
+              !verifiedUser.isDeactivated,
+              verified["locked"] as? Bool != true,
+              verified["approved"] as? Bool != false,
+              let newHash = verified["password_hash"] as? String,
+              !newHash.isEmpty,
+              newHash != previousHash else {
+            throw MatrixAdminClientError.credentialNotEstablished
+        }
     }
 
     public func createRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility = .inviteOnly) async throws -> MatrixAdminRoomSummary {
@@ -436,6 +596,37 @@ public struct MatrixSynapseAdminClient: MatrixAdminClient, Sendable {
 
     private func encoded(_ value: String) -> String {
         value.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? ""
+    }
+
+    private func validUserID(_ value: String) -> Bool {
+        guard value.hasPrefix("@"), value.count <= 512,
+              let separator = value.firstIndex(of: ":"), separator > value.startIndex else { return false }
+        return value.index(after: separator) < value.endIndex
+    }
+
+    private func passwordResetClientPath(userID: String) -> String {
+        "/_matrix/client/v3/user/\(encoded(userID))/account_data/\(encoded(Self.passwordResetAccountDataType))"
+    }
+
+    private func passwordResetAdminPath(userID: String) -> String {
+        "/_synapse/admin/v1/users/\(encoded(userID))/accountdata/\(encoded(Self.passwordResetAccountDataType))"
+    }
+
+    private func parsePasswordResetRequest(
+        _ data: Data,
+        expectedUserID: String
+    ) -> MatrixPasswordResetRequest? {
+        guard let object = jsonObject(data),
+              object["status"] as? String == "pending",
+              let requestID = object["request_id"] as? String,
+              UUID(uuidString: requestID) != nil,
+              let timestamp = (object["requested_at_ms"] as? NSNumber)?.int64Value,
+              timestamp > 0 else { return nil }
+        return MatrixPasswordResetRequest(
+            userID: expectedUserID,
+            requestID: requestID,
+            requestedAtMilliseconds: timestamp
+        )
     }
 
     private func jsonObject(_ data: Data) -> [String: Any]? {

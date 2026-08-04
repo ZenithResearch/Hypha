@@ -20,6 +20,7 @@ struct MatrixAdminSheet: View {
     @State private var showsAdministratorCreationConfirmation = false
     @State private var userPendingDeactivation: MatrixAdminUserSummary?
     @State private var userPendingLogout: MatrixAdminUserSummary?
+    @State private var passwordResetRequest: MatrixPasswordResetRequest?
     @State private var roomPendingPurge: MatrixAdminRoomSummary?
     @State private var roomName = ""
     @State private var roomTopic = ""
@@ -58,6 +59,16 @@ struct MatrixAdminSheet: View {
             await model.refreshAdministratorSnapshot()
         }
         .onDisappear(perform: clearSecrets)
+        .sheet(item: $passwordResetRequest) { request in
+            MatrixAdminPasswordResetSheet(
+                model: model,
+                request: request,
+                isPresented: Binding(
+                    get: { passwordResetRequest != nil },
+                    set: { if !$0 { passwordResetRequest = nil } }
+                )
+            )
+        }
         .confirmationDialog(
             "Create administrator?",
             isPresented: $showsAdministratorCreationConfirmation,
@@ -122,6 +133,7 @@ struct MatrixAdminSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: ZenithDesign.Space.x5) {
                 authorityNotice
+                passwordResetSection
                 createRoomSection
                 createAccountSection
                 accountSection
@@ -152,6 +164,58 @@ struct MatrixAdminSheet: View {
         .padding(ZenithDesign.Space.x4)
         .background(ZenithDesign.Palette.baseRaised)
         .clipShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.card, style: .continuous))
+    }
+
+    private var passwordResetSection: some View {
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
+            HStack {
+                VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                    sectionTitle("PASSWORD RESET REQUESTS")
+                    Text("Pending homeserver requests")
+                        .font(ZenithDesign.Typography.corporate(.title3, weight: .semibold))
+                }
+                Spacer()
+                refreshButton
+            }
+            Text("Requests are authenticated Matrix account data and contain no passwords. Resetting preserves the account role, replaces the password, and logs out existing devices.")
+                .font(ZenithDesign.Typography.corporate(.callout))
+                .foregroundStyle(ZenithDesign.Palette.muted)
+
+            if model.adminPasswordResetRequests.isEmpty {
+                Text("No pending password reset requests.")
+                    .font(ZenithDesign.Typography.corporate(.callout))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+            } else {
+                ForEach(model.adminPasswordResetRequests) { request in
+                    let resetIssued = model.issuedPasswordResetRequestIDs.contains(request.id)
+                    HStack(spacing: ZenithDesign.Space.x3) {
+                        Image(systemName: "person.badge.key.fill")
+                            .foregroundStyle(ZenithDesign.Palette.warning)
+                        VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                            Text(request.userID)
+                                .font(ZenithDesign.Typography.corporate(.callout, weight: .medium))
+                                .textSelection(.enabled)
+                            Text(
+                                Date(timeIntervalSince1970: TimeInterval(request.requestedAtMilliseconds) / 1_000),
+                                style: .relative
+                            )
+                            .font(ZenithDesign.Typography.technical(.caption2, weight: .medium))
+                            .foregroundStyle(ZenithDesign.Palette.muted)
+                        }
+                        Spacer()
+                        Button(resetIssued ? "Awaiting user" : "Reset temporary password…") {
+                            passwordResetRequest = request
+                        }
+                        .disabled(model.isAdminOperationInFlight || resetIssued)
+                        .accessibilityIdentifier("matrix.admin.password-reset.\(request.id)")
+                    }
+                    .padding(ZenithDesign.Space.x3)
+                    .background(ZenithDesign.Palette.baseRaised)
+                    .clipShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.control, style: .continuous))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var createRoomSection: some View {
@@ -398,6 +462,109 @@ struct MatrixAdminSheet: View {
             if created {
                 localpart = ""
                 selectedRole = .user
+            }
+        }
+    }
+
+    private func clearSecrets() {
+        temporaryPassword = ""
+        passwordConfirmation = ""
+    }
+}
+
+private struct MatrixAdminPasswordResetSheet: View {
+    @ObservedObject var model: MatrixAppModel
+    let request: MatrixPasswordResetRequest
+    @Binding var isPresented: Bool
+
+    @State private var temporaryPassword = ""
+    @State private var passwordConfirmation = ""
+    @State private var validationMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Requested account") {
+                    Text(request.userID)
+                        .textSelection(.enabled)
+                    Text("Set a one-time temporary password. The homeserver will preserve this account's role and log out every existing device.")
+                        .font(.callout)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                }
+                Section("Temporary password") {
+                    HyphaRevealablePasswordField(
+                        title: "Temporary password",
+                        text: $temporaryPassword,
+                        accessibilityIdentifier: "matrix.admin.password-reset.password",
+                        isNewPassword: true
+                    )
+                    HyphaRevealablePasswordField(
+                        title: "Confirm temporary password",
+                        text: $passwordConfirmation,
+                        accessibilityIdentifier: "matrix.admin.password-reset.password.confirmation",
+                        isNewPassword: true
+                    )
+                    if !passwordConfirmation.isEmpty {
+                        Label(
+                            temporaryPassword == passwordConfirmation ? "Passwords match" : "Passwords do not match",
+                            systemImage: temporaryPassword == passwordConfirmation ? "checkmark.circle.fill" : "xmark.circle.fill"
+                        )
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(temporaryPassword == passwordConfirmation ? ZenithDesign.Palette.success : ZenithDesign.Palette.error)
+                        .accessibilityIdentifier("matrix.admin.password-reset.password-match")
+                    }
+                    if let validationMessage {
+                        Text(validationMessage)
+                            .font(.caption)
+                            .foregroundStyle(ZenithDesign.Palette.error)
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle("Reset temporary password")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { isPresented = false }
+                        .disabled(model.isAdminOperationInFlight)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Reset password", action: submit)
+                        .disabled(!canSubmit)
+                        .accessibilityIdentifier("matrix.admin.password-reset.submit")
+                }
+            }
+        }
+        .frame(minWidth: 500, idealWidth: 560, minHeight: 340)
+        .interactiveDismissDisabled(model.isAdminOperationInFlight)
+        .onDisappear(perform: clearSecrets)
+    }
+
+    private var canSubmit: Bool {
+        !model.isAdminOperationInFlight
+            && temporaryPassword.count >= 12
+            && !passwordConfirmation.isEmpty
+            && temporaryPassword == passwordConfirmation
+    }
+
+    private func submit() {
+        guard temporaryPassword.count >= 12 else {
+            validationMessage = "Use a temporary password with at least 12 characters."
+            return
+        }
+        guard temporaryPassword == passwordConfirmation else {
+            validationMessage = "The temporary passwords do not match."
+            return
+        }
+        let passwordForRequest = temporaryPassword
+        clearSecrets()
+        Task {
+            if await model.resetAdministratorManagedPassword(
+                for: request,
+                temporaryPassword: passwordForRequest
+            ) {
+                isPresented = false
+            } else {
+                validationMessage = model.adminMessage ?? "The homeserver did not confirm the password reset."
             }
         }
     }
