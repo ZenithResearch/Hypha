@@ -442,8 +442,13 @@ public protocol MatrixChatService: Sendable {
         newPassword: String,
         logoutOtherDevices: Bool
     ) async throws
+    func requestHomeserverPasswordReset() async throws -> MatrixPasswordResetRequest
+    func hasPendingHomeserverPasswordResetRequest() async throws -> Bool
+    func completeHomeserverPasswordResetRequest() async throws
     func isHomeserverAdministrator() async throws -> Bool
     func administratorSnapshot() async throws -> MatrixAdminSnapshot
+    func administratorPasswordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest]
+    func resetAdministratorManagedPassword(for request: MatrixPasswordResetRequest, temporaryPassword: String) async throws
     func createAdministratorManagedAccount(
         localpart: String,
         temporaryPassword: String,
@@ -491,6 +496,22 @@ public extension MatrixChatService {
         logoutOtherDevices: Bool
     ) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Password change is unavailable")
+    }
+
+    func requestHomeserverPasswordReset() async throws -> MatrixPasswordResetRequest {
+        throw MatrixChatServiceError.unavailable(reason: "Homeserver password reset requests are unavailable")
+    }
+
+    func hasPendingHomeserverPasswordResetRequest() async throws -> Bool { false }
+
+    func completeHomeserverPasswordResetRequest() async throws {}
+
+    func administratorPasswordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest] {
+        throw MatrixAdminClientError.serverRejected
+    }
+
+    func resetAdministratorManagedPassword(for request: MatrixPasswordResetRequest, temporaryPassword: String) async throws {
+        throw MatrixAdminClientError.serverRejected
     }
 
     func isHomeserverAdministrator() async throws -> Bool { false }
@@ -663,6 +684,28 @@ public final class MatrixChatCoordinator {
         }
     }
 
+    public func requestHomeserverPasswordReset() async -> Bool {
+        do {
+            _ = try await service.requestHomeserverPasswordReset()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    public func hasPendingHomeserverPasswordResetRequest() async throws -> Bool {
+        try await service.hasPendingHomeserverPasswordResetRequest()
+    }
+
+    public func completeHomeserverPasswordResetRequest() async -> Bool {
+        do {
+            try await service.completeHomeserverPasswordResetRequest()
+            return true
+        } catch {
+            return false
+        }
+    }
+
     public func isHomeserverAdministrator() async -> Bool {
         do {
             return try await service.isHomeserverAdministrator()
@@ -676,6 +719,28 @@ public final class MatrixChatCoordinator {
             throw MatrixAdminClientError.notAdministrator
         }
         return try await service.administratorSnapshot()
+    }
+
+    public func administratorPasswordResetRequests(
+        users: [MatrixAdminUserSummary]
+    ) async throws -> [MatrixPasswordResetRequest] {
+        guard try await service.isHomeserverAdministrator() else {
+            throw MatrixAdminClientError.notAdministrator
+        }
+        return try await service.administratorPasswordResetRequests(users: users)
+    }
+
+    public func resetAdministratorManagedPassword(
+        for request: MatrixPasswordResetRequest,
+        temporaryPassword: String
+    ) async throws {
+        guard try await service.isHomeserverAdministrator() else {
+            throw MatrixAdminClientError.notAdministrator
+        }
+        try await service.resetAdministratorManagedPassword(
+            for: request,
+            temporaryPassword: temporaryPassword
+        )
     }
 
     public func createAdministratorManagedAccount(

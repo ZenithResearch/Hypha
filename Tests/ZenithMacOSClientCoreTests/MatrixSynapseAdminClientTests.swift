@@ -161,6 +161,142 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
         XCTAssertEqual(requests.count, 0)
     }
 
+    func testUserCreatesAuthenticatedHomeserverPasswordResetRequest() async throws {
+        let transport = RecordingAdminTransport(responses: [
+            .json(status: 200, body: [:]),
+        ])
+        let client = MatrixSynapseAdminClient(
+            homeserver: URL(string: "https://synapse.example.org")!,
+            currentUserID: "@member:example.org",
+            accessToken: "secret-token-material",
+            transport: transport
+        )
+
+        let request = try await client.requestPasswordReset(
+            requestID: "01234567-89AB-CDEF-0123-456789ABCDEF",
+            requestedAtMilliseconds: 1_786_000_000_000
+        )
+
+        XCTAssertEqual(request.userID, "@member:example.org")
+        let recordedRequests = await transport.requests()
+        let recorded = try XCTUnwrap(recordedRequests.first)
+        XCTAssertEqual(recorded.httpMethod, "PUT")
+        XCTAssertEqual(
+            recorded.url?.path,
+            "/_matrix/client/v3/user/@member:example.org/account_data/ca.zenithresearch.hypha.password_reset_request"
+        )
+        let body = try XCTUnwrap(recorded.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(json["status"] as? String, "pending")
+        XCTAssertEqual(json["request_id"] as? String, request.requestID)
+        XCTAssertEqual(json["requested_at_ms"] as? Int, 1_786_000_000_000)
+    }
+
+    func testUserReadsPendingHomeserverPasswordResetRequestFromOwnAccountData() async throws {
+        let requestID = "27EF43D8-A08B-4A58-9B45-F11D06E82A61"
+        let transport = RecordingAdminTransport(responses: [
+            .json(status: 200, body: [
+                "status": "pending",
+                "request_id": requestID,
+                "requested_at_ms": 1_786_000_000_000,
+            ]),
+        ])
+        let client = MatrixSynapseAdminClient(
+            homeserver: URL(string: "https://synapse.example.org")!,
+            currentUserID: "@member:example.org",
+            accessToken: "secret-token-material",
+            transport: transport
+        )
+
+        let pendingRequest = try await client.currentPasswordResetRequest()
+        let request = try XCTUnwrap(pendingRequest)
+
+        XCTAssertEqual(request.userID, "@member:example.org")
+        XCTAssertEqual(request.requestID, requestID)
+        let requests = await transport.requests()
+        XCTAssertEqual(requests.first?.httpMethod, "GET")
+        XCTAssertEqual(
+            requests.first?.url?.path,
+            "/_matrix/client/v3/user/@member:example.org/account_data/ca.zenithresearch.hypha.password_reset_request"
+        )
+    }
+
+    func testAdministratorListsOnlyValidPendingPasswordResetRequests() async throws {
+        let users = [
+            MatrixAdminUserSummary(userID: "@pending:example.org", isAdministrator: false, isDeactivated: false, isGuest: false, userType: nil),
+            MatrixAdminUserSummary(userID: "@completed:example.org", isAdministrator: false, isDeactivated: false, isGuest: false, userType: nil),
+        ]
+        let transport = RecordingAdminTransport(responses: [
+            .json(status: 200, body: ["admin": true]),
+            .json(status: 200, body: [
+                "status": "pending",
+                "request_id": "01234567-89AB-CDEF-0123-456789ABCDEF",
+                "requested_at_ms": 1_786_000_000_000,
+            ]),
+            .json(status: 200, body: [
+                "status": "completed",
+                "request_id": "11234567-89AB-CDEF-0123-456789ABCDEF",
+                "requested_at_ms": 1_786_000_000_100,
+            ]),
+        ])
+        let client = MatrixSynapseAdminClient(
+            homeserver: URL(string: "https://synapse.example.org")!,
+            currentUserID: "@operator:example.org",
+            accessToken: "secret-token-material",
+            transport: transport
+        )
+
+        let requests = try await client.passwordResetRequests(users: users)
+
+        XCTAssertEqual(requests.map(\.userID), ["@pending:example.org"])
+    }
+
+    func testAdministratorResetRevalidatesPendingRequestAndPreservesRole() async throws {
+        let target = "@member:example.org"
+        let requestID = "01234567-89AB-CDEF-0123-456789ABCDEF"
+        let account: [String: Any] = [
+            "name": target,
+            "admin": false,
+            "deactivated": false,
+            "is_guest": false,
+            "approved": true,
+            "locked": false,
+            "password_hash": "old-hash-redacted",
+            "user_type": NSNull(),
+        ]
+        var verified = account
+        verified["password_hash"] = "new-hash-redacted"
+        let transport = RecordingAdminTransport(responses: [
+            .json(status: 200, body: ["admin": true]),
+            .json(status: 200, body: [
+                "status": "pending", "request_id": requestID, "requested_at_ms": 1_786_000_000_000,
+            ]),
+            .json(status: 200, body: account),
+            .json(status: 200, body: account),
+            .json(status: 200, body: verified),
+        ])
+        let client = MatrixSynapseAdminClient(
+            homeserver: URL(string: "https://synapse.example.org")!,
+            currentUserID: "@operator:example.org",
+            accessToken: "secret-token-material",
+            transport: transport
+        )
+
+        try await client.resetPassword(
+            for: MatrixPasswordResetRequest(userID: target, requestID: requestID, requestedAtMilliseconds: 1_786_000_000_000),
+            temporaryPassword: "replacement-password-value"
+        )
+
+        let requests = await transport.requests()
+        XCTAssertEqual(requests.map(\.httpMethod), ["GET", "GET", "GET", "PUT", "GET"])
+        let resetBody = try XCTUnwrap(requests[3].httpBody)
+        let resetJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: resetBody) as? [String: Any])
+        XCTAssertEqual(resetJSON["admin"] as? Bool, false)
+        XCTAssertEqual(resetJSON["approved"] as? Bool, true)
+        XCTAssertEqual(resetJSON["logout_devices"] as? Bool, true)
+        XCTAssertEqual(resetJSON["password"] as? String, "replacement-password-value")
+    }
+
     func testRoomPurgeRequestsBlockPurgeAndForcePurge() async throws {
         let transport = RecordingAdminTransport(responses: [
             .json(status: 200, body: [:]),

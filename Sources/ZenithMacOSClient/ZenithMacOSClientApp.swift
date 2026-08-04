@@ -96,11 +96,16 @@ final class MatrixAppModel: ObservableObject {
     @Published var savedCredentials: [HyphaMatrixCredentialDescriptor] = []
     @Published var activeSessionAccountKey: String?
     @Published private(set) var requiresInitialPasswordReset = false
+    @Published private(set) var hasPendingHomeserverPasswordResetRequest = false
     @Published private(set) var isAuthenticationOperationInFlight = false
     @Published private(set) var adminAccessState: MatrixAppAdminAccessState = .unknown
     @Published private(set) var adminSnapshot: MatrixAdminSnapshot?
+    @Published private(set) var adminPasswordResetRequests: [MatrixPasswordResetRequest] = []
+    @Published private(set) var issuedPasswordResetRequestIDs: Set<String> = []
     @Published private(set) var isAdminOperationInFlight = false
     @Published var adminMessage: String?
+    @Published private(set) var isPasswordResetRequestInFlight = false
+    @Published private(set) var passwordResetRequestMessage: String?
 
     private static let homeserverDefaultsKey = "ca.zenithresearch.macos.client.matrix.homeserver"
     private static let legacyHomeserverDefaultsKey = [
@@ -227,6 +232,7 @@ final class MatrixAppModel: ObservableObject {
         savedCredentials = []
         activeSessionAccountKey = nil
         requiresInitialPasswordReset = false
+        hasPendingHomeserverPasswordResetRequest = false
         username = ""
         password = ""
         savePasswordToApplePasswords = false
@@ -343,13 +349,20 @@ final class MatrixAppModel: ObservableObject {
         await refreshAdministratorAccess()
         if let configuration = activeConfiguration {
             refreshSavedSessions(configuration: configuration)
-            if case .rooms = state,
-               let candidateAccountKey,
-               MatrixInitialPasswordResetPolicy.requiresReset(
-                   authenticationMethod: .manualPassword,
-                   hadExistingSession: hadExistingSession
-               ) {
-                markInitialPasswordResetRequired(accountKey: candidateAccountKey)
+            if case .rooms = state, let candidateAccountKey {
+                let serverRequestPending: Bool
+                do {
+                    serverRequestPending = try await coordinator.hasPendingHomeserverPasswordResetRequest()
+                } catch {
+                    serverRequestPending = true
+                }
+                hasPendingHomeserverPasswordResetRequest = serverRequestPending
+                if serverRequestPending || MatrixInitialPasswordResetPolicy.requiresReset(
+                    authenticationMethod: .manualPassword,
+                    hadExistingSession: hadExistingSession
+                ) {
+                    markInitialPasswordResetRequired(accountKey: candidateAccountKey)
+                }
             }
             if case .rooms = state, shouldSaveInApplePasswords {
                 await saveInApplePasswords(
@@ -471,6 +484,7 @@ final class MatrixAppModel: ObservableObject {
         savePasswordToApplePasswords = false
         rooms = []
         requiresInitialPasswordReset = false
+        hasPendingHomeserverPasswordResetRequest = false
         resetSecurityState()
         resetAdministratorState()
         state = .signedOut(message: nil)
@@ -682,6 +696,12 @@ final class MatrixAppModel: ObservableObject {
         )
         switch result {
         case .success:
+            if hasPendingHomeserverPasswordResetRequest {
+                guard await coordinator.completeHomeserverPasswordResetRequest() else {
+                    return .failed("The password changed, but Hypha could not close the homeserver reset request. The new password is now your current password. Reconnect and replace it once more to finish safely.")
+                }
+                hasPendingHomeserverPasswordResetRequest = false
+            }
             if requiresInitialPasswordReset {
                 completeInitialPasswordReset()
             }
@@ -727,6 +747,19 @@ final class MatrixAppModel: ObservableObject {
         }
     }
 
+    func requestHomeserverPasswordReset() async {
+        guard let coordinator, !isPasswordResetRequestInFlight else { return }
+        isPasswordResetRequestInFlight = true
+        passwordResetRequestMessage = nil
+        defer { isPasswordResetRequestInFlight = false }
+        let accepted = await coordinator.requestHomeserverPasswordReset()
+        guard coordinator === self.coordinator else { return }
+        if accepted { hasPendingHomeserverPasswordResetRequest = true }
+        passwordResetRequestMessage = accepted
+            ? "Password reset requested from the homeserver. An administrator can now issue a temporary password."
+            : "The homeserver did not accept the reset request. Check your connection and try again."
+    }
+
     func refreshAdministratorAccess() async {
         guard let coordinator else {
             resetAdministratorState()
@@ -750,6 +783,12 @@ final class MatrixAppModel: ObservableObject {
             let snapshot = try await coordinator.administratorSnapshot()
             guard coordinator === self.coordinator else { return }
             adminSnapshot = snapshot
+            do {
+                adminPasswordResetRequests = try await coordinator.administratorPasswordResetRequests(users: snapshot.users)
+            } catch {
+                adminPasswordResetRequests = []
+                adminMessage = "Accounts loaded, but password reset requests could not be refreshed."
+            }
         } catch {
             applyAdministratorError(error)
         }
@@ -777,6 +816,32 @@ final class MatrixAppModel: ObservableObject {
                 "Created \(user.userID) as \(user.isAdministrator ? "an administrator" : "a user"). Hypha did not retain the temporary password.",
                 coordinator: coordinator
             )
+            return true
+        } catch {
+            applyAdministratorError(error)
+            return false
+        }
+    }
+
+    func resetAdministratorManagedPassword(
+        for request: MatrixPasswordResetRequest,
+        temporaryPassword: String
+    ) async -> Bool {
+        guard adminAccessState == .authorized,
+              let coordinator,
+              !isAdminOperationInFlight else { return false }
+        isAdminOperationInFlight = true
+        adminMessage = nil
+        defer { isAdminOperationInFlight = false }
+        do {
+            try await coordinator.resetAdministratorManagedPassword(
+                for: request,
+                temporaryPassword: temporaryPassword
+            )
+            guard coordinator === self.coordinator else { return false }
+            issuedPasswordResetRequestIDs.insert(request.id)
+            clearLocalSessions(for: request.userID)
+            adminMessage = "Issued a temporary password for \(request.userID), logged out existing devices, and preserved the account role. The authenticated request remains visible but cannot be reset again in this administrator session while the user completes replacement."
             return true
         } catch {
             applyAdministratorError(error)
@@ -915,6 +980,8 @@ final class MatrixAppModel: ObservableObject {
     private func resetAdministratorState() {
         adminAccessState = .unknown
         adminSnapshot = nil
+        adminPasswordResetRequests = []
+        issuedPasswordResetRequestIDs = []
         isAdminOperationInFlight = false
         adminMessage = nil
     }
@@ -1168,6 +1235,7 @@ private struct MatrixCompanionShell: View {
     @State private var showsPasswordChange = false
     @State private var showsAdministration = false
     @State private var showsSettings = false
+    @State private var showsPasswordResetRequestConfirmation = false
     @State private var roomPendingRemoval: MatrixRoomSummary?
     @State private var roomPendingAcceptance: MatrixRoomSummary?
     @State private var roomPendingDecline: MatrixRoomSummary?
@@ -1237,7 +1305,7 @@ private struct MatrixCompanionShell: View {
                         }
                     }
             }
-            .frame(minWidth: 480, idealWidth: 520, minHeight: 260)
+            .frame(minWidth: 480, idealWidth: 520, minHeight: 360)
         }
         .sheet(isPresented: $showsSecurityCenter) {
             NavigationStack {
@@ -1558,6 +1626,38 @@ private struct MatrixCompanionShell: View {
 
     private var settingsView: some View {
         Form {
+            Section("Account & Password") {
+                Button {
+                    showsSettings = false
+                    Task {
+                        await Task.yield()
+                        showsPasswordChange = true
+                    }
+                } label: {
+                    Label("Change password", systemImage: "key")
+                }
+                .accessibilityIdentifier("matrix.password.change.settings")
+
+                Button {
+                    showsPasswordResetRequestConfirmation = true
+                } label: {
+                    Label("Request homeserver password reset", systemImage: "person.badge.key")
+                }
+                .disabled(model.isPasswordResetRequestInFlight)
+                .accessibilityIdentifier("matrix.password.reset.request")
+
+                Text("Request a reset only when an administrator needs to issue a temporary password. The request contains no password or credential material.")
+                    .font(.caption)
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+
+                if let message = model.passwordResetRequestMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .accessibilityIdentifier("matrix.password.reset.request.status")
+                }
+            }
+
             Section("Application Updates") {
                 Text("Pull the latest main branch from the canonical Hypha GitHub remote, rebuild the app locally, verify it, and install it in place.")
                     .font(.callout)
@@ -1592,6 +1692,18 @@ private struct MatrixCompanionShell: View {
         }
         .formStyle(.grouped)
         .padding(ZenithDesign.Space.x3)
+        .confirmationDialog(
+            "Request a homeserver password reset?",
+            isPresented: $showsPasswordResetRequestConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Request reset") {
+                Task { await model.requestHomeserverPasswordReset() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("A homeserver administrator will be able to replace your password with a temporary password and log out your existing devices. No password is included in the request.")
+        }
     }
 
     private var accountSwitcher: some View {

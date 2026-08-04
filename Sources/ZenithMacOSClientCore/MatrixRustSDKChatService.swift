@@ -499,12 +499,40 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
     }
 
+    public func requestHomeserverPasswordReset() async throws -> MatrixPasswordResetRequest {
+        try await administratorClient().requestPasswordReset()
+    }
+
+    public func hasPendingHomeserverPasswordResetRequest() async throws -> Bool {
+        try await administratorClient().currentPasswordResetRequest() != nil
+    }
+
+    public func completeHomeserverPasswordResetRequest() async throws {
+        try await administratorClient().completePasswordResetRequest()
+    }
+
     public func isHomeserverAdministrator() async throws -> Bool {
         try await administratorClient().isAdministrator()
     }
 
     public func administratorSnapshot() async throws -> MatrixAdminSnapshot {
         try await administratorClient().snapshot()
+    }
+
+    public func administratorPasswordResetRequests(
+        users: [MatrixAdminUserSummary]
+    ) async throws -> [MatrixPasswordResetRequest] {
+        try await administratorClient().passwordResetRequests(users: users)
+    }
+
+    public func resetAdministratorManagedPassword(
+        for request: MatrixPasswordResetRequest,
+        temporaryPassword: String
+    ) async throws {
+        try await administratorClient().resetPassword(
+            for: request,
+            temporaryPassword: temporaryPassword
+        )
     }
 
     public func createAdministratorManagedAccount(

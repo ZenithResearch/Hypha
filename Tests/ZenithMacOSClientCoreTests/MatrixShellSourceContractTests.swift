@@ -1085,6 +1085,45 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(build.contains("update-from-main.sh"))
     }
 
+    func testUserAndAdministratorSettingsExposeHomeserverPasswordResetWorkflow() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let repositoryRoot = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let shell = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+        let administration = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Sources/ZenithMacOSClient/MatrixAdminSheet.swift"),
+            encoding: .utf8
+        )
+        let service = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Sources/ZenithMacOSClientCore/MatrixSynapseAdminClient.swift"),
+            encoding: .utf8
+        )
+
+        for marker in [
+            "Section(\"Account & Password\")",
+            "Change password",
+            "Request homeserver password reset",
+            "matrix.password.reset.request",
+        ] {
+            XCTAssertTrue(shell.contains(marker), "Missing user Settings reset marker: \(marker)")
+        }
+        for marker in [
+            "PASSWORD RESET REQUESTS",
+            "Reset temporary password",
+            "matrix.admin.password-reset",
+            "Passwords match",
+        ] {
+            XCTAssertTrue(administration.contains(marker), "Missing administrator reset marker: \(marker)")
+        }
+        XCTAssertTrue(service.contains("ca.zenithresearch.hypha.password_reset_request"))
+        XCTAssertTrue(service.contains("logout_devices"))
+    }
+
     func testPasswordEntrySupportsVisibilityAndInlineConfirmationChecks() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let repositoryRoot = testFile
