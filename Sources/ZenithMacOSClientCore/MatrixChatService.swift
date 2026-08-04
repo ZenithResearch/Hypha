@@ -818,23 +818,31 @@ public final class MatrixChatCoordinator {
         }
     }
 
-    public func acceptInvitation(to room: MatrixRoomSummary) async -> Bool {
-        guard room.hasInvite, chatAuthority == .available else { return false }
+    public func acceptInvitation(to room: MatrixRoomSummary) async -> [MatrixRoomSummary]? {
+        guard room.hasInvite, chatAuthority == .available else { return nil }
         do {
             try await service.acceptInvitation(roomID: room.id)
-            return true
+            let rooms = try await service.refreshRooms()
+            if case .rooms = state {
+                state = .rooms(rooms)
+            }
+            return rooms
         } catch {
-            return false
+            return nil
         }
     }
 
-    public func declineInvitation(to room: MatrixRoomSummary) async -> Bool {
-        guard room.hasInvite, chatAuthority == .available else { return false }
+    public func declineInvitation(to room: MatrixRoomSummary) async -> [MatrixRoomSummary]? {
+        guard room.hasInvite, chatAuthority == .available else { return nil }
         do {
             try await service.declineInvitation(roomID: room.id)
-            return true
+            let rooms = try await service.refreshRooms()
+            if case .rooms = state {
+                state = .rooms(rooms)
+            }
+            return rooms
         } catch {
-            return false
+            return nil
         }
     }
 

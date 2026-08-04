@@ -1152,4 +1152,19 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(administration.contains("temporaryPassword == passwordConfirmation"))
         XCTAssertTrue(app.contains("newPassword == confirmation"))
     }
+
+    func testInvitationAndJoinedRoomRowsUseDistinctSwiftUIIdentities() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let repositoryRoot = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let app = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Sources/ZenithMacOSClient/ZenithMacOSClientApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(app.contains(#"matrix.invitation.\(room.id)"#))
+        XCTAssertTrue(app.contains(#"matrix.joined-room.\(room.id)"#))
+    }
 }

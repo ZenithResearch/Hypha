@@ -195,28 +195,47 @@ final class MatrixRoomInvitationTests: XCTestCase {
         )
     }
 
-    func testCoordinatorAcceptsAndDeclinesOnlyPendingInvitationsWithoutMutatingRoomsBeforeSync() async {
-        let service = InviteRecordingService()
-        let coordinator = MatrixChatCoordinator(service: service)
+    func testCoordinatorAcceptsPendingInvitationAndRefreshesAuthoritativeRooms() async {
         let pending = MatrixRoomSummary(
             id: "!pending:example.org", name: "Pending", isEncrypted: true, hasInvite: true
         )
+        let joined = MatrixRoomSummary(
+            id: pending.id, name: pending.name, isEncrypted: true, hasInvite: false
+        )
+        let service = InviteRecordingService(
+            signInRooms: [pending],
+            refreshedRooms: [joined]
+        )
+        let coordinator = MatrixChatCoordinator(service: service)
         let ordinary = MatrixRoomSummary(
             id: "!joined:example.org", name: "Joined", isEncrypted: true, hasInvite: false
         )
+        await coordinator.signIn(username: "alice", password: "not-logged")
 
         let rejected = await coordinator.acceptInvitation(to: ordinary)
         let accepted = await coordinator.acceptInvitation(to: pending)
 
-        XCTAssertFalse(rejected)
-        XCTAssertTrue(accepted)
+        XCTAssertNil(rejected)
+        XCTAssertEqual(accepted, [joined])
         XCTAssertEqual(service.acceptedRoomIDs, [pending.id])
-        XCTAssertEqual(coordinator.state, .signedOut(message: nil))
-        let declineRejected = await coordinator.declineInvitation(to: ordinary)
-        let declined = await coordinator.declineInvitation(to: pending)
-        XCTAssertFalse(declineRejected)
-        XCTAssertTrue(declined)
+        XCTAssertEqual(service.refreshRoomsCallCount, 1)
+        XCTAssertEqual(coordinator.state, .rooms([joined]))
+    }
+
+    func testCoordinatorDeclinesPendingInvitationAndRefreshesAuthoritativeRooms() async {
+        let pending = MatrixRoomSummary(
+            id: "!pending:example.org", name: "Pending", isEncrypted: true, hasInvite: true
+        )
+        let service = InviteRecordingService(signInRooms: [pending], refreshedRooms: [])
+        let coordinator = MatrixChatCoordinator(service: service)
+        await coordinator.signIn(username: "alice", password: "not-logged")
+
+        let refreshedRooms = await coordinator.declineInvitation(to: pending)
+
+        XCTAssertEqual(refreshedRooms, [])
         XCTAssertEqual(service.declinedRoomIDs, [pending.id])
+        XCTAssertEqual(service.refreshRoomsCallCount, 1)
+        XCTAssertEqual(coordinator.state, .rooms([]))
     }
 }
 
@@ -225,14 +244,27 @@ private final class InviteRecordingService: MatrixChatService, @unchecked Sendab
     var lookupRequests: [String] = []
     var acceptedRoomIDs: [String] = []
     var declinedRoomIDs: [String] = []
+    var refreshRoomsCallCount = 0
     let lookupResult: MatrixUserLookupResult
+    let signInRooms: [MatrixRoomSummary]
+    let refreshedRooms: [MatrixRoomSummary]
 
-    init(lookupResult: MatrixUserLookupResult = .unavailable) {
+    init(
+        lookupResult: MatrixUserLookupResult = .unavailable,
+        signInRooms: [MatrixRoomSummary] = [],
+        refreshedRooms: [MatrixRoomSummary] = []
+    ) {
         self.lookupResult = lookupResult
+        self.signInRooms = signInRooms
+        self.refreshedRooms = refreshedRooms
     }
 
     func restore() async throws -> [MatrixRoomSummary] { [] }
-    func signIn(username: String, password: String) async throws -> [MatrixRoomSummary] { [] }
+    func signIn(username: String, password: String) async throws -> [MatrixRoomSummary] { signInRooms }
+    func refreshRooms() async throws -> [MatrixRoomSummary] {
+        refreshRoomsCallCount += 1
+        return refreshedRooms
+    }
     func timeline(for roomID: String) async throws -> [MatrixTimelineEvent] { [] }
     func sendText(_ body: String, to roomID: String) async throws {}
     func lookupInviteUser(userID: String, roomID: String) async throws -> MatrixUserLookupResult {
