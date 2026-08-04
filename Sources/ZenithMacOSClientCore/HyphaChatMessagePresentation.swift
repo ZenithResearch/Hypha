@@ -18,12 +18,23 @@ public struct HyphaChatMessagePresentation: Equatable, Sendable {
             case critical
         }
 
+        public enum DisplayStyle: Equatable, Sendable {
+            case iconOnly
+            case detailed
+        }
+
         public let severity: Severity
         public let label: String
+        public let displayStyle: DisplayStyle
 
-        public init(severity: Severity, label: String) {
+        public init(
+            severity: Severity,
+            label: String,
+            displayStyle: DisplayStyle = .detailed
+        ) {
             self.severity = severity
             self.label = label
+            self.displayStyle = displayStyle
         }
     }
 
@@ -47,7 +58,8 @@ public struct HyphaChatMessagePresentation: Equatable, Sendable {
         senderDisplayName = event.senderDisplayName
         isGroupedWithPrevious = Self.canGroup(event, with: previousEvent)
         isGroupedWithNext = Self.canGroup(event, with: nextEvent)
-        showsSender = !event.isOwn && !isGroupedWithPrevious
+        showsSender = !event.isOwn
+            && (!isGroupedWithPrevious || Self.requiresExplicitSender(event.authenticity))
 
         let formatter = DateFormatter()
         formatter.locale = locale
@@ -81,6 +93,17 @@ public struct HyphaChatMessagePresentation: Equatable, Sendable {
             && event.senderID == adjacentEvent.senderID
     }
 
+    private static func requiresExplicitSender(
+        _ authenticity: MatrixEventAuthenticity
+    ) -> Bool {
+        switch authenticity {
+        case .unknownDevice, .unsignedDevice:
+            true
+        default:
+            false
+        }
+    }
+
     private static func authenticityPresentation(
         for authenticity: MatrixEventAuthenticity
     ) -> Authenticity? {
@@ -95,12 +118,14 @@ public struct HyphaChatMessagePresentation: Equatable, Sendable {
         case .unknownDevice:
             Authenticity(
                 severity: .warning,
-                label: "Encrypted by an unknown device"
+                label: "Encrypted by an unknown device",
+                displayStyle: .iconOnly
             )
         case .unsignedDevice:
             Authenticity(
                 severity: .warning,
-                label: "Encrypted by a device not verified by its owner"
+                label: "Encrypted by a device not verified by its owner",
+                displayStyle: .iconOnly
             )
         case .unverifiedIdentity:
             Authenticity(
