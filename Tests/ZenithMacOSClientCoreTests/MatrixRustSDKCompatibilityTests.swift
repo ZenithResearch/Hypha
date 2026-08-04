@@ -113,6 +113,38 @@ final class MatrixRustSDKCompatibilityTests: XCTestCase {
         XCTAssertFalse(source.contains("client.encryption().recover(recoveryKey: recoveryKey)"))
     }
 
+    func testRemoteSendAcknowledgementRejectsLocalEchoesAndPreexistingEvents() {
+        let preexisting = MatrixTimelineEvent(
+            id: "$old",
+            senderDisplayName: "Me",
+            content: .text("same body"),
+            isOwn: true
+        )
+        let localEcho = MatrixTimelineEvent(
+            id: "txn-new",
+            senderDisplayName: "Me",
+            content: .text("same body"),
+            isOwn: true
+        )
+        let remoteEcho = MatrixTimelineEvent(
+            id: "$new",
+            senderDisplayName: "Me",
+            content: .text("same body"),
+            isOwn: true
+        )
+
+        XCTAssertFalse(MatrixRustLiveClient.hasRemoteSendAcknowledgement(
+            events: [preexisting, localEcho],
+            baselineEventIDs: [preexisting.id],
+            body: "same body"
+        ))
+        XCTAssertTrue(MatrixRustLiveClient.hasRemoteSendAcknowledgement(
+            events: [preexisting, localEcho, remoteEcho],
+            baselineEventIDs: [preexisting.id],
+            body: "same body"
+        ))
+    }
+
     func testLiveTimelineMapperExposesDecryptedTextAndUnableToDecryptEvents() {
         let text = makeTimelineEvent(
             id: "$text",

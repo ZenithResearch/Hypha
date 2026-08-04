@@ -1915,7 +1915,37 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
         guard let content = binding.timeline.createMessageContent(msgType: messageType) else {
             throw MatrixChatServiceError.unavailable(reason: "Unable to encode Matrix message")
         }
+        let baselineEventIDs = Set(await binding.store.snapshot().map(\.id))
         _ = try await binding.timeline.send(msg: content)
+        for _ in 0..<100 {
+            let events = await binding.store.snapshot()
+            if Self.hasRemoteSendAcknowledgement(
+                events: events,
+                baselineEventIDs: baselineEventIDs,
+                body: body
+            ) {
+                return
+            }
+            try Task.checkCancellation()
+            try await Task<Never, Never>.sleep(for: .milliseconds(100))
+        }
+        throw MatrixChatServiceError.unavailable(
+            reason: "The homeserver did not confirm the encrypted message"
+        )
+    }
+
+    static func hasRemoteSendAcknowledgement(
+        events: [MatrixTimelineEvent],
+        baselineEventIDs: Set<String>,
+        body: String
+    ) -> Bool {
+        events.contains { event in
+            guard event.isOwn,
+                  !event.id.hasPrefix("txn-"),
+                  !baselineEventIDs.contains(event.id),
+                  case let .text(value) = event.content else { return false }
+            return value == body
+        }
     }
 
     private func timelineBinding(roomID: String) async throws -> MatrixTimelineBinding {
