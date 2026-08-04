@@ -42,6 +42,27 @@ final class HyphaChatMessagePresentationTests: XCTestCase {
         XCTAssertTrue(presentation.isGroupedWithPrevious)
     }
 
+    func testPeerMessagesFromUnverifiedDevicesAlwaysShowSenderEvenWhenGrouped() {
+        let previous = makeEvent(id: "$previous", sender: "Alice")
+
+        for authenticity in [
+            MatrixEventAuthenticity.unknownDevice,
+            MatrixEventAuthenticity.unsignedDevice,
+        ] {
+            let event = makeEvent(sender: "Alice", authenticity: authenticity)
+            let presentation = HyphaChatMessagePresentation(
+                event: event,
+                previousEvent: previous
+            )
+
+            XCTAssertTrue(
+                presentation.showsSender,
+                "Sender must remain visible for \(authenticity)"
+            )
+            XCTAssertEqual(presentation.senderDisplayName, "Alice")
+        }
+    }
+
     func testMessagesWithSameDisplayNameButDifferentDirectionDoNotGroup() {
         let previous = makeEvent(id: "$previous", sender: "Alex", isOwn: true)
         let event = makeEvent(sender: "Alex", isOwn: false)
@@ -103,11 +124,13 @@ final class HyphaChatMessagePresentationTests: XCTestCase {
             )),
             (.unknownDevice, .init(
                 severity: .warning,
-                label: "Encrypted by an unknown device"
+                label: "Encrypted by an unknown device",
+                displayStyle: .iconOnly
             )),
             (.unsignedDevice, .init(
                 severity: .warning,
-                label: "Encrypted by a device not verified by its owner"
+                label: "Encrypted by a device not verified by its owner",
+                displayStyle: .iconOnly
             )),
             (.unverifiedIdentity, .init(
                 severity: .warning,
@@ -131,6 +154,23 @@ final class HyphaChatMessagePresentationTests: XCTestCase {
             let event = makeEvent(authenticity: authenticity)
             XCTAssertEqual(HyphaChatMessagePresentation(event: event).authenticity, expected)
         }
+    }
+
+    func testUnknownAndUnsignedDeviceWarningsUseIconOnlyPresentation() {
+        for authenticity in [
+            MatrixEventAuthenticity.unknownDevice,
+            MatrixEventAuthenticity.unsignedDevice,
+        ] {
+            let presentation = HyphaChatMessagePresentation(
+                event: makeEvent(authenticity: authenticity)
+            )
+            XCTAssertEqual(presentation.authenticity?.displayStyle, .iconOnly)
+        }
+
+        let identityWarning = HyphaChatMessagePresentation(
+            event: makeEvent(authenticity: .unverifiedIdentity)
+        )
+        XCTAssertEqual(identityWarning.authenticity?.displayStyle, .detailed)
     }
 
     private func makeEvent(

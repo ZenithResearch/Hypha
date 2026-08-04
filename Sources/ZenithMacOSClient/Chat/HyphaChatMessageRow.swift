@@ -42,15 +42,26 @@ struct HyphaChatMessageRow: View {
                     messageContent
 
                     if let authenticity = presentation.authenticity {
-                        VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
-                            Label(authenticity.label, systemImage: authenticitySymbol(for: authenticity))
-                                .font(ZenithDesign.Typography.technical(.caption, weight: .semibold))
-                                .foregroundStyle(authenticityColor(for: authenticity))
-                            Text(authenticityGuidance(for: authenticity))
-                                .font(ZenithDesign.Typography.corporate(.caption))
-                                .foregroundStyle(ZenithDesign.Palette.muted)
+                        Group {
+                            switch authenticity.displayStyle {
+                            case .iconOnly:
+                                Image(systemName: authenticitySymbol(for: authenticity))
+                                    .font(ZenithDesign.Typography.technical(.caption, weight: .semibold))
+                                    .foregroundStyle(authenticityColor(for: authenticity))
+                                    .help(authenticity.label)
+                                    .accessibilityLabel(authenticity.label)
+                            case .detailed:
+                                VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                                    Label(authenticity.label, systemImage: authenticitySymbol(for: authenticity))
+                                        .font(ZenithDesign.Typography.technical(.caption, weight: .semibold))
+                                        .foregroundStyle(authenticityColor(for: authenticity))
+                                    Text(authenticityGuidance(for: authenticity))
+                                        .font(ZenithDesign.Typography.corporate(.caption))
+                                        .foregroundStyle(ZenithDesign.Palette.muted)
+                                }
+                                .fixedSize(horizontal: false, vertical: true)
+                            }
                         }
-                        .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("matrix.timeline.authenticity")
                     }
                 }
