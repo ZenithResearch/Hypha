@@ -46,7 +46,7 @@ CRITICAL_POLICY_HASHES = {
     ".github/workflows/release.yml": "1b367d4ab751037e3929b39996e6ad069a2853f2cd56d665a5ecdc2a0710dfc5",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
     "build-app.sh": "18117caee0f2b49dd5f64804f8a9c2921768ad65bbafc4c00c10846c5ff23738",
-    "release/encryption-gate.json": "5e23e48c27aea614a062da5354ed7c166d344ba8d00dbd87dd55cec889ce5a7a",
+    "release/encryption-gate.json": "6aac43d006072c05c3ecc65ec05490e2c24acc76c3aa85bc146473e6f9a9e1c6",
     "scripts/package-release.sh": "7c6c5b91bb992f93d4dce0dff5a8c4e9819cd8c5d57c6bae48f43c5e2b8258d3",
     "scripts/write_release_metadata.py": "d0f6cdca5dc39d7ecb537a94d0dd5ac1696d51838641ba8d3a4bfb6ed79054a1",
     "scripts/test_release_metadata.py": "1b6b5590fe095352fd2a47f10c81973af6f08422a509621ecd3fe79dbea34f93",

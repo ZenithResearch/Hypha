@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "status": "passed",
-  "commit_sha": "292d858ce32b49ebe84a69421661f486a0ef7e23",
-  "verified_at": "2026-08-05T00:46:18Z",
+  "commit_sha": "e715c4693ed86a19cf129c04d20fbf2cf4a2ef1d",
+  "verified_at": "2026-08-05T04:26:10Z",
   "homeserver": "synapse.zenith-research.ca",
   "test": "MatrixLiveSessionSmokeTests.testLiveEncryptedRoomSharesKeysWithNewlyJoinedPeer",
   "evidence": {
