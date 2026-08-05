@@ -42,9 +42,14 @@ BINARY_HASHES = {
     "Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip": SDK_SHA256,
 }
 CRITICAL_POLICY_HASHES = {
-    ".github/workflows/ci.yml": "7619938b56be3dc9f8ababf0446a2a26f2da2dc43e37f0f8974c0b965f9bc195",
+    ".github/workflows/ci.yml": "bd2efdc5760135e9227f0ed20c5275adf93f98f332445efdd2506fe858cca1b4",
+    ".github/workflows/release.yml": "28c69e4e4835a3ddba1b12ce9bb13a0ab15353cf40d3e1444d06d8cffca1ccc6",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
-    "build-app.sh": "88a2a87efa0ea9dcb9ab1a25446f5e43089a132a30bb3b885e9c636ca797984a",
+    "build-app.sh": "9f6163f41e1c83ac3e340317c30ea94c672e864757ef700d40b2b60bf0aa88cd",
+    "release/encryption-gate.json": "5e23e48c27aea614a062da5354ed7c166d344ba8d00dbd87dd55cec889ce5a7a",
+    "scripts/package-release.sh": "37ae4213530eda3560164caf9bd868fa15756eb1b8af3c16f68a7732d1600d7b",
+    "scripts/write_release_metadata.py": "11932e621543c206c17c34c5a54cc818ddf321de49e037f52bb8467ea86b8802",
+    "scripts/test_release_metadata.py": "c938e695e1967d03065d2f4f9558ac42faca85908746cb3af7532a52b54f388e",
     "scripts/verify_app_licenses.py": "62cedfdd0c4590c79ec3d66d1f38fe61caee767403d5629c13107697190823ce",
     "scripts/generate_zenith_icon.py": "f91f71cdf8309fe9217e06cafd0477c32faa380c66b4f31feedc8d0944250b18",
     "Resources/ZenithOSIcon.svg": "b553714e443d6ab856295676f92ee363d9b9ccfb8a0a6711e73ce9780fe2ac78",
@@ -252,18 +257,30 @@ for path in workflow_paths:
     workflow = path.read_text(encoding="utf-8")
     require("pull_request_target" not in workflow, f"unsafe public-fork trigger: {path.name}")
     parsed_workflow = parse_workflow(path)
-    validate_permissions(parsed_workflow.get("permissions"), path.name)
     jobs = parsed_workflow.get("jobs")
     if not isinstance(jobs, dict) or not jobs:
         raise SystemExit(f"workflow jobs missing: {path.name}")
+    assert isinstance(jobs, dict)
     for job_name, job in jobs.items():
         validate_job(job, f"{path.name}:{job_name}")
     trigger = parsed_workflow.get("on", parsed_workflow.get("true"))
     if not isinstance(trigger, dict):
         raise SystemExit(f"workflow trigger mapping missing: {path.name}")
-    require("pull_request" in trigger, f"pull-request scan missing: {path.name}")
     require("pull_request_target" not in trigger, f"privileged pull_request_target trigger: {path.name}")
-    require("push" in trigger and trigger["push"] is None, f"push scan must cover every branch: {path.name}")
+    if path.name == "ci.yml":
+        validate_permissions(parsed_workflow.get("permissions"), path.name)
+        require("pull_request" in trigger, f"pull-request scan missing: {path.name}")
+        require("push" in trigger and trigger["push"] is None, f"push scan must cover every branch: {path.name}")
+    elif path.name == "release.yml":
+        require(set(trigger) == {"push"}, "release workflow must be tag-push only")
+        push_trigger = trigger.get("push")
+        require(isinstance(push_trigger, dict), "release push trigger must be a mapping")
+        require(push_trigger.get("tags") == ["v[0-9]*.[0-9]*.[0-9]*"], "release tag allowlist changed")
+        require(parsed_workflow.get("permissions") == {"contents": "write"}, "release permission must be contents: write only")
+        require(set(jobs) == {"release"}, "release workflow must contain one release job")
+        require(jobs["release"].get("environment") == "release", "release job must use the protected release environment")
+    else:
+        raise SystemExit(f"unreviewed workflow: {path.name}")
 require("permissions:\n  contents: read" in text(".github/workflows/ci.yml"), "CI top-level contents: read missing")
 ci_workflow = text(".github/workflows/ci.yml")
 require("fetch-depth: 0" in ci_workflow, "history scanner requires full checkout")

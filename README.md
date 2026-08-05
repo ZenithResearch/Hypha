@@ -62,6 +62,10 @@ xcrun swift scripts/migrate_legacy_local_identity.swift
 
 The tool copies the sandboxed encrypted Matrix store, homeserver preference, and Keychain records into the renamed identity without printing secret values. It verifies the renamed Keychain records and keeps the legacy container as a rollback copy. Distribution outside this development workflow requires an installer or updater that performs the same migration before launching the renamed sandbox.
 
+## Releases
+
+Downloadable builds are published on [GitHub Releases](https://github.com/ZenithResearch/Hypha/releases) only after the live two-account encryption gate, Developer ID signing, Apple notarization, stapling, Gatekeeper assessment, and checksum verification pass. See the [release process](docs/release.md) for the exact automation, metadata, and download-verification contract.
+
 ## Security and interoperability
 
 - [Security model](docs/security-model.md)

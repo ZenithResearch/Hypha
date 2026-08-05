@@ -498,6 +498,53 @@ final class MatrixShellSourceContractTests: XCTestCase {
         }
     }
 
+    func testTagReleaseRequiresEncryptionGateDeveloperIDNotarizationAndChecksummedMetadata() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let workflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/release.yml"),
+            encoding: .utf8
+        )
+        let packageScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/package-release.sh"),
+            encoding: .utf8
+        )
+        let metadataScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/write_release_metadata.py"),
+            encoding: .utf8
+        )
+        let gate = try String(
+            contentsOf: root.appendingPathComponent("release/encryption-gate.json"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(workflow.contains("tags:"))
+        XCTAssertFalse(workflow.contains("pull_request:"))
+        XCTAssertFalse(workflow.contains("workflow_dispatch:"))
+        XCTAssertTrue(workflow.contains("contents: write"))
+        XCTAssertTrue(workflow.contains("environment: release"))
+        XCTAssertTrue(workflow.contains("git merge-base --is-ancestor"))
+        XCTAssertTrue(workflow.contains("git diff --quiet \"$gate_sha\" \"$GITHUB_SHA\" -- Package.swift Sources Vendor"))
+        XCTAssertTrue(workflow.contains("gitleaks_8.30.1_darwin_arm64.tar.gz"))
+        XCTAssertTrue(workflow.contains("b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5"))
+        XCTAssertTrue(workflow.contains("/tmp/gitleaks git ."))
+        XCTAssertTrue(workflow.contains("/tmp/gitleaks dir ."))
+        XCTAssertTrue(workflow.contains("Developer ID Application"))
+        XCTAssertTrue(packageScript.contains("notarytool"))
+        XCTAssertTrue(workflow.contains("gh release create"))
+        XCTAssertTrue(packageScript.contains("HYPHA_SIGNING_MODE=developer-id"))
+        XCTAssertTrue(packageScript.contains("stapler staple"))
+        XCTAssertTrue(packageScript.contains("SHA256SUMS"))
+        XCTAssertTrue(packageScript.contains("write_release_metadata.py"))
+        XCTAssertTrue(metadataScript.contains("archive_sha256"))
+        XCTAssertTrue(metadataScript.contains("encryption_gate"))
+        XCTAssertTrue(gate.contains("292d858ce32b49ebe84a69421661f486a0ef7e23"))
+        XCTAssertTrue(gate.contains("passed"))
+    }
+
     func testHostCompatibleSDKUsesKeychainBackedStorePassphrase() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
