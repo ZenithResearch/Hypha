@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "ZenithMacOSClient",
+    name: "Hypha",
     platforms: [.macOS("26.4")],
     products: [
-        .library(name: "ZenithMacOSClientCore", targets: ["ZenithMacOSClientCore"]),
-        .executable(name: "ZenithMacOSClient", targets: ["ZenithMacOSClient"])
+        .library(name: "HyphaCore", targets: ["HyphaCore"]),
+        .executable(name: "Hypha", targets: ["Hypha"])
     ],
     dependencies: [],
     targets: [
@@ -20,17 +20,17 @@ let package = Package(
             path: "Vendor/MatrixRustSDK/Sources/MatrixRustSDK"
         ),
         .target(
-            name: "ZenithMacOSClientCore",
+            name: "HyphaCore",
             dependencies: ["MatrixRustSDK"]
         ),
         .executableTarget(
-            name: "ZenithMacOSClient",
-            dependencies: ["ZenithMacOSClientCore"]
+            name: "Hypha",
+            dependencies: ["HyphaCore"]
         ),
         .testTarget(
-            name: "ZenithMacOSClientCoreTests",
+            name: "HyphaCoreTests",
             dependencies: [
-                "ZenithMacOSClientCore",
+                "HyphaCore",
                 "MatrixRustSDK"
             ]
         )
