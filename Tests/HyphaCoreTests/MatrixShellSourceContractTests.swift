@@ -498,7 +498,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         }
     }
 
-    func testTagReleaseRequiresEncryptionGateDeveloperIDNotarizationAndChecksummedMetadata() throws {
+    func testTagReleaseRequiresEncryptionGateExplicitSigningBoundaryChecksumsAndSourceNotice() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
             .deletingLastPathComponent()
@@ -524,6 +524,10 @@ final class MatrixShellSourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("release/encryption-gate.json"),
             encoding: .utf8
         )
+        let releaseNotice = try String(
+            contentsOf: root.appendingPathComponent("release/ADHOC_RELEASE_NOTICE.md"),
+            encoding: .utf8
+        )
 
         XCTAssertTrue(workflow.contains("tags:"))
         XCTAssertFalse(workflow.contains("pull_request:"))
@@ -536,12 +540,14 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(workflow.contains("b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5"))
         XCTAssertTrue(workflow.contains("/tmp/gitleaks git ."))
         XCTAssertTrue(workflow.contains("/tmp/gitleaks dir ."))
-        XCTAssertTrue(workflow.contains("Developer ID Application"))
+        XCTAssertFalse(workflow.contains("MACOS_CERTIFICATE_P12"))
+        XCTAssertFalse(workflow.contains("APPLE_API_KEY_P8"))
         XCTAssertTrue(packageScript.contains("notarytool"))
         XCTAssertTrue(workflow.contains("gh release create"))
-        XCTAssertTrue(workflow.contains("HYPHA_RELEASE_MODE: distributable"))
-        XCTAssertTrue(workflow.contains("Verify distributable release metadata"))
-        XCTAssertTrue(workflow.contains("rm -f \"$HYPHA_CERTIFICATE_PATH\" \"$HYPHA_NOTARY_KEY_PATH\""))
+        XCTAssertTrue(workflow.contains("HYPHA_RELEASE_MODE: adhoc"))
+        XCTAssertTrue(workflow.contains("HYPHA_ALLOW_NON_DISTRIBUTABLE_RELEASE: '1'"))
+        XCTAssertTrue(workflow.contains("Verify explicitly non-distributable release metadata"))
+        XCTAssertTrue(workflow.contains("--notes-file release/ADHOC_RELEASE_NOTICE.md"))
         XCTAssertTrue(packageScript.contains("HYPHA_SIGNING_MODE=developer-id"))
         XCTAssertTrue(packageScript.contains("merge-base --is-ancestor"))
         XCTAssertTrue(packageScript.contains("Package.swift Package.resolved Sources Vendor Resources scripts/update-from-main.sh build-app.sh"))
@@ -552,6 +558,9 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(metadataScript.contains("encryption_gate"))
         XCTAssertTrue(metadataScript.contains("homeserver"))
         XCTAssertTrue(buildScript.contains("--options runtime --timestamp"))
+        XCTAssertTrue(releaseNotice.contains("not notarized"))
+        XCTAssertTrue(releaseNotice.contains("Open Anyway"))
+        XCTAssertTrue(releaseNotice.contains("Source code"))
         XCTAssertTrue(gate.contains("e715c4693ed86a19cf129c04d20fbf2cf4a2ef1d"))
         XCTAssertTrue(gate.contains("passed"))
     }
