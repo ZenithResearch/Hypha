@@ -2,8 +2,8 @@
 
 ## Surfaces
 
-- `ZenithMacOSClient`: native SwiftUI application and macOS lifecycle.
-- `ZenithMacOSClientCore`: SDK-neutral product models, state machines, and adapter protocols.
+- `Hypha`: native SwiftUI application and macOS lifecycle.
+- `HyphaCore`: SDK-neutral product models, state machines, and adapter protocols.
 - `MatrixRustSDK` adapter: the sole production owner of Matrix networking, sync, session, crypto store, encrypted timelines, sends, device trust, verification, backup, and recovery.
 - Keychain/Application Support: session metadata, random encrypted-store key, and account-scoped durable crypto database.
 
@@ -19,12 +19,12 @@ Hypha-to-Hypha is the primary interoperability boundary. Element may be used as 
 
 ## Native atomic design system
 
-Hypha’s macOS interface keeps reusable presentation under `Sources/ZenithMacOSClient/DesignSystem/`:
+Hypha’s macOS interface keeps reusable presentation under `Sources/Hypha/DesignSystem/`:
 
 - **Atoms** own irreducible interactive treatments such as buttons, pointer/hover/press behavior, text-field styling, and semantic status messages.
 - **Molecules** compose atoms into one-purpose interface units such as the authentication identity header and saved-account action card.
 - **Organisms** own reusable surface composition such as the scrolling authentication shell, responsive spacing, navigation placement, and background treatment.
-- **Views** under `Sources/ZenithMacOSClient/Auth/` select organisms and bind application state. Matrix orchestration, credentials, account routing, and protocol authority remain outside the component library.
+- **Views** under `Sources/Hypha/Auth/` select organisms and bind application state. Matrix orchestration, credentials, account routing, and protocol authority remain outside the component library.
 
 The authentication landing, saved-account chooser, manual password sign-in, and invite-token account creation are separate routed views. Registration is exposed only after the credential-free capability probe advertises the exact invite-token flow. Leaving registration clears username, password, confirmation, and invite-token state. Manual password sign-in remains reachable independently of saved sessions or credentials.
 

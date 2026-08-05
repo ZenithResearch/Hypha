@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleDevelopmentRegion</key><string>en</string>
-  <key>CFBundleExecutable</key><string>ZenithMacOSClient</string>
+  <key>CFBundleExecutable</key><string>Hypha</string>
   <key>CFBundleIdentifier</key><string>ca.zenithresearch.macos.client</string>
   <key>CFBundleIconFile</key><string>ZenithOSIcon</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>

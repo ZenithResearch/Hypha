@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 APP="$ROOT/Hypha.app"
-EXECUTABLE="$APP/Contents/MacOS/ZenithMacOSClient"
+EXECUTABLE="$APP/Contents/MacOS/Hypha"
 HYPHA_SIGNING_MODE="${HYPHA_SIGNING_MODE:-development}"
 HYPHA_DEVELOPMENT_TEAM="${HYPHA_DEVELOPMENT_TEAM:-KR4YTNKK3Y}"
 
@@ -42,7 +42,7 @@ fi
 
 cd "$ROOT"
 export MACOSX_DEPLOYMENT_TARGET=26.4
-swift build -c release --product ZenithMacOSClient
+swift build -c release --product Hypha
 python3 - "$APP" <<'PY'
 import pathlib, shutil, sys
 app = pathlib.Path(sys.argv[1])
@@ -51,7 +51,7 @@ if app.exists():
 (app / "Contents" / "MacOS").mkdir(parents=True)
 (app / "Contents" / "Resources").mkdir(parents=True)
 PY
-cp "$ROOT/.build/release/ZenithMacOSClient" "$EXECUTABLE"
+cp "$ROOT/.build/release/Hypha" "$EXECUTABLE"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/Resources/ZenithOSIcon.icns" "$APP/Contents/Resources/ZenithOSIcon.icns"
 cp "$ROOT/scripts/update-from-main.sh" "$APP/Contents/Resources/update-from-main.sh"
@@ -66,7 +66,7 @@ printf 'Source: https://github.com/ZenithResearch/Hypha\nCommit: %s\n' "$(git -C
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 python3 "$ROOT/scripts/verify_app_dependencies.py" "$EXECUTABLE" "$APP"
 python3 "$ROOT/scripts/verify_app_licenses.py" "$ROOT" "$APP"
-codesign --force --deep --sign "$SIGNING_IDENTITY" --entitlements "$ROOT/Resources/ZenithMacOSClient.entitlements" "$APP"
+codesign --force --deep --sign "$SIGNING_IDENTITY" --entitlements "$ROOT/Resources/Hypha.entitlements" "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
 if [[ "$HYPHA_SIGNING_MODE" == "development" ]]; then
   ACTUAL_TEAM_ID="$(codesign -dv --verbose=4 "$APP" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2}')"
