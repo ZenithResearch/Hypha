@@ -512,6 +512,10 @@ final class MatrixShellSourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("scripts/package-release.sh"),
             encoding: .utf8
         )
+        let buildScript = try String(
+            contentsOf: root.appendingPathComponent("build-app.sh"),
+            encoding: .utf8
+        )
         let metadataScript = try String(
             contentsOf: root.appendingPathComponent("scripts/write_release_metadata.py"),
             encoding: .utf8
@@ -527,7 +531,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(workflow.contains("contents: write"))
         XCTAssertTrue(workflow.contains("environment: release"))
         XCTAssertTrue(workflow.contains("git merge-base --is-ancestor"))
-        XCTAssertTrue(workflow.contains("git diff --quiet \"$gate_sha\" \"$GITHUB_SHA\" -- Package.swift Sources Vendor"))
+        XCTAssertTrue(workflow.contains("git diff --quiet \"$gate_sha\" \"$GITHUB_SHA\" -- Package.swift Package.resolved Sources Vendor Resources scripts/update-from-main.sh build-app.sh"))
         XCTAssertTrue(workflow.contains("gitleaks_8.30.1_darwin_arm64.tar.gz"))
         XCTAssertTrue(workflow.contains("b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5"))
         XCTAssertTrue(workflow.contains("/tmp/gitleaks git ."))
@@ -535,12 +539,19 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(workflow.contains("Developer ID Application"))
         XCTAssertTrue(packageScript.contains("notarytool"))
         XCTAssertTrue(workflow.contains("gh release create"))
+        XCTAssertTrue(workflow.contains("HYPHA_RELEASE_MODE: distributable"))
+        XCTAssertTrue(workflow.contains("Verify distributable release metadata"))
+        XCTAssertTrue(workflow.contains("rm -f \"$HYPHA_CERTIFICATE_PATH\" \"$HYPHA_NOTARY_KEY_PATH\""))
         XCTAssertTrue(packageScript.contains("HYPHA_SIGNING_MODE=developer-id"))
+        XCTAssertTrue(packageScript.contains("merge-base --is-ancestor"))
+        XCTAssertTrue(packageScript.contains("Package.swift Package.resolved Sources Vendor Resources scripts/update-from-main.sh build-app.sh"))
         XCTAssertTrue(packageScript.contains("stapler staple"))
         XCTAssertTrue(packageScript.contains("SHA256SUMS"))
         XCTAssertTrue(packageScript.contains("write_release_metadata.py"))
         XCTAssertTrue(metadataScript.contains("archive_sha256"))
         XCTAssertTrue(metadataScript.contains("encryption_gate"))
+        XCTAssertTrue(metadataScript.contains("homeserver"))
+        XCTAssertTrue(buildScript.contains("--options runtime --timestamp"))
         XCTAssertTrue(gate.contains("292d858ce32b49ebe84a69421661f486a0ef7e23"))
         XCTAssertTrue(gate.contains("passed"))
     }

@@ -8,9 +8,9 @@ A distributable release must satisfy all of the following:
 
 1. The tag uses `vMAJOR.MINOR.PATCH` and points at the workflow commit.
 2. The tag version equals `CFBundleShortVersionString` in `Resources/Info.plist`.
-3. `release/encryption-gate.json` records a passed live two-account encrypted send, restore, synchronization, and decryption proof, and its commit is an ancestor of the tagged commit.
+3. `release/encryption-gate.json` records a passed live two-account encrypted send, restore, synchronization, and decryption proof, its commit is an ancestor of the tagged commit, and no packaged runtime input has changed since that proof.
 4. The complete Swift test suite and public-release policy checks pass on the tagged commit.
-5. The app is signed with a Developer ID Application identity for the expected Zenith Research team.
+5. The app is signed with a Developer ID Application identity for the expected Zenith Research team, a secure timestamp, and Apple's hardened runtime.
 6. Apple accepts the app through `notarytool`; the notarization ticket is stapled and validated.
 7. Gatekeeper accepts the stapled app.
 8. The archive, release metadata, and `SHA256SUMS` verify before upload.
@@ -28,7 +28,7 @@ The `release` GitHub environment supplies these secrets:
 - `APPLE_API_KEY_ID` — App Store Connect key identifier.
 - `APPLE_API_ISSUER_ID` — App Store Connect issuer identifier.
 
-The workflow creates an ephemeral keychain and removes it in an `always()` cleanup step. It never prints certificate, key, password, or API-key contents.
+The workflow creates an ephemeral keychain and credential files, then removes the keychain, PKCS#12 archive, and notarization key in an `always()` cleanup step. It never prints certificate, key, password, or API-key contents.
 
 ## Prepare without publishing
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import hashlib
 import json
 import plistlib
@@ -48,6 +49,19 @@ def main() -> None:
     gate_commit = gate.get("commit_sha")
     if not isinstance(gate_commit, str) or re.fullmatch(r"[0-9a-f]{40}", gate_commit) is None:
         raise SystemExit("encryption gate commit is invalid")
+    verified_at = gate.get("verified_at")
+    if not isinstance(verified_at, str) or not verified_at.endswith("Z"):
+        raise SystemExit("encryption gate timestamp is invalid")
+    try:
+        datetime.datetime.fromisoformat(verified_at.removesuffix("Z") + "+00:00")
+    except ValueError as error:
+        raise SystemExit("encryption gate timestamp is invalid") from error
+    test_name = gate.get("test")
+    homeserver = gate.get("homeserver")
+    if not isinstance(test_name, str) or not test_name.strip():
+        raise SystemExit("encryption gate test is missing")
+    if not isinstance(homeserver, str) or not homeserver.strip():
+        raise SystemExit("encryption gate homeserver is missing")
     evidence = gate.get("evidence")
     if not isinstance(evidence, dict):
         raise SystemExit("encryption gate evidence is missing")
@@ -103,8 +117,9 @@ def main() -> None:
         "encryption_gate": {
             "status": gate["status"],
             "commit_sha": gate_commit,
-            "verified_at": gate.get("verified_at"),
-            "test": gate.get("test"),
+            "verified_at": verified_at,
+            "test": test_name,
+            "homeserver": homeserver,
         },
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

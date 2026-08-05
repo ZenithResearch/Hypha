@@ -85,7 +85,11 @@ printf 'Source: https://github.com/ZenithResearch/Hypha\nCommit: %s\n' "$(git -C
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 python3 "$ROOT/scripts/verify_app_dependencies.py" "$EXECUTABLE" "$APP"
 python3 "$ROOT/scripts/verify_app_licenses.py" "$ROOT" "$APP"
-codesign --force --deep --sign "$SIGNING_IDENTITY" --entitlements "$ROOT/Resources/Hypha.entitlements" "$APP"
+if [[ "$HYPHA_SIGNING_MODE" == "developer-id" ]]; then
+  codesign --force --deep --options runtime --timestamp --sign "$SIGNING_IDENTITY" --entitlements "$ROOT/Resources/Hypha.entitlements" "$APP"
+else
+  codesign --force --deep --sign "$SIGNING_IDENTITY" --entitlements "$ROOT/Resources/Hypha.entitlements" "$APP"
+fi
 codesign --verify --deep --strict --verbose=2 "$APP"
 if [[ "$HYPHA_SIGNING_MODE" != "adhoc" ]]; then
   ACTUAL_TEAM_ID="$(codesign -dv --verbose=4 "$APP" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2}')"
@@ -93,5 +97,9 @@ if [[ "$HYPHA_SIGNING_MODE" != "adhoc" ]]; then
     echo "Signed TeamIdentifier $ACTUAL_TEAM_ID does not match expected $HYPHA_DEVELOPMENT_TEAM." >&2
     exit 1
   fi
+fi
+if [[ "$HYPHA_SIGNING_MODE" == "developer-id" ]] && ! codesign -dv --verbose=4 "$APP" 2>&1 | grep -Eq '^flags=.*runtime'; then
+  echo "Developer ID signature is missing the hardened runtime flag." >&2
+  exit 1
 fi
 printf 'Built %s (signing=%s)\n' "$APP" "$HYPHA_SIGNING_MODE"
