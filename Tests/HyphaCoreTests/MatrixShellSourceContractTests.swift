@@ -552,7 +552,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(metadataScript.contains("encryption_gate"))
         XCTAssertTrue(metadataScript.contains("homeserver"))
         XCTAssertTrue(buildScript.contains("--options runtime --timestamp"))
-        XCTAssertTrue(gate.contains("292d858ce32b49ebe84a69421661f486a0ef7e23"))
+        XCTAssertTrue(gate.contains("e715c4693ed86a19cf129c04d20fbf2cf4a2ef1d"))
         XCTAssertTrue(gate.contains("passed"))
     }
 
