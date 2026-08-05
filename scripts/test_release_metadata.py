@@ -68,6 +68,7 @@ with tempfile.TemporaryDirectory(prefix="hypha-release-metadata-") as temporary:
                 "commit_sha": COMMIT,
                 "verified_at": "2026-08-05T00:46:18Z",
                 "test": "live two-account proof",
+                "homeserver": "synapse.zenith-research.ca",
                 "evidence": {
                     "encrypted_send_and_decrypt": True,
                     "suspended_sender_restore_and_decrypt": True,
@@ -88,6 +89,7 @@ with tempfile.TemporaryDirectory(prefix="hypha-release-metadata-") as temporary:
     assert metadata["bundle_version"] == "1"
     assert metadata["signing"] == {"distributable": False, "mode": "adhoc", "notarized": False}
     assert metadata["encryption_gate"]["commit_sha"] == COMMIT
+    assert metadata["encryption_gate"]["homeserver"] == "synapse.zenith-research.ca"
 
     if invoke(root, tag="v0.2.0").returncode == 0:
         raise SystemExit("metadata accepted a tag that differs from the bundle version")

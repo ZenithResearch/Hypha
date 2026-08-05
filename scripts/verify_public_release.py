@@ -43,13 +43,13 @@ BINARY_HASHES = {
 }
 CRITICAL_POLICY_HASHES = {
     ".github/workflows/ci.yml": "bd2efdc5760135e9227f0ed20c5275adf93f98f332445efdd2506fe858cca1b4",
-    ".github/workflows/release.yml": "28c69e4e4835a3ddba1b12ce9bb13a0ab15353cf40d3e1444d06d8cffca1ccc6",
+    ".github/workflows/release.yml": "1b367d4ab751037e3929b39996e6ad069a2853f2cd56d665a5ecdc2a0710dfc5",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
-    "build-app.sh": "9f6163f41e1c83ac3e340317c30ea94c672e864757ef700d40b2b60bf0aa88cd",
+    "build-app.sh": "18117caee0f2b49dd5f64804f8a9c2921768ad65bbafc4c00c10846c5ff23738",
     "release/encryption-gate.json": "5e23e48c27aea614a062da5354ed7c166d344ba8d00dbd87dd55cec889ce5a7a",
-    "scripts/package-release.sh": "37ae4213530eda3560164caf9bd868fa15756eb1b8af3c16f68a7732d1600d7b",
-    "scripts/write_release_metadata.py": "11932e621543c206c17c34c5a54cc818ddf321de49e037f52bb8467ea86b8802",
-    "scripts/test_release_metadata.py": "c938e695e1967d03065d2f4f9558ac42faca85908746cb3af7532a52b54f388e",
+    "scripts/package-release.sh": "7c6c5b91bb992f93d4dce0dff5a8c4e9819cd8c5d57c6bae48f43c5e2b8258d3",
+    "scripts/write_release_metadata.py": "d0f6cdca5dc39d7ecb537a94d0dd5ac1696d51838641ba8d3a4bfb6ed79054a1",
+    "scripts/test_release_metadata.py": "1b6b5590fe095352fd2a47f10c81973af6f08422a509621ecd3fe79dbea34f93",
     "scripts/verify_app_licenses.py": "62cedfdd0c4590c79ec3d66d1f38fe61caee767403d5629c13107697190823ce",
     "scripts/generate_zenith_icon.py": "f91f71cdf8309fe9217e06cafd0477c32faa380c66b4f31feedc8d0944250b18",
     "Resources/ZenithOSIcon.svg": "b553714e443d6ab856295676f92ee363d9b9ccfb8a0a6711e73ce9780fe2ac78",
