@@ -64,7 +64,7 @@ The tool copies the sandboxed encrypted Matrix store, homeserver preference, and
 
 ## Releases
 
-Downloadable builds are published on [GitHub Releases](https://github.com/ZenithResearch/Hypha/releases) only after the live two-account encryption gate, Developer ID signing, Apple notarization, stapling, Gatekeeper assessment, and checksum verification pass. See the [release process](docs/release.md) for the exact automation, metadata, and download-verification contract.
+Downloadable builds are published on [GitHub Releases](https://github.com/ZenithResearch/Hypha/releases) only after the live two-account encryption gate and checksum verification pass. The current free distribution channel is explicitly ad-hoc signed and not Apple-notarized, so macOS requires a one-time **Open Anyway** approval. Every release page includes that warning, checksum instructions, and source archives. See the [release process](docs/release.md) for the exact automation and security boundary.
 
 ## Security and interoperability
 

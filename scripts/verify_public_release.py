@@ -43,10 +43,11 @@ BINARY_HASHES = {
 }
 CRITICAL_POLICY_HASHES = {
     ".github/workflows/ci.yml": "bd2efdc5760135e9227f0ed20c5275adf93f98f332445efdd2506fe858cca1b4",
-    ".github/workflows/release.yml": "1b367d4ab751037e3929b39996e6ad069a2853f2cd56d665a5ecdc2a0710dfc5",
+    ".github/workflows/release.yml": "9ada2928a2a6a3cca89e1601ca58c8e46f723925b0d838fff965791de3511b03",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
     "build-app.sh": "18117caee0f2b49dd5f64804f8a9c2921768ad65bbafc4c00c10846c5ff23738",
     "release/encryption-gate.json": "6aac43d006072c05c3ecc65ec05490e2c24acc76c3aa85bc146473e6f9a9e1c6",
+    "release/ADHOC_RELEASE_NOTICE.md": "cdc25fbc288d886d9521910d962e00fe034bf5339fb8a767b9bae19b3302d5ae",
     "scripts/package-release.sh": "7c6c5b91bb992f93d4dce0dff5a8c4e9819cd8c5d57c6bae48f43c5e2b8258d3",
     "scripts/write_release_metadata.py": "d0f6cdca5dc39d7ecb537a94d0dd5ac1696d51838641ba8d3a4bfb6ed79054a1",
     "scripts/test_release_metadata.py": "1b6b5590fe095352fd2a47f10c81973af6f08422a509621ecd3fe79dbea34f93",
