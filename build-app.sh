@@ -30,8 +30,27 @@ case "$HYPHA_SIGNING_MODE" in
   adhoc)
     SIGNING_IDENTITY="-"
     ;;
+  developer-id)
+    if [[ -n "${HYPHA_CODESIGN_IDENTITY:-}" ]]; then
+      SIGNING_IDENTITY="$HYPHA_CODESIGN_IDENTITY"
+    else
+      SIGNING_IDENTITIES=()
+      while IFS= read -r identity; do
+        SIGNING_IDENTITIES+=("$identity")
+      done < <(
+        security find-identity -v -p codesigning 2>/dev/null \
+          | awk '$0 ~ /Developer ID Application:/ { print $2 }'
+      )
+      if [[ ${#SIGNING_IDENTITIES[@]} -ne 1 ]]; then
+        echo "Expected exactly one valid Developer ID Application identity; found ${#SIGNING_IDENTITIES[@]}." >&2
+        echo "Set HYPHA_CODESIGN_IDENTITY explicitly." >&2
+        exit 1
+      fi
+      SIGNING_IDENTITY="${SIGNING_IDENTITIES[0]}"
+    fi
+    ;;
   *)
-    echo "Unsupported HYPHA_SIGNING_MODE=$HYPHA_SIGNING_MODE (expected development or adhoc)." >&2
+    echo "Unsupported HYPHA_SIGNING_MODE=$HYPHA_SIGNING_MODE (expected development, adhoc, or developer-id)." >&2
     exit 1
     ;;
 esac
@@ -68,7 +87,7 @@ python3 "$ROOT/scripts/verify_app_dependencies.py" "$EXECUTABLE" "$APP"
 python3 "$ROOT/scripts/verify_app_licenses.py" "$ROOT" "$APP"
 codesign --force --deep --sign "$SIGNING_IDENTITY" --entitlements "$ROOT/Resources/Hypha.entitlements" "$APP"
 codesign --verify --deep --strict --verbose=2 "$APP"
-if [[ "$HYPHA_SIGNING_MODE" == "development" ]]; then
+if [[ "$HYPHA_SIGNING_MODE" != "adhoc" ]]; then
   ACTUAL_TEAM_ID="$(codesign -dv --verbose=4 "$APP" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2}')"
   if [[ "$ACTUAL_TEAM_ID" != "$HYPHA_DEVELOPMENT_TEAM" ]]; then
     echo "Signed TeamIdentifier $ACTUAL_TEAM_ID does not match expected $HYPHA_DEVELOPMENT_TEAM." >&2

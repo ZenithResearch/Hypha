@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "commit_sha": "292d858ce32b49ebe84a69421661f486a0ef7e23",
+  "verified_at": "2026-08-05T00:46:18Z",
+  "homeserver": "synapse.zenith-research.ca",
+  "test": "MatrixLiveSessionSmokeTests.testLiveEncryptedRoomSharesKeysWithNewlyJoinedPeer",
+  "evidence": {
+    "accounts": "two disposable production accounts",
+    "encrypted_send_and_decrypt": true,
+    "suspended_sender_restore_and_decrypt": true,
+    "temporary_accounts_remaining": 0,
+    "temporary_rooms_remaining": 0
+  }
+}
