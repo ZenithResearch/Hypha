@@ -74,7 +74,10 @@ cp "$ROOT/.build/release/Hypha" "$EXECUTABLE"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/Resources/ZenithOSIcon.icns" "$APP/Contents/Resources/ZenithOSIcon.icns"
 cp "$ROOT/scripts/update-from-main.sh" "$APP/Contents/Resources/update-from-main.sh"
-chmod 755 "$APP/Contents/Resources/update-from-main.sh"
+cp "$ROOT/scripts/launch-update-from-main.command" "$APP/Contents/Resources/launch-update-from-main.command"
+chmod 755 \
+  "$APP/Contents/Resources/update-from-main.sh" \
+  "$APP/Contents/Resources/launch-update-from-main.command"
 LICENSE_RESOURCES="$APP/Contents/Resources/Licenses"
 mkdir -p "$LICENSE_RESOURCES"
 cp "$ROOT/LICENSE" "$LICENSE_RESOURCES/AGPL-3.0-or-later.txt"

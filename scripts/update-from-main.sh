@@ -44,7 +44,9 @@ HYPHA_SIGNING_MODE=adhoc ./build-app.sh
 BUILT_APP="$SOURCE_DIR/Hypha.app"
 codesign --verify --deep --strict "$BUILT_APP"
 if [[ ! -x "$BUILT_APP/Contents/Resources/update-from-main.sh" ]] || \
-   ! grep -Fq 'lfs install --local --skip-smudge' "$BUILT_APP/Contents/Resources/update-from-main.sh"; then
+   ! grep -Fq 'lfs install --local --skip-smudge' "$BUILT_APP/Contents/Resources/update-from-main.sh" || \
+   [[ ! -x "$BUILT_APP/Contents/Resources/launch-update-from-main.command" ]] || \
+   ! grep -Fq 'Update installed from GitHub main' "$BUILT_APP/Contents/Resources/launch-update-from-main.command"; then
   echo "GitHub main does not yet contain the current self-update contract; the current app was left unchanged." >&2
   exit 4
 fi

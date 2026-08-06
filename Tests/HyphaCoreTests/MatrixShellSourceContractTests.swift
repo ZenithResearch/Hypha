@@ -535,7 +535,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(workflow.contains("contents: write"))
         XCTAssertTrue(workflow.contains("environment: release"))
         XCTAssertTrue(workflow.contains("git merge-base --is-ancestor"))
-        XCTAssertTrue(workflow.contains("git diff --quiet \"$gate_sha\" \"$GITHUB_SHA\" -- Package.swift Package.resolved Sources Vendor Resources scripts/update-from-main.sh build-app.sh"))
+        XCTAssertTrue(workflow.contains("git diff --quiet \"$gate_sha\" \"$GITHUB_SHA\" -- Package.swift Package.resolved Sources Vendor Resources scripts/update-from-main.sh scripts/launch-update-from-main.command build-app.sh"))
         XCTAssertTrue(workflow.contains("gitleaks_8.30.1_darwin_arm64.tar.gz"))
         XCTAssertTrue(workflow.contains("b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5"))
         XCTAssertTrue(workflow.contains("/tmp/gitleaks git ."))
@@ -550,7 +550,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(workflow.contains("--notes-file release/ADHOC_RELEASE_NOTICE.md"))
         XCTAssertTrue(packageScript.contains("HYPHA_SIGNING_MODE=developer-id"))
         XCTAssertTrue(packageScript.contains("merge-base --is-ancestor"))
-        XCTAssertTrue(packageScript.contains("Package.swift Package.resolved Sources Vendor Resources scripts/update-from-main.sh build-app.sh"))
+        XCTAssertTrue(packageScript.contains("Package.swift Package.resolved Sources Vendor Resources scripts/update-from-main.sh scripts/launch-update-from-main.command build-app.sh"))
         XCTAssertTrue(packageScript.contains("stapler staple"))
         XCTAssertTrue(packageScript.contains("SHA256SUMS"))
         XCTAssertTrue(packageScript.contains("write_release_metadata.py"))
@@ -1141,23 +1141,37 @@ final class MatrixShellSourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("scripts/update-from-main.sh"),
             encoding: .utf8
         )
+        let launcher = try String(
+            contentsOf: root.appendingPathComponent("scripts/launch-update-from-main.command"),
+            encoding: .utf8
+        )
         let build = try String(
             contentsOf: root.appendingPathComponent("build-app.sh"),
+            encoding: .utf8
+        )
+        let entitlements = try String(
+            contentsOf: root.appendingPathComponent("Resources/Hypha.entitlements"),
             encoding: .utf8
         )
 
         for marker in [
             "Update from GitHub main",
-            "Restart Hypha",
             "navigationTitle(\"Settings\")",
             "Section(\"Application Updates\")",
             "hypha.settings",
         ] {
             XCTAssertTrue(app.contains(marker), "Missing updater UI contract: \(marker)")
         }
-        XCTAssertTrue(controller.contains("forResource: \"update-from-main\""))
-        XCTAssertTrue(controller.contains("withExtension: \"sh\""))
+        XCTAssertTrue(controller.contains("forResource: \"launch-update-from-main\""))
+        XCTAssertTrue(controller.contains("withExtension: \"command\""))
         XCTAssertTrue(controller.contains("Process()"))
+        XCTAssertTrue(controller.contains("/usr/bin/open"))
+        XCTAssertTrue(controller.contains("NSApp.terminate(nil)"))
+        XCTAssertFalse(controller.contains("Self.runUpdater"))
+        XCTAssertTrue(entitlements.contains("com.apple.security.app-sandbox"))
+        XCTAssertTrue(launcher.contains("update-from-main.sh"))
+        XCTAssertTrue(launcher.contains("Update installed from GitHub main"))
+        XCTAssertTrue(launcher.contains("Update failed with exit status"))
         XCTAssertTrue(updater.contains("https://github.com/ZenithResearch/Hypha.git"))
         XCTAssertTrue(updater.contains("fetch --force --prune origin main"))
         XCTAssertTrue(updater.contains("checkout --detach --force FETCH_HEAD"))
@@ -1170,6 +1184,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertFalse(updater.contains("git pull"))
         XCTAssertFalse(updater.contains("sudo"))
         XCTAssertTrue(build.contains("update-from-main.sh"))
+        XCTAssertTrue(build.contains("launch-update-from-main.command"))
     }
 
     func testUserAndAdministratorSettingsExposeHomeserverPasswordResetWorkflow() throws {

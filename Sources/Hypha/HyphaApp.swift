@@ -1672,7 +1672,7 @@ private struct MatrixCompanionShell: View {
             }
 
             Section("Application Updates") {
-                Text("Pull the latest main branch from the canonical Hypha GitHub remote, rebuild the app locally, verify it, and install it in place.")
+                Text("Open Terminal to pull the canonical GitHub main branch, rebuild and verify Hypha outside the app sandbox, install it in place, and reopen it. Terminal shows the complete update log.")
                     .font(.callout)
                     .foregroundStyle(ZenithDesign.Palette.muted)
 
@@ -1692,14 +1692,6 @@ private struct MatrixCompanionShell: View {
                     Text(statusText)
                         .font(.caption)
                         .foregroundStyle(updater.state == .failed ? ZenithDesign.Palette.error : ZenithDesign.Palette.muted)
-                }
-
-                if updater.state == .installed {
-                    Button("Restart Hypha") {
-                        updater.restart()
-                    }
-                    .buttonStyle(HyphaButtonStyle(.secondary))
-                    .accessibilityIdentifier("hypha.update.restart")
                 }
             }
         }

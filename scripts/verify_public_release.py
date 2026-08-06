@@ -42,20 +42,23 @@ BINARY_HASHES = {
     "Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip": SDK_SHA256,
 }
 CRITICAL_POLICY_HASHES = {
-    ".github/workflows/ci.yml": "bd2efdc5760135e9227f0ed20c5275adf93f98f332445efdd2506fe858cca1b4",
-    ".github/workflows/release.yml": "9ada2928a2a6a3cca89e1601ca58c8e46f723925b0d838fff965791de3511b03",
+    ".github/workflows/ci.yml": "996a22900182bb020a7d86fd751c7be6f50bc0ad2a48241cb30d3caff79dc405",
+    ".github/workflows/release.yml": "a471607fe5e1ccd41d810433ee0a927fa25db4218306f2626176777d09dd58bf",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
-    "build-app.sh": "18117caee0f2b49dd5f64804f8a9c2921768ad65bbafc4c00c10846c5ff23738",
+    "build-app.sh": "6f1b7ba44241e52439fe024922b9b266f2a866ca19fa3f58b131ccd98d1ebee4",
     "release/encryption-gate.json": "6aac43d006072c05c3ecc65ec05490e2c24acc76c3aa85bc146473e6f9a9e1c6",
     "release/ADHOC_RELEASE_NOTICE.md": "cdc25fbc288d886d9521910d962e00fe034bf5339fb8a767b9bae19b3302d5ae",
-    "scripts/package-release.sh": "7c6c5b91bb992f93d4dce0dff5a8c4e9819cd8c5d57c6bae48f43c5e2b8258d3",
+    "scripts/package-release.sh": "0546bd3d6586d0f99d2061e2450a0bd573435edafc1a1daad886dd1dce02b18f",
+    "scripts/update-from-main.sh": "39b42e5ee8ed1e8bbac324249381b47cdb07cd30c8d7ca8259d18c4ec43a7392",
+    "scripts/launch-update-from-main.command": "6850baecd7798789955c5e88883586dc03209d4235756da15b814322e60fe606",
+    "scripts/test_update_launcher.py": "5a0e134d6cf647774520a0ec399a5c951f76d852390c9ada48ed3c21dd73553e",
     "scripts/write_release_metadata.py": "d0f6cdca5dc39d7ecb537a94d0dd5ac1696d51838641ba8d3a4bfb6ed79054a1",
     "scripts/test_release_metadata.py": "1b6b5590fe095352fd2a47f10c81973af6f08422a509621ecd3fe79dbea34f93",
     "scripts/verify_app_licenses.py": "62cedfdd0c4590c79ec3d66d1f38fe61caee767403d5629c13107697190823ce",
     "scripts/generate_zenith_icon.py": "f91f71cdf8309fe9217e06cafd0477c32faa380c66b4f31feedc8d0944250b18",
     "Resources/ZenithOSIcon.svg": "b553714e443d6ab856295676f92ee363d9b9ccfb8a0a6711e73ce9780fe2ac78",
 }
-TEXT_SUFFIXES = {"", ".entitlements", ".hbs", ".html", ".json", ".md", ".plist", ".py", ".sh", ".svg", ".swift", ".toml", ".txt", ".yml", ".yaml"}
+TEXT_SUFFIXES = {"", ".command", ".entitlements", ".hbs", ".html", ".json", ".md", ".plist", ".py", ".sh", ".svg", ".swift", ".toml", ".txt", ".yml", ".yaml"}
 BINARY_MAGIC_PREFIXES = (b"PK\x03\x04", b"\x89PNG\r\n\x1a\n", b"icns", b"\x7fELF", b"%PDF", b"\x1f\x8b")
 
 
