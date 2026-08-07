@@ -7,16 +7,17 @@ import hashlib
 import json
 import re
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import quote
+from zipfile import BadZipFile, ZipFile
 
 ROOT = Path(__file__).resolve().parents[1]
 SECURITY_URL = "https://github.com/ZenithResearch/Hypha/security/advisories/new"
 AGPL_SHA256 = "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
-SDK_SHA256 = "ca8796d0f065ade3787de2f18693afd940914ce2e35f807ccf479d2f14c5c565"
+SDK_SHA256 = "7b55c8972456b30f61e26a7cb8745b262288172c07be6aafd014a472940a3658"
 THIRD_PARTY_LICENSES_SHA256 = "f1e427b7af156b275595b0dbc78c0dcf1c85aee0240a9b92f856e07d5f55ed61"
 LICENSE_INVENTORY_SHA256 = "898a66bde0576256aaec51d98f517484bed57e32600f676d7169f37944f68309"
-THIRD_PARTY_NOTICES_SHA256 = "c72184ef1e27d760a6f6a5bae99b7873c3ea49dc554db411ec499cd31e822450"
+THIRD_PARTY_NOTICES_SHA256 = "f75dcd4f232b51cbdd34d4e47e0bb4226d78fb4dd8714d94f3e3a54789c4d72a"
 PRIVATE_PATH_PREFIXES = ("/" + "Users/", "/" + "Volumes/" + "home/", "/" + "home/")
 LICENSE_HASHES = {
     "0BSD": "e3f18c71e10d673590eb9856c1d79dd3b4b0d65404efb5e8584dbede7edd608b",
@@ -42,7 +43,7 @@ BINARY_HASHES = {
     "Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip": SDK_SHA256,
 }
 CRITICAL_POLICY_HASHES = {
-    ".github/workflows/ci.yml": "996a22900182bb020a7d86fd751c7be6f50bc0ad2a48241cb30d3caff79dc405",
+    ".github/workflows/ci.yml": "93b2d8b9692a6c43849e854e73d1946918e464e9e8897cd34fe66a134aaf90cc",
     ".github/workflows/release.yml": "a471607fe5e1ccd41d810433ee0a927fa25db4218306f2626176777d09dd58bf",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
     "build-app.sh": "6f1b7ba44241e52439fe024922b9b266f2a866ca19fa3f58b131ccd98d1ebee4",
@@ -201,6 +202,21 @@ require("SPDX-License-Identifier: AGPL-3.0-or-later" in readme, "README SPDX dec
 require("GNU AGPL v3 or later" in contributing, "contribution license missing")
 require(SECURITY_URL in security and "attacker.invalid" not in security, "exact security-reporting URL missing")
 require(SDK_SHA256 in notices and SDK_SHA256 in provenance, "SDK checksum missing")
+
+sdk_archive_path = ROOT / "Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip"
+try:
+    with ZipFile(sdk_archive_path) as sdk_archive:
+        sdk_entries = sdk_archive.namelist()
+except BadZipFile as error:
+    raise SystemExit("Matrix SDK artifact is not a valid ZIP archive") from error
+require(bool(sdk_entries), "Matrix SDK archive is empty")
+for entry in sdk_entries:
+    entry_path = PurePosixPath(entry)
+    require(not entry_path.is_absolute() and ".." not in entry_path.parts, f"unsafe Matrix SDK archive path: {entry}")
+    require(
+        "__MACOSX" not in entry_path.parts and not any(part.startswith("._") for part in entry_path.parts),
+        f"AppleDouble metadata contaminates Matrix SDK archive: {entry}",
+    )
 
 for identifier, expected in LICENSE_HASHES.items():
     require(sha256(f"LICENSES/{identifier}.txt") == expected, f"license text mismatch: {identifier}")

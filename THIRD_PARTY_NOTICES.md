@@ -4,11 +4,11 @@ Hypha is licensed under GNU AGPL v3 or later. The notices below apply to third-p
 
 ## Matrix Rust SDK binary
 
-- Component: Matrix Rust SDK FFI for macOS arm64
+- Component: Matrix Rust SDK FFI for macOS arm64, iOS arm64, and Apple Silicon iOS Simulator arm64
 - Upstream: https://github.com/matrix-org/matrix-rust-sdk
 - Zenith fork: https://github.com/bananawalnut/matrix-rust-sdk
 - Exact source commit: https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d
-- Artifact checksum: `ca8796d0f065ade3787de2f18693afd940914ce2e35f807ccf479d2f14c5c565`
+- Artifact checksum: `7b55c8972456b30f61e26a7cb8745b262288172c07be6aafd014a472940a3658`
 - Matrix Rust SDK code and fork modifications: Apache-2.0
 
 The fork modifications and artifact build/verification boundary are documented in `Vendor/MatrixRustSDK/PROVENANCE.md`. The binary incorporates dependencies under the license families and attributions listed below and in `THIRD_PARTY_LICENSES.html`. No upstream `NOTICE` file was present at the exact source commit.

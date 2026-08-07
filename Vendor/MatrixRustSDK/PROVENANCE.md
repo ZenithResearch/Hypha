@@ -1,6 +1,6 @@
-# Zenith MatrixSDKFFI 26.07.23-zenith.10
+# Zenith MatrixSDKFFI 26.08.06-zenith.11
 
-Purpose: macOS 26.4 arm64 Matrix Rust SDK artifact for the Zenith macOS client. This fork-only integration preserves the existing authoritative device-trust surface while adding password-change UIAA, atomic custom room initial state with exact reconciliation, and non-destructive first-device cross-signing bootstrap.
+Purpose: universal Apple Matrix Rust SDK artifact for Hypha on macOS 26.4 arm64, iOS 18 arm64, and the Apple Silicon iOS 18 Simulator. This fork-only integration preserves the existing authoritative device-trust surface while adding password-change UIAA, atomic custom room initial state with exact reconciliation, and non-destructive first-device cross-signing bootstrap.
 
 ## Source
 
@@ -37,15 +37,18 @@ The `DeviceSignaturePreparation` debug representation intentionally excludes the
 ```bash
 export MACOSX_DEPLOYMENT_TARGET=26.4
 export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
-export CARGO_TARGET_DIR="$PWD/target"
-export CARGO_BUILD_JOBS=2
 cargo xtask swift build-framework \
   --release \
   --target aarch64-apple-darwin \
-  --components-path "$PWD/components"
+  --target aarch64-apple-ios \
+  --target aarch64-apple-ios-sim \
+  --ios-deployment-target 18.0 \
+  --sequentially
 ```
 
-The XCFramework contains one `macos-arm64` library. Representative object `matrix_sdk_ffi.matrix_sdk_ffi.2a926db79d3771b8-cgu.00.rcgu.o` reports `LC_BUILD_VERSION platform MACOS minos 26.4`.
+The XCFramework contains `macos-arm64`, `ios-arm64`, and `ios-arm64-simulator` libraries. Representative objects report `LC_BUILD_VERSION` values of `MACOS minos 26.4`, `IOS minos 18.0`, and `IOSSIMULATOR minos 18.0`, respectively. The generated Swift bindings are byte-identical to the previously reviewed bindings.
+
+The archive was packaged from `bindings/apple/generated` with `COPYFILE_DISABLE=1 /usr/bin/zip -X -qry`, and verification rejects `__MACOSX`, `._*` AppleDouble metadata, absolute paths, and parent traversal entries.
 
 ## Verification
 
@@ -62,7 +65,7 @@ The XCFramework contains one `macos-arm64` library. Representative object `matri
 ## Artifact
 
 - `MatrixSDKFFI.xcframework.zip`
-- SHA-256 / SwiftPM checksum: `ca8796d0f065ade3787de2f18693afd940914ce2e35f807ccf479d2f14c5c565`
+- SHA-256 / SwiftPM checksum: `7b55c8972456b30f61e26a7cb8745b262288172c07be6aafd014a472940a3658`
 - generated `matrix_sdk_ffi.swift` SHA-256: `7d823dda5f112ebc60887fc0ff238129b49e0173870ad616978f17b3ace5bdbc`
 
 ## License

@@ -20,7 +20,7 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_26.4.app/Contents/Developer
       - name: Verify patched SDK artifact
         run: |
-          expected=ca8796d0f065ade3787de2f18693afd940914ce2e35f807ccf479d2f14c5c565
+          expected=7b55c8972456b30f61e26a7cb8745b262288172c07be6aafd014a472940a3658
           actual=$(shasum -a 256 Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip | cut -d ' ' -f 1)
           test "$actual" = "$expected"
           grep -q '67d27c766ee61eca55707ddad232e57769344e5f' Vendor/MatrixRustSDK/PROVENANCE.md

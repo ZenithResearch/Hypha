@@ -624,7 +624,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(provenance.contains("238e8745a9103cf0ee071771d7e93e007939cd20"))
         XCTAssertTrue(provenance.contains("f53e2ac81"))
         XCTAssertTrue(provenance.contains("c73782cbb"))
-        XCTAssertTrue(provenance.contains("ca8796d0f065ade3787de2f18693afd940914ce2e35f807ccf479d2f14c5c565"))
+        XCTAssertTrue(provenance.contains("7b55c8972456b30f61e26a7cb8745b262288172c07be6aafd014a472940a3658"))
         XCTAssertTrue(provenance.contains("f2f814679"))
         XCTAssertTrue(provenance.contains("97fa91b0c756604ef0b03ab9479fc704d1362c55"))
         XCTAssertTrue(provenance.contains("f4889ec898e77d8b8c9013adadd77f3d0901fc2d"))
