@@ -18,8 +18,9 @@ Current Matrix capability:
 - private, invite-only encrypted room creation;
 - encrypted text history and live messages;
 - encrypted text send with no plaintext downgrade;
-- Matrix room repository attachments with local-only security-scoped repository paths and user-supplied build commands;
-- explicit local builds from the repository root with renderable outputs discovered under `out/` or selected by `out/out.json`;
+- Matrix room repository attachments with a shared remote repository URL and local-only security-scoped repository paths;
+- optional, explicitly confirmed local builds from the repository root, with commands entered in Hypha or read from local `out/out.json`;
+- renderable existing outputs discovered under `out/` when no build command is provided;
 - in-app PowerPoint (`.pptx`), PDF, HTML, image, and text output viewers;
 - first-device cross-signing and Matrix Secure Backup setup with a one-time recovery key;
 - Matrix Secure Backup recovery-key restoration on additional devices;
@@ -52,6 +53,23 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build
 ./build-app.sh
 open Hypha.app
 ```
+
+## Repository output contract
+
+An attached room shares the remote repository URL and fixed `out/` contract through Matrix room state. Each Mac separately chooses its local checkout. The local build command is optional: with no command, Hypha loads an existing supported file from `<repo>/out`.
+
+`out/out.json` can select an output and may provide the local command that creates it:
+
+```json
+{
+  "build": "npm run export",
+  "viewer": "quickLook",
+  "path": "deck.pptx",
+  "format": "pptx"
+}
+```
+
+Any command from the UI or local manifest requires explicit confirmation before execution. Local paths and commands are never published to Matrix.
 
 The packaged app uses a checksummed, repository-local Matrix Rust SDK binary artifact tracked with Git LFS. After cloning, run `git lfs install --local` and `git lfs pull`. Its source commits, macOS 26.4 build boundary, regression tests, and checksum are recorded in [`Vendor/MatrixRustSDK/PROVENANCE.md`](Vendor/MatrixRustSDK/PROVENANCE.md). It never offers a synthetic room or plaintext fallback. Invite-token account creation is shown only when the connected homeserver's registration UIA advertises `m.login.registration_token`; otherwise the sign-in surface does not solicit an invite token.
 

@@ -71,6 +71,7 @@ private struct HyphaArtifactOutputManifest: Decodable {
     let viewer: HyphaArtifactViewer?
     let path: String?
     let format: String?
+    let build: String?
 }
 
 public struct HyphaArtifactOutputResolver: Sendable {
@@ -98,17 +99,31 @@ public struct HyphaArtifactOutputResolver: Sendable {
         }
     }
 
-    private func resolveManifest(at manifestURL: URL, root: URL) throws -> HyphaArtifactSelection {
+    public func buildCommand(outDirectory: URL) throws -> String? {
         let fileManager = FileManager.default
-        let manifest: HyphaArtifactOutputManifest
-        do {
-            let data = try Data(contentsOf: manifestURL)
-            manifest = try JSONDecoder().decode(HyphaArtifactOutputManifest.self, from: data)
-        } catch {
-            throw HyphaArtifactOutputError.invalidManifest
+        let root = outDirectory.standardizedFileURL.resolvingSymlinksInPath()
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: root.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            throw HyphaArtifactOutputError.outputDirectoryUnavailable
         }
-        guard manifest.path != nil || manifest.format != nil || manifest.viewer != nil else {
+        let manifestURL = root.appendingPathComponent("out.json")
+        guard fileManager.fileExists(atPath: manifestURL.path) else { return nil }
+        let command = try decodeManifest(at: manifestURL).build?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return command?.isEmpty == false ? command : nil
+    }
+
+    private func resolveManifest(at manifestURL: URL, root: URL) throws -> HyphaArtifactSelection? {
+        let fileManager = FileManager.default
+        let manifest = try decodeManifest(at: manifestURL)
+        guard manifest.path != nil || manifest.format != nil || manifest.viewer != nil || manifest.build != nil else {
             throw HyphaArtifactOutputError.emptyManifest
+        }
+
+        if manifest.path == nil, manifest.format == nil, manifest.viewer == nil {
+            return try supportedFiles(in: root).first.map {
+                HyphaArtifactSelection(url: $0.url, format: $0.format, viewer: $0.viewer, source: .manifest)
+            }
         }
 
         let selected: (url: URL, format: String, viewer: HyphaArtifactViewer)
@@ -159,6 +174,15 @@ public struct HyphaArtifactOutputResolver: Sendable {
         )
     }
 
+    private func decodeManifest(at manifestURL: URL) throws -> HyphaArtifactOutputManifest {
+        do {
+            let data = try Data(contentsOf: manifestURL)
+            return try JSONDecoder().decode(HyphaArtifactOutputManifest.self, from: data)
+        } catch {
+            throw HyphaArtifactOutputError.invalidManifest
+        }
+    }
+
     private func supportedFiles(in root: URL) throws -> [(url: URL, format: String, viewer: HyphaArtifactViewer)] {
         let fileManager = FileManager.default
         guard let enumerator = fileManager.enumerator(
@@ -190,7 +214,6 @@ public struct HyphaArtifactOutputResolver: Sendable {
 public enum HyphaRepositoryBuildError: Error, Equatable, Sendable {
     case unavailableOnPlatform
     case invalidRepository
-    case emptyCommand
     case launchFailed
     case timedOut
 }
@@ -199,11 +222,13 @@ public struct HyphaRepositoryBuildResult: Equatable, Sendable {
     public let exitCode: Int32
     public let log: String
     public let artifact: HyphaArtifactSelection?
+    public let didRunCommand: Bool
 
-    public init(exitCode: Int32, log: String, artifact: HyphaArtifactSelection?) {
+    public init(exitCode: Int32, log: String, artifact: HyphaArtifactSelection?, didRunCommand: Bool) {
         self.exitCode = exitCode
         self.log = log
         self.artifact = artifact
+        self.didRunCommand = didRunCommand
     }
 }
 
@@ -220,7 +245,6 @@ public struct HyphaRoomRepositoryLocalBinding: Equatable, Sendable {
 public enum HyphaRoomRepositoryLocalBindingError: Error, Equatable, Sendable {
     case unavailableOnPlatform
     case emptyRoomID
-    case emptyCommand
     case bookmarkCreationFailed
     case bookmarkResolutionFailed
     case persistenceFailed
@@ -244,7 +268,6 @@ public final class HyphaRoomRepositoryLocalBindingStore {
         let cleanRoomID = roomID.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanCommand = buildCommand.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanRoomID.isEmpty else { throw HyphaRoomRepositoryLocalBindingError.emptyRoomID }
-        guard !cleanCommand.isEmpty else { throw HyphaRoomRepositoryLocalBindingError.emptyCommand }
         let bookmark: Data
         do {
             bookmark = try repositoryRoot.bookmarkData(
@@ -330,7 +353,18 @@ public struct HyphaRepositoryBuilder: Sendable {
             throw HyphaRepositoryBuildError.invalidRepository
         }
         let cleanCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanCommand.isEmpty else { throw HyphaRepositoryBuildError.emptyCommand }
+        let out = root.appendingPathComponent("out", isDirectory: true)
+        if cleanCommand.isEmpty {
+            let artifact = FileManager.default.fileExists(atPath: out.path)
+                ? try resolver.resolve(outDirectory: out)
+                : nil
+            return HyphaRepositoryBuildResult(
+                exitCode: 0,
+                log: "",
+                artifact: artifact,
+                didRunCommand: false
+            )
+        }
 
         let timeoutSeconds = Self.seconds(from: timeout)
         let processResult: (Int32, String) = try await Task.detached(priority: .userInitiated) {
@@ -373,7 +407,6 @@ public struct HyphaRepositoryBuilder: Sendable {
 
         let artifact: HyphaArtifactSelection?
         if processResult.0 == 0 {
-            let out = root.appendingPathComponent("out", isDirectory: true)
             if FileManager.default.fileExists(atPath: out.path) {
                 artifact = try resolver.resolve(outDirectory: out)
             } else {
@@ -382,7 +415,12 @@ public struct HyphaRepositoryBuilder: Sendable {
         } else {
             artifact = nil
         }
-        return HyphaRepositoryBuildResult(exitCode: processResult.0, log: processResult.1, artifact: artifact)
+        return HyphaRepositoryBuildResult(
+            exitCode: processResult.0,
+            log: processResult.1,
+            artifact: artifact,
+            didRunCommand: true
+        )
 #else
         throw HyphaRepositoryBuildError.unavailableOnPlatform
 #endif

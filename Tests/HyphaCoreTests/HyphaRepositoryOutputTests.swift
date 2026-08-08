@@ -92,23 +92,47 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         XCTAssertEqual(URL(fileURLWithPath: reportedRoot).lastPathComponent, repository.lastPathComponent)
     }
 
-    func testBuildRejectsEmptyCommandsWithoutLaunchingShell() async throws {
+    func testEmptyBuildCommandResolvesExistingOutputWithoutLaunchingShell() async throws {
         let repository = try temporaryDirectory()
         try FileManager.default.createDirectory(
             at: repository.appendingPathComponent(".git", isDirectory: true),
             withIntermediateDirectories: true
         )
+        let output = repository.appendingPathComponent("out", isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        try Data("presentation".utf8).write(to: output.appendingPathComponent("deck.pptx"))
 
-        do {
-            _ = try await HyphaRepositoryBuilder().build(
-                repositoryRoot: repository,
-                command: "   ",
-                timeout: .seconds(1)
-            )
-            XCTFail("Expected empty command rejection")
-        } catch {
-            XCTAssertEqual(error as? HyphaRepositoryBuildError, .emptyCommand)
-        }
+        let result = try await HyphaRepositoryBuilder().build(
+            repositoryRoot: repository,
+            command: "   ",
+            timeout: .seconds(1)
+        )
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertFalse(result.didRunCommand)
+        XCTAssertEqual(result.artifact?.url.lastPathComponent, "deck.pptx")
+    }
+
+    func testOutManifestExposesBuildCommandForExplicitConfirmation() throws {
+        let output = try temporaryDirectory()
+        try Data(#"{"build":"npm run export","path":"deck.pptx","format":"pptx"}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        let command = try HyphaArtifactOutputResolver().buildCommand(outDirectory: output)
+
+        XCTAssertEqual(command, "npm run export")
+    }
+
+    func testBuildOnlyManifestFallsBackToSupportedOutputDiscovery() throws {
+        let output = try temporaryDirectory()
+        try Data("presentation".utf8).write(to: output.appendingPathComponent("deck.pptx"))
+        try Data(#"{"build":"npm run export"}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        let selection = try XCTUnwrap(HyphaArtifactOutputResolver().resolve(outDirectory: output))
+
+        XCTAssertEqual(selection.url.lastPathComponent, "deck.pptx")
+        XCTAssertEqual(selection.source, .manifest)
     }
 
     func testMatrixRoomAttachmentContentNeverCarriesLocalPathOrBuildCommand() throws {
@@ -146,6 +170,22 @@ final class HyphaRepositoryOutputTests: XCTestCase {
 
         XCTAssertEqual(binding.repositoryRoot.standardizedFileURL, repository.standardizedFileURL)
         XCTAssertEqual(binding.buildCommand, "swift build")
+    }
+
+    func testLocalBindingStoreAcceptsAnEmptyBuildCommand() throws {
+        let repository = try temporaryDirectory()
+        let suiteName = "hypha-repository-binding-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = HyphaRoomRepositoryLocalBindingStore(defaults: defaults)
+
+        try store.save(
+            roomID: "!room:example.org",
+            repositoryRoot: repository,
+            buildCommand: ""
+        )
+
+        XCTAssertEqual(try store.load(roomID: "!room:example.org")?.buildCommand, "")
     }
 
     private func temporaryDirectory() throws -> URL {
