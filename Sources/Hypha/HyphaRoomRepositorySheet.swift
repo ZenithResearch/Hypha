@@ -11,6 +11,10 @@ struct HyphaRoomRepositorySheet: View {
     @State private var repositoryPath = ""
     @State private var repositoryRoot: URL?
     @State private var remoteRepositoryURL = ""
+    @State private var githubToken = ""
+    @State private var githubAccessMessage: String?
+    @State private var githubAccessIsError = false
+    @State private var isVerifyingGitHubAccess = false
     @State private var buildCommand = ""
     @State private var pendingBuildCommand = ""
     @State private var serverAttachment: MatrixRoomRepositoryAttachment?
@@ -28,6 +32,7 @@ struct HyphaRoomRepositorySheet: View {
     private let bindingStore = HyphaRoomRepositoryLocalBindingStore()
     private let builder = HyphaRepositoryBuilder()
     private let resolver = HyphaArtifactOutputResolver()
+    private let githubAccessClient = HyphaGitHubRepositoryAccessClient()
 
     private var canAttach: Bool {
         !isAttaching
@@ -84,7 +89,37 @@ struct HyphaRoomRepositorySheet: View {
                     TextField("https://github.com/owner/repository", text: $remoteRepositoryURL)
                         .textFieldStyle(.roundedBorder)
                         .accessibilityIdentifier("matrix.room.repository.remote")
+                        .onChange(of: remoteRepositoryURL) { _, _ in
+                            githubAccessMessage = nil
+                        }
                     Text("The remote URL and repository name are shared with the Matrix room. The local path and build command stay on this Mac.")
+                        .font(.caption)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+
+                    SecureField("GitHub API token", text: $githubToken)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier("matrix.room.repository.github-token")
+                    HStack {
+                        Button(isVerifyingGitHubAccess ? "Verifying…" : "Verify private access") {
+                            verifyGitHubAccess()
+                        }
+                        .disabled(
+                            isVerifyingGitHubAccess
+                                || githubToken.isEmpty
+                                || remoteRepositoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        )
+                        .accessibilityIdentifier("matrix.room.repository.github-verify")
+                        if let githubAccessMessage {
+                            Text(githubAccessMessage)
+                                .font(.caption)
+                                .foregroundStyle(
+                                    githubAccessIsError
+                                        ? ZenithDesign.Palette.error
+                                        : ZenithDesign.Palette.success
+                                )
+                        }
+                    }
+                    Text("For private GitHub repositories, enter a fine-grained personal access token with read-only repository access. The token is used once, cleared immediately, never saved, and never sent to Matrix.")
                         .font(.caption)
                         .foregroundStyle(ZenithDesign.Palette.muted)
 
@@ -162,7 +197,10 @@ struct HyphaRoomRepositorySheet: View {
         }
         .frame(minWidth: 720, idealWidth: 900, minHeight: 560, idealHeight: 720)
         .task { await load() }
-        .onDisappear { endSecurityScope() }
+        .onDisappear {
+            githubToken = ""
+            endSecurityScope()
+        }
         .confirmationDialog(
             "Run this local build command?",
             isPresented: $showsBuildConfirmation,
@@ -238,6 +276,29 @@ struct HyphaRoomRepositorySheet: View {
         if isAccessingSecurityScope { scopedURL?.stopAccessingSecurityScopedResource() }
         isAccessingSecurityScope = false
         scopedURL = nil
+    }
+
+    private func verifyGitHubAccess() {
+        let token = githubToken
+        let remote = remoteRepositoryURL
+        githubToken = ""
+        githubAccessMessage = nil
+        isVerifyingGitHubAccess = true
+        Task {
+            defer { isVerifyingGitHubAccess = false }
+            do {
+                let access = try await githubAccessClient.verify(remote: remote, token: token)
+                let visibility = access.isPrivate ? "private" : "public"
+                githubAccessMessage = "Access confirmed for \(access.fullName) (\(visibility))."
+                githubAccessIsError = false
+            } catch let error as HyphaGitHubRepositoryAccessError {
+                githubAccessMessage = githubAccessErrorMessage(error)
+                githubAccessIsError = true
+            } catch {
+                githubAccessMessage = "GitHub access could not be verified."
+                githubAccessIsError = true
+            }
+        }
     }
 
     private func attach() {
@@ -369,6 +430,23 @@ struct HyphaRoomRepositorySheet: View {
         case .invalidRepository: "Choose a valid Git repository root."
         case .launchFailed: "Hypha could not launch the local build shell."
         case .timedOut: "The build exceeded the 15-minute limit and was terminated."
+        }
+    }
+
+    private func githubAccessErrorMessage(_ error: HyphaGitHubRepositoryAccessError) -> String {
+        switch error {
+        case .invalidRemote:
+            "Enter a valid github.com repository URL."
+        case .invalidToken:
+            "Enter a GitHub personal access token without whitespace."
+        case .authenticationFailed:
+            "GitHub did not accept this token for repository access."
+        case .repositoryUnavailable:
+            "The repository was not found or this token cannot read it."
+        case .serviceUnavailable:
+            "GitHub access could not be checked right now."
+        case .invalidResponse:
+            "GitHub returned an invalid repository response."
         }
     }
 

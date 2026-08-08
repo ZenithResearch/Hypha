@@ -71,6 +71,8 @@ An attached room shares the remote repository URL and fixed `out/` contract thro
 
 Any command from the UI or local manifest requires explicit confirmation before execution. Local paths and commands are never published to Matrix.
 
+For a private `github.com` remote, the Repository sheet accepts a fine-grained GitHub personal access token to verify read access through the GitHub API. The token is held only for that request, cleared from the form before the network call, and is never persisted or published to Matrix. The selected checkout remains local; Hypha does not silently clone, fetch, or pull it.
+
 The packaged app uses a checksummed, repository-local Matrix Rust SDK binary artifact tracked with Git LFS. After cloning, run `git lfs install --local` and `git lfs pull`. Its source commits, macOS 26.4 build boundary, regression tests, and checksum are recorded in [`Vendor/MatrixRustSDK/PROVENANCE.md`](Vendor/MatrixRustSDK/PROVENANCE.md). It never offers a synthetic room or plaintext fallback. Invite-token account creation is shown only when the connected homeserver's registration UIA advertises `m.login.registration_token`; otherwise the sign-in surface does not solicit an invite token.
 
 ### One-time local identity migration
