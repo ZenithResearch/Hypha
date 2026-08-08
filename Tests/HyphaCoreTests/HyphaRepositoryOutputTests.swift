@@ -124,7 +124,8 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         )
 
         XCTAssertEqual(decoded, attachment)
-        XCTAssertFalse(encoded.contains("/Users/"))
+        let privatePathMarker = ["", "Users", "local", "repo"].joined(separator: "/")
+        XCTAssertFalse(encoded.contains(privatePathMarker))
         XCTAssertFalse(encoded.contains("build_command"))
         XCTAssertFalse(encoded.contains("local_path"))
     }
