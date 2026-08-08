@@ -18,6 +18,9 @@ Current Matrix capability:
 - private, invite-only encrypted room creation;
 - encrypted text history and live messages;
 - encrypted text send with no plaintext downgrade;
+- Matrix room repository attachments with local-only security-scoped repository paths and user-supplied build commands;
+- explicit local builds from the repository root with renderable outputs discovered under `out/` or selected by `out/out.json`;
+- in-app PowerPoint (`.pptx`), PDF, HTML, image, and text output viewers;
 - first-device cross-signing and Matrix Secure Backup setup with a one-time recovery key;
 - Matrix Secure Backup recovery-key restoration on additional devices;
 - explicit session-expiry, undecryptable, trust, verification, and recovery states;
@@ -25,7 +28,7 @@ Current Matrix capability:
 
 Device verification and encryption recovery remain visible security capabilities, but they are not prerequisites for encrypted room creation or current encrypted chat. A proven invalid-signature or active identity-compromise state still fails closed. Element is an optional compatibility probe, not an authority, prerequisite, or release gate. Restart, verification, and recovery conformance evidence is tracked separately and is not claimed here.
 
-Not included: ZenithOS integration, Sophia/appservice credentials, Dregg/Hub authority, Rolodex, calls, attachments, reactions, public-room creation, broad room administration, or Element feature parity.
+Not included: ZenithOS integration, Sophia/appservice credentials, Dregg/Hub authority, Rolodex, calls, Matrix message-file attachments, reactions, public-room creation, broad room administration, or Element feature parity.
 
 ## Why a separate app
 

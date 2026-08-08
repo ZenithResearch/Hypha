@@ -1137,6 +1137,21 @@ final class MatrixAppModel: ObservableObject {
         }
     }
 
+    func repositoryAttachment(
+        for room: MatrixRoomSummary
+    ) async throws -> MatrixRoomRepositoryAttachment? {
+        guard let coordinator else { throw MatrixChatServiceError.sessionExpired }
+        return try await coordinator.repositoryAttachment(for: room)
+    }
+
+    func attachRepository(
+        _ attachment: MatrixRoomRepositoryAttachment,
+        to room: MatrixRoomSummary
+    ) async throws {
+        guard let coordinator else { throw MatrixChatServiceError.sessionExpired }
+        try await coordinator.attachRepository(attachment, to: room)
+    }
+
     func open(_ room: MatrixRoomSummary) async {
         guard let coordinator else { return }
         timelineRefreshTask?.cancel()
@@ -1240,6 +1255,9 @@ private struct MatrixCompanionShell: View {
     @State private var showsRecoverySetup = false
     @State private var showsNewRoom = false
     @State private var showsRoomInvite = false
+#if os(macOS)
+    @State private var repositoryRoom: MatrixRoomSummary?
+#endif
     @State private var newRoomKind: MatrixRoomKind = .room
     @State private var showsFirstDevicePassword = false
     @State private var showsSecurityCenter = false
@@ -1287,6 +1305,18 @@ private struct MatrixCompanionShell: View {
         .sheet(isPresented: $showsRoomInvite) {
             MatrixRoomInviteSheet(model: model, isPresented: $showsRoomInvite)
         }
+#if os(macOS)
+        .sheet(item: $repositoryRoom) { room in
+            HyphaRoomRepositorySheet(
+                model: model,
+                room: room,
+                isPresented: Binding(
+                    get: { repositoryRoom != nil },
+                    set: { if !$0 { repositoryRoom = nil } }
+                )
+            )
+        }
+#endif
         .sheet(isPresented: $showsFirstDevicePassword) {
             MatrixFirstDevicePasswordSheet(model: model, isPresented: $showsFirstDevicePassword)
         }
@@ -1384,6 +1414,16 @@ private struct MatrixCompanionShell: View {
         .background(ZenithDesign.Palette.base)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+#if os(macOS)
+                if let room = activeRepositoryRoom {
+                    Button {
+                        repositoryRoom = room
+                    } label: {
+                        Label("Repository", systemImage: "shippingbox")
+                    }
+                    .accessibilityIdentifier("matrix.room.repository.open")
+                }
+#endif
                 Button {
                     showsSettings = true
                 } label: {
@@ -1394,6 +1434,13 @@ private struct MatrixCompanionShell: View {
             }
         }
     }
+
+#if os(macOS)
+    private var activeRepositoryRoom: MatrixRoomSummary? {
+        guard case let .thread(room, _, _) = model.state, !room.isSpace else { return nil }
+        return room
+    }
+#endif
 
     private var detailTitle: String {
         switch model.state {

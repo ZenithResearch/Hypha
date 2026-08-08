@@ -461,6 +461,11 @@ public protocol MatrixChatService: Sendable {
     func refreshRooms() async throws -> [MatrixRoomSummary]
     func timeline(for roomID: String) async throws -> [MatrixTimelineEvent]
     func sendText(_ body: String, to roomID: String) async throws
+    func roomRepositoryAttachment(roomID: String) async throws -> MatrixRoomRepositoryAttachment?
+    func setRoomRepositoryAttachment(
+        _ attachment: MatrixRoomRepositoryAttachment,
+        roomID: String
+    ) async throws
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary
     func lookupInviteUser(userID: String, roomID: String) async throws -> MatrixUserLookupResult
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws
@@ -482,6 +487,15 @@ public protocol MatrixChatService: Sendable {
 }
 
 public extension MatrixChatService {
+    func roomRepositoryAttachment(roomID: String) async throws -> MatrixRoomRepositoryAttachment? { nil }
+
+    func setRoomRepositoryAttachment(
+        _ attachment: MatrixRoomRepositoryAttachment,
+        roomID: String
+    ) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Room repository attachments are unavailable")
+    }
+
     func createAdministratorManagedRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility) async throws -> MatrixAdminRoomSummary {
         throw MatrixAdminClientError.serverRejected
     }
@@ -849,6 +863,27 @@ public final class MatrixChatCoordinator {
         } catch {
             return false
         }
+    }
+
+    public func repositoryAttachment(
+        for room: MatrixRoomSummary
+    ) async throws -> MatrixRoomRepositoryAttachment? {
+        guard !room.hasInvite, !room.isSpace else {
+            throw MatrixChatServiceError.unavailable(reason: "Repository attachments require a joined room")
+        }
+        return try await service.roomRepositoryAttachment(roomID: room.id)
+    }
+
+    public func attachRepository(
+        _ attachment: MatrixRoomRepositoryAttachment,
+        to room: MatrixRoomSummary
+    ) async throws {
+        guard !room.hasInvite,
+              !room.isSpace,
+              chatAuthority == .available else {
+            throw MatrixChatServiceError.unavailable(reason: "Repository attachments require a joined room")
+        }
+        try await service.setRoomRepositoryAttachment(attachment, roomID: room.id)
     }
 
     public func acceptInvitation(to room: MatrixRoomSummary) async -> [MatrixRoomSummary]? {
