@@ -19,11 +19,23 @@ public struct HyphaGitHubRepositoryAccess: Equatable, Sendable {
     }
 }
 
+public struct HyphaGitHubAccount: Equatable, Sendable {
+    public let login: String
+
+    public init(login: String) {
+        self.login = login
+    }
+}
+
 public protocol HyphaGitHubRepositoryAccessTransport: Sendable {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse)
 }
 
 public struct HyphaGitHubRepositoryAccessClient: Sendable {
+    private struct AccountResponse: Decodable {
+        let login: String
+    }
+
     private struct RepositoryResponse: Decodable {
         let fullName: String
         let isPrivate: Bool
@@ -40,6 +52,27 @@ public struct HyphaGitHubRepositoryAccessClient: Sendable {
         self.transport = transport
     }
 
+    public func connect(token: String) async throws -> HyphaGitHubAccount {
+        try Self.validateToken(token)
+        guard let url = URL(string: "https://api.github.com/user") else {
+            throw HyphaGitHubRepositoryAccessError.invalidResponse
+        }
+        let (data, response) = try await send(Self.authorizedRequest(url: url, token: token))
+        switch response.statusCode {
+        case 200:
+            guard data.count <= 64 * 1_024,
+                  let account = try? JSONDecoder().decode(AccountResponse.self, from: data),
+                  !account.login.isEmpty else {
+                throw HyphaGitHubRepositoryAccessError.invalidResponse
+            }
+            return HyphaGitHubAccount(login: account.login)
+        case 401, 403:
+            throw HyphaGitHubRepositoryAccessError.authenticationFailed
+        default:
+            throw HyphaGitHubRepositoryAccessError.serviceUnavailable
+        }
+    }
+
     public func verify(remote: String, token: String) async throws -> HyphaGitHubRepositoryAccess {
         let reference = try Self.repositoryReference(remote)
         try Self.validateToken(token)
@@ -50,23 +83,7 @@ public struct HyphaGitHubRepositoryAccessClient: Sendable {
         components.path = "/repos/\(reference.owner)/\(reference.repository)"
         guard let url = components.url else { throw HyphaGitHubRepositoryAccessError.invalidRemote }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 20
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
-
-        let data: Data
-        let response: HTTPURLResponse
-        do {
-            (data, response) = try await transport.send(request)
-        } catch let error as HyphaGitHubRepositoryAccessError {
-            throw error
-        } catch {
-            throw HyphaGitHubRepositoryAccessError.serviceUnavailable
-        }
-
+        let (data, response) = try await send(Self.authorizedRequest(url: url, token: token))
         switch response.statusCode {
         case 200:
             guard data.count <= 64 * 1_024,
@@ -87,12 +104,32 @@ public struct HyphaGitHubRepositoryAccessClient: Sendable {
         }
     }
 
+    private func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        do {
+            return try await transport.send(request)
+        } catch let error as HyphaGitHubRepositoryAccessError {
+            throw error
+        } catch {
+            throw HyphaGitHubRepositoryAccessError.serviceUnavailable
+        }
+    }
+
     private static func validateToken(_ token: String) throws {
         guard !token.isEmpty,
               token == token.trimmingCharacters(in: .whitespacesAndNewlines),
               !token.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
             throw HyphaGitHubRepositoryAccessError.invalidToken
         }
+    }
+
+    private static func authorizedRequest(url: URL, token: String) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 20
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        return request
     }
 
     private static func repositoryReference(_ remote: String) throws -> (owner: String, repository: String) {

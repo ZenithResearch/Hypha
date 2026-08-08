@@ -5,13 +5,13 @@ import SwiftUI
 
 struct HyphaRoomRepositorySheet: View {
     @ObservedObject var model: MatrixAppModel
+    @ObservedObject var githubConnection: HyphaGitHubConnectionModel
     let room: MatrixRoomSummary
     @Binding var isPresented: Bool
 
     @State private var repositoryPath = ""
     @State private var repositoryRoot: URL?
     @State private var remoteRepositoryURL = ""
-    @State private var githubToken = ""
     @State private var githubAccessMessage: String?
     @State private var githubAccessIsError = false
     @State private var isVerifyingGitHubAccess = false
@@ -32,7 +32,6 @@ struct HyphaRoomRepositorySheet: View {
     private let bindingStore = HyphaRoomRepositoryLocalBindingStore()
     private let builder = HyphaRepositoryBuilder()
     private let resolver = HyphaArtifactOutputResolver()
-    private let githubAccessClient = HyphaGitHubRepositoryAccessClient()
 
     private var canAttach: Bool {
         !isAttaching
@@ -96,16 +95,13 @@ struct HyphaRoomRepositorySheet: View {
                         .font(.caption)
                         .foregroundStyle(ZenithDesign.Palette.muted)
 
-                    SecureField("GitHub API token", text: $githubToken)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("matrix.room.repository.github-token")
                     HStack {
                         Button(isVerifyingGitHubAccess ? "Verifying…" : "Verify private access") {
                             verifyGitHubAccess()
                         }
                         .disabled(
                             isVerifyingGitHubAccess
-                                || githubToken.isEmpty
+                                || !githubConnection.isConnected
                                 || remoteRepositoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         )
                         .accessibilityIdentifier("matrix.room.repository.github-verify")
@@ -119,7 +115,11 @@ struct HyphaRoomRepositorySheet: View {
                                 )
                         }
                     }
-                    Text("For private GitHub repositories, enter a fine-grained personal access token with read-only repository access. The token is used once, cleared immediately, never saved, and never sent to Matrix.")
+                    Text(
+                        githubConnection.isConnected
+                            ? "Private access uses the global GitHub connection managed in Settings. No GitHub credential is stored in this room."
+                            : "Connect GitHub in Settings to verify access to a private remote. Public and existing local repositories do not require a GitHub connection."
+                    )
                         .font(.caption)
                         .foregroundStyle(ZenithDesign.Palette.muted)
 
@@ -198,7 +198,6 @@ struct HyphaRoomRepositorySheet: View {
         .frame(minWidth: 720, idealWidth: 900, minHeight: 560, idealHeight: 720)
         .task { await load() }
         .onDisappear {
-            githubToken = ""
             endSecurityScope()
         }
         .confirmationDialog(
@@ -279,15 +278,13 @@ struct HyphaRoomRepositorySheet: View {
     }
 
     private func verifyGitHubAccess() {
-        let token = githubToken
         let remote = remoteRepositoryURL
-        githubToken = ""
         githubAccessMessage = nil
         isVerifyingGitHubAccess = true
         Task {
             defer { isVerifyingGitHubAccess = false }
             do {
-                let access = try await githubAccessClient.verify(remote: remote, token: token)
+                let access = try await githubConnection.verify(remote: remote)
                 let visibility = access.isPrivate ? "private" : "public"
                 githubAccessMessage = "Access confirmed for \(access.fullName) (\(visibility))."
                 githubAccessIsError = false
@@ -438,7 +435,7 @@ struct HyphaRoomRepositorySheet: View {
         case .invalidRemote:
             "Enter a valid github.com repository URL."
         case .invalidToken:
-            "Enter a GitHub personal access token without whitespace."
+            "Connect GitHub in Settings before verifying private access."
         case .authenticationFailed:
             "GitHub did not accept this token for repository access."
         case .repositoryUnavailable:

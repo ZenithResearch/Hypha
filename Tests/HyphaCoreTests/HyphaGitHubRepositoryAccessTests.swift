@@ -3,6 +3,22 @@ import XCTest
 @testable import HyphaCore
 
 final class HyphaGitHubRepositoryAccessTests: XCTestCase {
+    func testGitHubConnectionAuthenticatesTheGlobalAccountThroughUserEndpoint() async throws {
+        let transport = RecordingGitHubTransport(
+            statusCode: 200,
+            body: Data(#"{"login":"banana"}"#.utf8)
+        )
+        let client = HyphaGitHubRepositoryAccessClient(transport: transport)
+
+        let account = try await client.connect(token: "github-test-token")
+
+        XCTAssertEqual(account.login, "banana")
+        let capturedRequest = await transport.lastRequest()
+        let request = try XCTUnwrap(capturedRequest)
+        XCTAssertEqual(request.url?.absoluteString, "https://api.github.com/user")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer github-test-token")
+    }
+
     func testPrivateRepositoryAccessUsesBoundedGitHubAPIRequest() async throws {
         let transport = RecordingGitHubTransport(
             statusCode: 200,

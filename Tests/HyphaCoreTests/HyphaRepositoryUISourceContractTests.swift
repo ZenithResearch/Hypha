@@ -26,10 +26,8 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             "startAccessingSecurityScopedResource()",
             "HyphaRoomRepositoryLocalBindingStore",
             "Remote repository URL",
-            "SecureField(\"GitHub API token",
             "Verify private access",
-            "githubToken = \"\"",
-            "HyphaGitHubRepositoryAccessClient",
+            "githubConnection.verify(remote:",
             "Run this local build command?",
             "Build commands run with your user permissions",
             "Load output",
@@ -52,5 +50,10 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         }
         XCTAssertTrue(app.contains("HyphaRoomRepositorySheet"))
         XCTAssertTrue(app.contains("matrix.room.repository.open"))
+        XCTAssertTrue(app.contains("Section(\"GitHub\")"))
+        XCTAssertTrue(app.contains("SecureField(\"GitHub API token"))
+        XCTAssertTrue(app.contains("Connect GitHub"))
+        XCTAssertTrue(app.contains("HyphaGitHubConnectionModel"))
+        XCTAssertFalse(sheet.contains("SecureField(\"GitHub API token"))
     }
 }

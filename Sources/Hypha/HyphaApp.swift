@@ -1251,6 +1251,7 @@ private enum HyphaAuthRoute {
 private struct MatrixCompanionShell: View {
     @ObservedObject var model: MatrixAppModel
     @StateObject private var updater = HyphaUpdateController()
+    @StateObject private var githubConnection = HyphaGitHubConnectionModel()
     @State private var showsRecovery = false
     @State private var showsRecoverySetup = false
     @State private var showsNewRoom = false
@@ -1309,6 +1310,7 @@ private struct MatrixCompanionShell: View {
         .sheet(item: $repositoryRoom) { room in
             HyphaRoomRepositorySheet(
                 model: model,
+                githubConnection: githubConnection,
                 room: room,
                 isPresented: Binding(
                     get: { repositoryRoom != nil },
@@ -1715,6 +1717,41 @@ private struct MatrixCompanionShell: View {
                         .font(.caption)
                         .foregroundStyle(ZenithDesign.Palette.muted)
                         .accessibilityIdentifier("matrix.password.reset.request.status")
+                }
+            }
+
+            Section("GitHub") {
+                if let account = githubConnection.accountLogin {
+                    Label("Connected as \(account)", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(ZenithDesign.Palette.success)
+                    Button("Disconnect GitHub", role: .destructive) {
+                        githubConnection.disconnect()
+                    }
+                    .accessibilityIdentifier("hypha.github.disconnect")
+                } else {
+                    SecureField("GitHub API token", text: $githubConnection.tokenInput)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier("hypha.github.token")
+                    Button(githubConnection.isConnecting ? "Connecting…" : "Connect GitHub") {
+                        githubConnection.connect()
+                    }
+                    .disabled(githubConnection.isConnecting || githubConnection.tokenInput.isEmpty)
+                    .accessibilityIdentifier("hypha.github.connect")
+                }
+
+                Text("GitHub is a global Hypha connection. The temporary token fallback is kept only in memory for this app session, never stored or sent to Matrix. Repository-specific access is checked from each room's Repository control.")
+                    .font(.caption)
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+
+                if let message = githubConnection.statusMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(
+                            githubConnection.statusIsError
+                                ? ZenithDesign.Palette.error
+                                : ZenithDesign.Palette.muted
+                        )
+                        .accessibilityIdentifier("hypha.github.status")
                 }
             }
 
