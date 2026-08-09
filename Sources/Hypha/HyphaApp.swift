@@ -3,96 +3,6 @@ import AppKit
 import SwiftUI
 import HyphaCore
 
-struct HyphaCommandAction {
-    let title: String
-    let perform: () -> Void
-}
-
-struct HyphaCommandActions {
-    let canShowChat: Bool
-    let canOpenRepository: Bool
-    let showRooms: () -> Void
-    let showChat: () -> Void
-    let showChatMain: () -> Void
-    let showRoomContent: () -> Void
-    let openRepository: () -> Void
-    let openSettings: () -> Void
-    let openSecurity: () -> Void
-    let changePassword: () -> Void
-    let refreshSecurity: () -> Void
-    let primarySecurityAction: HyphaCommandAction?
-    let retrySecurityAction: HyphaCommandAction?
-    let recoveryAction: HyphaCommandAction?
-    let administrationAction: HyphaCommandAction?
-}
-
-private struct HyphaCommandActionsKey: FocusedValueKey {
-    typealias Value = HyphaCommandActions
-}
-
-extension FocusedValues {
-    var hyphaCommandActions: HyphaCommandActions? {
-        get { self[HyphaCommandActionsKey.self] }
-        set { self[HyphaCommandActionsKey.self] = newValue }
-    }
-}
-
-struct HyphaCommands: Commands {
-    @FocusedValue(\.hyphaCommandActions) private var actions
-
-    var body: some Commands {
-        CommandGroup(replacing: .appSettings) {
-            Button("Settings…") { actions?.openSettings() }
-                .keyboardShortcut(",", modifiers: .command)
-                .disabled(actions == nil)
-        }
-        CommandGroup(after: .appSettings) {
-            Menu("Security") {
-                if let primary = actions?.primarySecurityAction {
-                    Button(primary.title, action: primary.perform)
-                }
-                if let retry = actions?.retrySecurityAction {
-                    Button(retry.title, action: retry.perform)
-                }
-                if let recovery = actions?.recoveryAction {
-                    Button(recovery.title, action: recovery.perform)
-                }
-                if actions?.primarySecurityAction != nil
-                    || actions?.retrySecurityAction != nil
-                    || actions?.recoveryAction != nil {
-                    Divider()
-                }
-                Button("Change Password…") { actions?.changePassword() }
-                if let administration = actions?.administrationAction {
-                    Button(administration.title, action: administration.perform)
-                }
-                Button("Refresh Security Status") { actions?.refreshSecurity() }
-                Divider()
-                Button("Security Center…") { actions?.openSecurity() }
-            }
-            .disabled(actions == nil)
-        }
-        CommandGroup(after: .newItem) {
-            Divider()
-            Button("Repository Settings…") { actions?.openRepository() }
-                .disabled(actions?.canOpenRepository != true)
-        }
-        CommandGroup(after: .sidebar) {
-            Button("Workspace Navigation Sheet") { actions?.showRooms() }
-                .keyboardShortcut("1", modifiers: [.command, .option])
-                .disabled(actions == nil)
-            Button("Chat Navigation Sheet") { actions?.showChat() }
-                .keyboardShortcut("2", modifiers: [.command, .option])
-                .disabled(actions?.canShowChat != true)
-            Divider()
-            Button("Chat in Main View") { actions?.showChatMain() }
-                .disabled(actions?.canShowChat != true)
-            Button("Room Content in Main View") { actions?.showRoomContent() }
-                .disabled(actions == nil)
-        }
-    }
-}
-
 @main
 struct HyphaApp: App {
     @StateObject private var model: MatrixAppModel
@@ -126,7 +36,6 @@ struct HyphaApp: App {
                 .task { await model.restoreSavedHomeserverIfAvailable() }
         }
         .defaultSize(width: 980, height: 680)
-        .commands { HyphaCommands() }
     }
 }
 
@@ -1385,7 +1294,6 @@ private struct MatrixCompanionShell: View {
                 chatPanel.send(.clear)
             }
         }
-        .focusedSceneValue(\.hyphaCommandActions, commandActions)
         .sheet(isPresented: $showsRecovery) {
             MatrixRecoverySheet(model: model, isPresented: $showsRecovery)
         }
@@ -1490,6 +1398,67 @@ private struct MatrixCompanionShell: View {
             contentSurface
                 .navigationTitle(detailTitle)
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .navigation) {
+                compactToolbarButton(
+                    systemName: "message",
+                    label: workspaceChatControlLabel,
+                    identifier: "matrix.toolbar.chat",
+                    isDisabled: !canPresentChat
+                ) {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        chatPanel.send(
+                            .openContextualChat(selectedRoomID: activeRepositoryRoom?.id)
+                        )
+                    }
+                }
+                compactToolbarButton(
+                    systemName: "shippingbox",
+                    label: "Repository settings",
+                    identifier: "matrix.toolbar.repository",
+                    isDisabled: activeRepositoryRoom == nil
+                ) {
+                    if let room = activeRepositoryRoom {
+                        repositoryRoom = room
+                    }
+                }
+                compactToolbarButton(
+                    systemName: "shield",
+                    label: "Security",
+                    identifier: "matrix.toolbar.security"
+                ) {
+                    showsSecurityCenter = true
+                }
+                compactToolbarButton(
+                    systemName: "slider.horizontal.3",
+                    label: "Settings",
+                    identifier: "matrix.toolbar.settings"
+                ) {
+                    showsSettings = true
+                }
+            }
+        }
+    }
+
+    private func compactToolbarButton(
+        systemName: String,
+        label: String,
+        identifier: String,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(ZenithDesign.Palette.muted)
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(label)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+        .disabled(isDisabled)
     }
 
     private var contentSurface: some View {
@@ -1533,8 +1502,11 @@ private struct MatrixCompanionShell: View {
             case .navigation:
                 navigationSheet
                     .transition(.move(edge: .leading).combined(with: .opacity))
-            case .chat:
+            case .chatDirectory:
                 chatNavigationSheet
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            case .roomChat:
+                roomChatSheet
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
@@ -1549,15 +1521,6 @@ private struct MatrixCompanionShell: View {
                 Text("Workspace")
                     .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
                 Spacer(minLength: 0)
-                Button(action: showChatNavigationSheet) {
-                    Image(systemName: "message.fill")
-                        .frame(width: 30, height: 30)
-                        .background(Circle().fill(ZenithDesign.Palette.base))
-                }
-                .buttonStyle(.plain)
-                .help("Open chat navigation")
-                .disabled(!canPresentChat)
-                .accessibilityIdentifier("matrix.global.chat-sheet.open")
             }
             .padding(.horizontal, ZenithDesign.Space.x3)
             .padding(.vertical, ZenithDesign.Space.x2)
@@ -1578,9 +1541,9 @@ private struct MatrixCompanionShell: View {
                     }
                 } label: {
                     Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 16, weight: .semibold))
-                        .frame(width: 34, height: 34)
-                        .background(Circle().fill(ZenithDesign.Palette.base))
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .frame(width: 18, height: 18)
                 }
                 .buttonStyle(.plain)
                 .help("Show workspace navigation")
@@ -1633,6 +1596,66 @@ private struct MatrixCompanionShell: View {
         }
         .background(ZenithDesign.Palette.baseSubtle)
         .accessibilityIdentifier("matrix.global.chat-sheet")
+    }
+
+    private var roomChatSheet: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: ZenithDesign.Space.x2) {
+                Image(systemName: activeChatRoom?.isEncrypted == false ? "lock.open.fill" : "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(
+                        activeChatRoom?.isEncrypted == false
+                            ? ZenithDesign.Palette.warning
+                            : ZenithDesign.Palette.brand
+                    )
+                Text(activeChatRoom?.name ?? activeRepositoryRoom?.name ?? "Room Chat")
+                    .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        chatPanel.send(.showNavigationSheet)
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(.plain)
+                .help("Show workspace navigation")
+                .accessibilityLabel("Show workspace navigation")
+                .accessibilityIdentifier("matrix.room.chat-sheet.close")
+            }
+            .padding(.horizontal, ZenithDesign.Space.x3)
+            .padding(.vertical, ZenithDesign.Space.x2)
+
+            Divider()
+            roomChatDetail
+        }
+        .background(ZenithDesign.Palette.baseSubtle)
+        .accessibilityIdentifier("matrix.room.chat-sheet")
+    }
+
+    @ViewBuilder
+    private var roomChatDetail: some View {
+        switch model.state {
+        case let .thread(room, events, composer)
+            where room.id == chatPanel.activeRoomID && !room.isSpace:
+            thread(room: room, events: events, composerState: composer)
+        case let .trustBlocked(room)
+            where room.id == chatPanel.activeRoomID && !room.isSpace:
+            chatDetail
+        default:
+            ProgressView("Opening encrypted chat…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(ZenithDesign.Space.x4)
+        }
+    }
+
+    private var workspaceChatControlLabel: String {
+        guard let room = activeRepositoryRoom else { return "Browse chats" }
+        return "Open \(room.name) chat"
     }
 
     private var chatRooms: [MatrixRoomSummary] {
@@ -1749,100 +1772,31 @@ private struct MatrixCompanionShell: View {
         return room.isDirect ? "Encrypted direct chat" : "Encrypted room"
     }
 
-    private func showChatNavigationSheet() {
-        if chatPanel.activeRoomID == nil,
-           let room = activeRepositoryRoom ?? chatRooms.first {
-            chatPanel.send(.activate(roomID: room.id))
-        }
-        withAnimation(.easeInOut(duration: 0.18)) {
-            chatPanel.send(.showChatSheet)
-        }
-    }
-
     private var activeChatRoom: MatrixRoomSummary? {
         guard let activeRoomID = chatPanel.activeRoomID else { return nil }
         return model.rooms.first { $0.id == activeRoomID }
     }
 
-    private func sendChatAction(_ action: HyphaChatPanelAction) {
-        if chatPanel.activeRoomID == nil,
-           let room = activeRepositoryRoom ?? chatRooms.first {
-            chatPanel.send(.activate(roomID: room.id))
-        }
-        chatPanel.send(action)
-    }
-
     private func openChatConversation(_ room: MatrixRoomSummary) {
         chatPanel.send(.activate(roomID: room.id))
-        chatPanel.send(.showMain)
-        Task { await model.open(room) }
+        chatPanel.send(.showContent)
+        Task {
+            await model.open(room)
+            guard chatPanel.activeRoomID == room.id,
+                  activeRepositoryRoom?.id == room.id else { return }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                chatPanel.send(.showRoomChat)
+            }
+        }
     }
 
     private var activeRepositoryRoom: MatrixRoomSummary? {
         switch model.state {
-        case let .thread(room, _, _) where !room.isSpace,
-             let .trustBlocked(room) where !room.isSpace:
+        case let .thread(room, _, _) where !room.isSpace && !room.hasInvite,
+             let .trustBlocked(room) where !room.isSpace && !room.hasInvite:
             return room
         default:
             return nil
-        }
-    }
-
-    private var commandActions: HyphaCommandActions {
-        HyphaCommandActions(
-            canShowChat: canPresentChat,
-            canOpenRepository: activeRepositoryRoom != nil,
-            showRooms: { chatPanel.send(.showNavigationSheet) },
-            showChat: { sendChatAction(.showChatSheet) },
-            showChatMain: { sendChatAction(.showMain) },
-            showRoomContent: { chatPanel.send(.showContent) },
-            openRepository: {
-                if let room = activeRepositoryRoom {
-                    repositoryRoom = room
-                }
-            },
-            openSettings: { showsSettings = true },
-            openSecurity: { showsSecurityCenter = true },
-            changePassword: openPasswordChange,
-            refreshSecurity: { Task { await model.refreshDeviceVerification() } },
-            primarySecurityAction: primarySecurityCommandAction,
-            retrySecurityAction: retrySecurityCommandAction,
-            recoveryAction: recoveryCommandAction,
-            administrationAction: model.adminAccessState == .authorized
-                ? HyphaCommandAction(title: "Homeserver Administration…", perform: openAdministration)
-                : nil
-        )
-    }
-
-    private var primarySecurityCommandAction: HyphaCommandAction? {
-        switch securityPresentation.primaryDeviceAction {
-        case .setUpThisDevice:
-            HyphaCommandAction(title: "Set Up This Device", perform: beginFirstDeviceSetup)
-        case .verifyWithAnotherHyphaDevice:
-            HyphaCommandAction(title: "Verify with Another Hypha Device", perform: beginPeerVerification)
-        case .continueDeviceSetupWithPassword:
-            HyphaCommandAction(title: "Continue Device Setup…", perform: continueFirstDeviceSetup)
-        case nil:
-            nil
-        }
-    }
-
-    private var retrySecurityCommandAction: HyphaCommandAction? {
-        if case .deviceSetupFailed = securityPresentation.localOperation {
-            HyphaCommandAction(title: "Try Device Setup Again", perform: beginFirstDeviceSetup)
-        } else {
-            nil
-        }
-    }
-
-    private var recoveryCommandAction: HyphaCommandAction? {
-        switch securityPresentation.recoveryAction {
-        case .setUpRecovery:
-            HyphaCommandAction(title: "Set Up Recovery…", perform: openRecoverySetup)
-        case .restoreEncryption:
-            HyphaCommandAction(title: "Restore Encryption…", perform: openRecoveryRestore)
-        case nil:
-            nil
         }
     }
 
@@ -2120,6 +2074,24 @@ private struct MatrixCompanionShell: View {
                         .foregroundStyle(ZenithDesign.Palette.muted)
                         .accessibilityIdentifier("matrix.password.reset.request.status")
                 }
+            }
+
+            Section("Devices") {
+                Button("Verify new device") {
+                    showsSettings = false
+                    Task {
+                        await Task.yield()
+                        beginPeerVerification()
+                    }
+                }
+                .disabled(
+                    securityPresentation.primaryDeviceAction != .verifyWithAnotherHyphaDevice
+                )
+                .accessibilityIdentifier("matrix.verification.request.settings")
+
+                Text("Use another signed-in Hypha device to confirm this device's encrypted identity.")
+                    .font(.caption)
+                    .foregroundStyle(ZenithDesign.Palette.muted)
             }
 
             Section("GitHub") {

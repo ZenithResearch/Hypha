@@ -196,10 +196,10 @@ struct HyphaSecurityBanner: View {
 
     @ViewBuilder
     private var actionRow: some View {
-        if presentation.primaryDeviceAction != nil || presentation.recoveryAction != nil {
+        if showsPrimaryDeviceAction || presentation.recoveryAction != nil {
             HStack(spacing: ZenithDesign.Space.x3) {
                 primaryActionButton
-                if presentation.primaryDeviceAction != nil,
+                if showsPrimaryDeviceAction,
                    presentation.recoveryAction != nil {
                     Divider().frame(height: 18)
                 }
@@ -207,6 +207,11 @@ struct HyphaSecurityBanner: View {
                 Spacer()
             }
         }
+    }
+
+    private var showsPrimaryDeviceAction: Bool {
+        guard let action = presentation.primaryDeviceAction else { return false }
+        return action != .verifyWithAnotherHyphaDevice
     }
 
     @ViewBuilder
@@ -218,10 +223,7 @@ struct HyphaSecurityBanner: View {
                 .keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier("matrix.first-device.bootstrap")
         case .verifyWithAnotherHyphaDevice:
-            Button("Verify with another Hypha device", action: onRequestVerification)
-                .buttonStyle(HyphaButtonStyle(.primary))
-                .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier("matrix.verification.request")
+            EmptyView()
         case .continueDeviceSetupWithPassword:
             Button("Continue device setup", action: onContinueDeviceSetup)
                 .buttonStyle(HyphaButtonStyle(.primary))

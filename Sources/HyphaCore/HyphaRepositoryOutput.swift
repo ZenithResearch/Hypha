@@ -79,6 +79,10 @@ public struct HyphaArtifactOutputResolver: Sendable {
     public init() {}
 
     public func resolve(outDirectory: URL) throws -> HyphaArtifactSelection? {
+        try resolveAll(outDirectory: outDirectory).first
+    }
+
+    public func resolveAll(outDirectory: URL) throws -> [HyphaArtifactSelection] {
         let fileManager = FileManager.default
         let root = outDirectory.standardizedFileURL.resolvingSymlinksInPath()
         var isDirectory: ObjCBool = false
@@ -86,11 +90,7 @@ public struct HyphaArtifactOutputResolver: Sendable {
             throw HyphaArtifactOutputError.outputDirectoryUnavailable
         }
 
-        let manifestURL = root.appendingPathComponent("out.json")
-        if fileManager.fileExists(atPath: manifestURL.path) {
-            return try resolveManifest(at: manifestURL, root: root)
-        }
-        return try supportedFiles(in: root).first.map {
+        let discovered = try supportedFiles(in: root).map {
             HyphaArtifactSelection(
                 url: $0.url,
                 format: $0.format,
@@ -98,6 +98,10 @@ public struct HyphaArtifactOutputResolver: Sendable {
                 source: .discovery
             )
         }
+        let manifestURL = root.appendingPathComponent("out.json")
+        guard fileManager.fileExists(atPath: manifestURL.path) else { return discovered }
+        guard let primary = try resolveManifest(at: manifestURL, root: root) else { return [] }
+        return [primary] + discovered.filter { $0.url != primary.url }
     }
 
     public func buildCommand(outDirectory: URL) throws -> String? {
@@ -204,7 +208,7 @@ public struct HyphaArtifactOutputResolver: Sendable {
             guard let viewer = HyphaArtifactViewerRegistry.viewer(forFormat: format) else { continue }
             matches.append((resolved, format, viewer))
         }
-        return matches.sorted { $0.url.path.localizedStandardCompare($1.url.path) == .orderedAscending }
+        return matches.sorted { $0.url.path < $1.url.path }
     }
 
     private func isContained(_ candidate: URL, by root: URL) -> Bool {
@@ -222,13 +226,15 @@ public enum HyphaRepositoryBuildError: Error, Equatable, Sendable {
 public struct HyphaRepositoryBuildResult: Equatable, Sendable {
     public let exitCode: Int32
     public let log: String
-    public let artifact: HyphaArtifactSelection?
+    public let artifacts: [HyphaArtifactSelection]
     public let didRunCommand: Bool
 
-    public init(exitCode: Int32, log: String, artifact: HyphaArtifactSelection?, didRunCommand: Bool) {
+    public var artifact: HyphaArtifactSelection? { artifacts.first }
+
+    public init(exitCode: Int32, log: String, artifacts: [HyphaArtifactSelection], didRunCommand: Bool) {
         self.exitCode = exitCode
         self.log = log
-        self.artifact = artifact
+        self.artifacts = artifacts
         self.didRunCommand = didRunCommand
     }
 }
@@ -356,13 +362,13 @@ public struct HyphaRepositoryBuilder: Sendable {
         let cleanCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
         let out = root.appendingPathComponent("out", isDirectory: true)
         if cleanCommand.isEmpty {
-            let artifact = FileManager.default.fileExists(atPath: out.path)
-                ? try resolver.resolve(outDirectory: out)
-                : nil
+            let artifacts = FileManager.default.fileExists(atPath: out.path)
+                ? try resolver.resolveAll(outDirectory: out)
+                : []
             return HyphaRepositoryBuildResult(
                 exitCode: 0,
                 log: "",
-                artifact: artifact,
+                artifacts: artifacts,
                 didRunCommand: false
             )
         }
@@ -406,20 +412,20 @@ public struct HyphaRepositoryBuilder: Sendable {
             return (process.terminationStatus, String(decoding: capped, as: UTF8.self))
         }.value
 
-        let artifact: HyphaArtifactSelection?
+        let artifacts: [HyphaArtifactSelection]
         if processResult.0 == 0 {
             if FileManager.default.fileExists(atPath: out.path) {
-                artifact = try resolver.resolve(outDirectory: out)
+                artifacts = try resolver.resolveAll(outDirectory: out)
             } else {
-                artifact = nil
+                artifacts = []
             }
         } else {
-            artifact = nil
+            artifacts = []
         }
         return HyphaRepositoryBuildResult(
             exitCode: processResult.0,
             log: processResult.1,
-            artifact: artifact,
+            artifacts: artifacts,
             didRunCommand: true
         )
 #else

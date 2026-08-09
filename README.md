@@ -19,9 +19,9 @@ Current Matrix capability:
 - encrypted text history and live messages;
 - encrypted text send with no plaintext downgrade;
 - Matrix room repository attachments with a shared remote repository URL and local-only security-scoped repository paths;
-- content-first rooms with workspace navigation and chat navigation swapping through one draggable global left sheet, driven by explicit active-room and presentation state transitions outside room content;
+- content-first rooms whose draggable global left sheet contextually swaps from workspace navigation to the selected room’s thread, while roomless chat access opens a searchable global directory and the main room dashboard remains stable;
 - optional, explicitly confirmed local builds from the repository root, with commands entered in Hypha or read from local `out/out.json`;
-- renderable existing outputs discovered under `out/` when no build command is provided;
+- every renderable existing output discovered under `out/` when no build command is provided, with an in-room asset picker when several outputs exist;
 - room-content PowerPoint (`.pptx`), PDF, HTML, image, rendered Markdown, and text output viewers, kept out of repository settings;
 - first-device cross-signing and Matrix Secure Backup setup with a one-time recovery key;
 - Matrix Secure Backup recovery-key restoration on additional devices;
@@ -57,7 +57,7 @@ open Hypha.app
 
 ## Repository output contract
 
-An attached room shares the remote repository URL and fixed `out/` contract through Matrix room state. Each Mac separately chooses its local checkout. The local build command is optional: with no command, Hypha loads an existing supported file from `<repo>/out`.
+An attached room shares the remote repository URL and fixed `out/` contract through Matrix room state. Each Mac separately chooses its local checkout. The local build command is optional: with no command, Hypha loads every supported file from `<repo>/out`. If the manifest selects a primary output, that output opens first while the remaining supported assets stay available in the room-content picker.
 
 `out/out.json` can select an output and may provide the local command that creates it:
 
@@ -72,7 +72,7 @@ An attached room shares the remote repository URL and fixed `out/` contract thro
 
 Any command from the UI or local manifest requires explicit confirmation before execution. Local paths and commands are never published to Matrix.
 
-Repository settings only bind the local checkout, remote identity, optional command, and output contract. Builds and output viewers run from the room's content dashboard. A global chat store independently owns the active room reference, the current leading sheet, and main-view presentation. The application shell—not room content—swaps the native draggable `NavigationSplitView` sidebar between workspace navigation and a Messages-inspired chat sheet with search, recent direct chats, and a conversation list. There are no sidebar tabs and no simultaneous trailing chat column. Chat, repository, Settings, and security actions live in the macOS application menus rather than icon-only window toolbar controls. Markdown uses a dedicated bounded renderer rather than the raw monospaced text viewer.
+Repository settings only bind the local checkout, remote identity, optional command, and output contract. Builds and output viewers run from the room's content dashboard. A global chat store independently owns the active room reference, the current leading sheet, and main-view presentation. The application shell—not room content—gives the native draggable `NavigationSplitView` sidebar three explicit states: workspace navigation, a Messages-inspired global directory, and the selected room’s timeline/composer. The contextual chat control opens the selected room’s chat in that leading sheet while keeping the room dashboard in the main surface; only a roomless workspace opens the global directory. There are no sidebar tabs and no simultaneous trailing chat column. Compact, accessible chat, repository, security, and Settings controls sit beside the native drawer icon instead of depending on focus-sensitive custom application-menu commands. Markdown uses a dedicated bounded renderer rather than the raw monospaced text viewer.
 
 GitHub is connected globally from Settings, not separately for each room. Until the Hypha Git GitHub App/device flow is available, Settings accepts a fine-grained personal access token as a temporary fallback, validates the GitHub account, clears the input before the request, and holds the token only in memory for the current app session. A room's Repository control can then verify read access to a private `github.com` remote without receiving or storing a credential. Tokens are never persisted or published to Matrix. The selected checkout remains local; Hypha does not silently clone, fetch, or pull it.
 

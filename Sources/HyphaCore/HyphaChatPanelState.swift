@@ -2,7 +2,8 @@ import Foundation
 
 public enum HyphaSidebarSheet: Equatable, Sendable {
     case navigation
-    case chat
+    case chatDirectory
+    case roomChat
 }
 
 public enum HyphaMainPresentation: Equatable, Sendable {
@@ -28,8 +29,10 @@ public struct HyphaChatPanelState: Equatable, Sendable {
 
 public enum HyphaChatPanelAction: Equatable, Sendable {
     case activate(roomID: String)
+    case openContextualChat(selectedRoomID: String?)
     case showNavigationSheet
-    case showChatSheet
+    case showChatDirectory
+    case showRoomChat
     case showMain
     case showContent
     case clear
@@ -44,11 +47,22 @@ public enum HyphaChatPanelReducer {
         case let .activate(roomID):
             guard !roomID.isEmpty else { return }
             state.activeRoomID = roomID
+        case let .openContextualChat(selectedRoomID):
+            state.mainPresentation = .content
+            if let selectedRoomID, !selectedRoomID.isEmpty {
+                state.activeRoomID = selectedRoomID
+                state.sidebarSheet = .roomChat
+            } else {
+                state.sidebarSheet = .chatDirectory
+            }
         case .showNavigationSheet:
             state.sidebarSheet = .navigation
-        case .showChatSheet:
+        case .showChatDirectory:
+            state.sidebarSheet = .chatDirectory
+        case .showRoomChat:
             guard state.activeRoomID != nil else { return }
-            state.sidebarSheet = .chat
+            state.mainPresentation = .content
+            state.sidebarSheet = .roomChat
         case .showMain:
             guard state.activeRoomID != nil else { return }
             state.mainPresentation = .chat

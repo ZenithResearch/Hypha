@@ -2,49 +2,74 @@ import XCTest
 @testable import HyphaCore
 
 final class HyphaChatPanelReducerTests: XCTestCase {
-    func testPanelTransitionsKeepTheActiveChatReferenceGlobal() {
+    func testContextualSelectedRoomOpensItsLeadingChatSheetAndKeepsMainContent() {
         var state = HyphaChatPanelState()
-
-        XCTAssertEqual(state.sidebarSheet, .navigation)
-        XCTAssertEqual(state.mainPresentation, .content)
-
-        HyphaChatPanelReducer.reduce(state: &state, action: .activate(roomID: "room-a"))
-        XCTAssertEqual(state.activeRoomID, "room-a")
-        XCTAssertEqual(state.sidebarSheet, .navigation)
-
-        HyphaChatPanelReducer.reduce(state: &state, action: .showChatSheet)
-        XCTAssertEqual(state.sidebarSheet, .chat)
-        XCTAssertEqual(state.mainPresentation, .content)
-
-        HyphaChatPanelReducer.reduce(state: &state, action: .activate(roomID: "room-b"))
-        XCTAssertEqual(state.activeRoomID, "room-b")
-        XCTAssertEqual(state.sidebarSheet, .chat)
-
+        HyphaChatPanelReducer.reduce(state: &state, action: .activate(roomID: "room-remembered"))
         HyphaChatPanelReducer.reduce(state: &state, action: .showMain)
-        XCTAssertEqual(state.mainPresentation, .chat)
-        XCTAssertEqual(state.sidebarSheet, .chat)
+        HyphaChatPanelReducer.reduce(
+            state: &state,
+            action: .openContextualChat(selectedRoomID: "room-selected")
+        )
 
-        HyphaChatPanelReducer.reduce(state: &state, action: .showNavigationSheet)
-        XCTAssertEqual(state.sidebarSheet, .navigation)
-        XCTAssertEqual(state.mainPresentation, .chat)
-
-        HyphaChatPanelReducer.reduce(state: &state, action: .showContent)
+        XCTAssertEqual(state.activeRoomID, "room-selected")
+        XCTAssertEqual(state.sidebarSheet, .roomChat)
         XCTAssertEqual(state.mainPresentation, .content)
-        XCTAssertEqual(state.activeRoomID, "room-b")
     }
 
-    func testPanelCannotOpenWithoutAnActiveChatAndClearResetsEverything() {
+    func testContextualRoomlessActionOpensDirectoryWithoutUsingRememberedRoom() {
+        var state = HyphaChatPanelState()
+        HyphaChatPanelReducer.reduce(state: &state, action: .activate(roomID: "room-remembered"))
+
+        HyphaChatPanelReducer.reduce(
+            state: &state,
+            action: .openContextualChat(selectedRoomID: nil)
+        )
+
+        XCTAssertEqual(state.sidebarSheet, .chatDirectory)
+        XCTAssertEqual(state.mainPresentation, .content)
+        XCTAssertEqual(state.activeRoomID, "room-remembered")
+    }
+
+    func testGlobalDirectoryCanOpenWithoutAnActiveRoom() {
         var state = HyphaChatPanelState()
 
-        HyphaChatPanelReducer.reduce(state: &state, action: .showChatSheet)
-        XCTAssertEqual(state, HyphaChatPanelState())
+        HyphaChatPanelReducer.reduce(state: &state, action: .showChatDirectory)
 
-        HyphaChatPanelReducer.reduce(state: &state, action: .activate(roomID: "room-a"))
-        HyphaChatPanelReducer.reduce(state: &state, action: .showMain)
-        XCTAssertEqual(state.mainPresentation, .chat)
+        XCTAssertEqual(state.sidebarSheet, .chatDirectory)
+        XCTAssertNil(state.activeRoomID)
+    }
+
+    func testSelectedRoomChatRequiresAnActiveRoom() {
+        var state = HyphaChatPanelState(sidebarSheet: .chatDirectory)
+
+        HyphaChatPanelReducer.reduce(state: &state, action: .showRoomChat)
+
+        XCTAssertEqual(state.sidebarSheet, .chatDirectory)
+    }
+
+    func testNavigationReturnPreservesRoomAndMainContent() {
+        var state = HyphaChatPanelState()
+        HyphaChatPanelReducer.reduce(
+            state: &state,
+            action: .openContextualChat(selectedRoomID: "room-a")
+        )
+
+        HyphaChatPanelReducer.reduce(state: &state, action: .showNavigationSheet)
+
+        XCTAssertEqual(state.sidebarSheet, .navigation)
+        XCTAssertEqual(state.mainPresentation, .content)
+        XCTAssertEqual(state.activeRoomID, "room-a")
+    }
+
+    func testClearResetsEveryPresentationDimension() {
+        var state = HyphaChatPanelState()
+        HyphaChatPanelReducer.reduce(
+            state: &state,
+            action: .openContextualChat(selectedRoomID: "room-a")
+        )
+
         HyphaChatPanelReducer.reduce(state: &state, action: .clear)
 
         XCTAssertEqual(state, HyphaChatPanelState())
     }
-
 }

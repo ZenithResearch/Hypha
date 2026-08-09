@@ -94,6 +94,40 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         XCTAssertEqual(selection.source, .discovery)
     }
 
+    func testDiscoveryReturnsEveryViewerSupportedOutputAsset() throws {
+        let output = try temporaryDirectory()
+        let nested = output.appendingPathComponent("slides", isDirectory: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        try Data("read me".utf8).write(to: output.appendingPathComponent("README.md"))
+        try Data("presentation".utf8).write(to: nested.appendingPathComponent("deck.pptx"))
+        try Data("<html></html>".utf8).write(to: output.appendingPathComponent("index.html"))
+        try Data("ignore".utf8).write(to: output.appendingPathComponent("archive.bin"))
+
+        let selections = try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)
+
+        XCTAssertEqual(
+            selections.map(\.url.lastPathComponent),
+            ["README.md", "index.html", "deck.pptx"]
+        )
+        XCTAssertEqual(selections.map(\.viewer), [.markdown, .web, .quickLook])
+        XCTAssertTrue(selections.allSatisfy { $0.source == .discovery })
+    }
+
+    func testManifestSelectionRemainsDefaultWhileOtherSupportedAssetsStayAvailable() throws {
+        let output = try temporaryDirectory()
+        try Data("read me".utf8).write(to: output.appendingPathComponent("README.md"))
+        try Data("presentation".utf8).write(to: output.appendingPathComponent("deck.pptx"))
+        try Data("<html></html>".utf8).write(to: output.appendingPathComponent("index.html"))
+        try Data(#"{"path":"deck.pptx","format":"pptx"}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        let selections = try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)
+
+        XCTAssertEqual(selections.map(\.url.lastPathComponent), ["deck.pptx", "README.md", "index.html"])
+        XCTAssertEqual(selections.first?.source, .manifest)
+        XCTAssertTrue(selections.dropFirst().allSatisfy { $0.source == .discovery })
+    }
+
     func testDiscoveryReturnsNoOutputForUnsupportedFiles() throws {
         let output = try temporaryDirectory()
         try Data("ignore".utf8).write(to: output.appendingPathComponent("archive.bin"))
@@ -117,6 +151,7 @@ final class HyphaRepositoryOutputTests: XCTestCase {
 
         XCTAssertEqual(result.exitCode, 0)
         XCTAssertEqual(result.artifact?.url.lastPathComponent, "deck.pptx")
+        XCTAssertEqual(result.artifacts.map(\.url.lastPathComponent), ["deck.pptx", "root.txt"])
         let reportedRoot = try String(
             contentsOf: repository.appendingPathComponent("out/root.txt"),
             encoding: .utf8
@@ -143,6 +178,7 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         XCTAssertEqual(result.exitCode, 0)
         XCTAssertFalse(result.didRunCommand)
         XCTAssertEqual(result.artifact?.url.lastPathComponent, "deck.pptx")
+        XCTAssertEqual(result.artifacts.map(\.url.lastPathComponent), ["deck.pptx"])
     }
 
     func testOutManifestExposesBuildCommandForExplicitConfirmation() throws {

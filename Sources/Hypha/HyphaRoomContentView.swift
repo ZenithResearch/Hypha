@@ -11,7 +11,8 @@ struct HyphaRoomContentView: View {
     @State private var repositoryRoot: URL?
     @State private var buildCommand = ""
     @State private var pendingBuildCommand = ""
-    @State private var artifact: HyphaArtifactSelection?
+    @State private var artifacts: [HyphaArtifactSelection] = []
+    @State private var selectedArtifactURL: URL?
     @State private var buildLog = ""
     @State private var statusMessage: String?
     @State private var statusIsError = false
@@ -24,6 +25,11 @@ struct HyphaRoomContentView: View {
     private let bindingStore = HyphaRoomRepositoryLocalBindingStore()
     private let builder = HyphaRepositoryBuilder()
     private let resolver = HyphaArtifactOutputResolver()
+
+    private var artifact: HyphaArtifactSelection? {
+        guard let selectedArtifactURL else { return artifacts.first }
+        return artifacts.first { $0.url == selectedArtifactURL } ?? artifacts.first
+    }
 
     private var outputActionLabel: String {
         if isOpeningOutput { return "Working…" }
@@ -51,6 +57,16 @@ struct HyphaRoomContentView: View {
 
                 if let artifact {
                     VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+                        if artifacts.count > 1 {
+                            Picker("Output asset", selection: $selectedArtifactURL) {
+                                ForEach(artifacts, id: \.url) { selection in
+                                    Text(selection.url.lastPathComponent)
+                                        .tag(Optional(selection.url))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .accessibilityIdentifier("matrix.room.content.output-asset")
+                        }
                         HStack {
                             Text(artifact.url.lastPathComponent)
                                 .font(.headline)
@@ -172,7 +188,8 @@ struct HyphaRoomContentView: View {
 
     private func load() async {
         isLoading = true
-        artifact = nil
+        artifacts = []
+        selectedArtifactURL = nil
         statusMessage = nil
         endSecurityScope()
         defer { isLoading = false }
@@ -226,7 +243,8 @@ struct HyphaRoomContentView: View {
     private func runBuild(command: String) {
         guard let repositoryRoot else { return }
         isOpeningOutput = true
-        artifact = nil
+        artifacts = []
+        selectedArtifactURL = nil
         buildLog = ""
         statusMessage = nil
         Task {
@@ -238,13 +256,17 @@ struct HyphaRoomContentView: View {
                     status("Build failed with exit code \(result.exitCode). Review the build log.", error: true)
                     return
                 }
-                guard let selection = result.artifact else {
+                guard let selection = result.artifacts.first else {
                     let prefix = result.didRunCommand ? "Build succeeded" : "No build command was provided"
                     status("\(prefix), but out/ contains no supported output.", error: true)
                     return
                 }
-                artifact = selection
-                status("Opened \(selection.url.lastPathComponent) from this room's content view.")
+                artifacts = result.artifacts
+                selectedArtifactURL = selection.url
+                let suffix = result.artifacts.count == 1
+                    ? ""
+                    : " and found \(result.artifacts.count - 1) additional output assets"
+                status("Opened \(selection.url.lastPathComponent)\(suffix) from this room's content view.")
             } catch let error as HyphaArtifactOutputError {
                 status("out/out.json is invalid: \(artifactErrorMessage(error))", error: true)
             } catch let error as HyphaRepositoryBuildError {
