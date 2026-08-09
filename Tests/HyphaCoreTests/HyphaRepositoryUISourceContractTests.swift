@@ -115,7 +115,10 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             "case .quickLook",
             "case .web",
             "case .image",
+            "case .markdown",
             "case .text",
+            "HyphaMarkdownArtifactView",
+            "AttributedString(markdown:",
         ] {
             XCTAssertTrue(viewer.contains(marker), "Missing artifact-viewer contract: \(marker)")
         }

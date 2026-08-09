@@ -17,6 +17,8 @@ struct HyphaArtifactViewerView: View {
                 HyphaWebArtifactView(url: selection.url)
             case .image:
                 HyphaImageArtifactView(url: selection.url)
+            case .markdown:
+                HyphaMarkdownArtifactView(url: selection.url)
             case .text:
                 HyphaTextArtifactView(url: selection.url)
             }
@@ -108,6 +110,54 @@ private struct HyphaImageArtifactView: View {
             }
         } else {
             ContentUnavailableView("Image unavailable", systemImage: "photo.badge.exclamationmark")
+        }
+    }
+}
+
+private struct HyphaMarkdownArtifactView: View {
+    let url: URL
+    @State private var markdown = AttributedString()
+    @State private var errorMessage: String?
+
+    var body: some View {
+        Group {
+            if let errorMessage {
+                ContentUnavailableView(
+                    "Markdown unavailable",
+                    systemImage: "doc.richtext",
+                    description: Text(errorMessage)
+                )
+            } else {
+                ScrollView(.vertical) {
+                    Text(markdown)
+                        .font(.body)
+                        .lineSpacing(5)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .padding(32)
+                }
+            }
+        }
+        .task(id: url) { load() }
+        .accessibilityIdentifier("hypha.artifact.markdown")
+    }
+
+    private func load() {
+        do {
+            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+            guard data.count <= 2 * 1_024 * 1_024 else {
+                errorMessage = "The Markdown output exceeds the 2 MB in-app preview limit."
+                return
+            }
+            let source = String(decoding: data, as: UTF8.self)
+            do {
+                markdown = try AttributedString(markdown: source)
+            } catch {
+                markdown = AttributedString(source)
+            }
+            errorMessage = nil
+        } catch {
+            errorMessage = "Hypha could not read this Markdown output."
         }
     }
 }

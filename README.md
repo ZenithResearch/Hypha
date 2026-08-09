@@ -19,10 +19,10 @@ Current Matrix capability:
 - encrypted text history and live messages;
 - encrypted text send with no plaintext downgrade;
 - Matrix room repository attachments with a shared remote repository URL and local-only security-scoped repository paths;
-- content-first room workspaces with chat shown in a right-side panel by default and a toggle for making chat the main room view;
+- content-first room workspaces with chat shown in an overlaid right-side sheet by default and a toggle for making chat the main room view;
 - optional, explicitly confirmed local builds from the repository root, with commands entered in Hypha or read from local `out/out.json`;
 - renderable existing outputs discovered under `out/` when no build command is provided;
-- room-content PowerPoint (`.pptx`), PDF, HTML, image, and text output viewers, kept out of repository settings;
+- room-content PowerPoint (`.pptx`), PDF, HTML, image, rendered Markdown, and text output viewers, kept out of repository settings;
 - first-device cross-signing and Matrix Secure Backup setup with a one-time recovery key;
 - Matrix Secure Backup recovery-key restoration on additional devices;
 - explicit session-expiry, undecryptable, trust, verification, and recovery states;
@@ -72,7 +72,7 @@ An attached room shares the remote repository URL and fixed `out/` contract thro
 
 Any command from the UI or local manifest requires explicit confirmation before execution. Local paths and commands are never published to Matrix.
 
-Repository settings only bind the local checkout, remote identity, optional command, and output contract. Builds and output viewers run from the room's content dashboard. Chat starts in the room's right-side panel and can be toggled into the main view.
+Repository settings only bind the local checkout, remote identity, optional command, and output contract. Builds and output viewers run from the room's content dashboard. Chat starts in an overlaid right-side sheet that does not resize content and can be toggled into the main view. Markdown uses a dedicated bounded renderer rather than the raw monospaced text viewer.
 
 GitHub is connected globally from Settings, not separately for each room. Until the Hypha Git GitHub App/device flow is available, Settings accepts a fine-grained personal access token as a temporary fallback, validates the GitHub account, clears the input before the request, and holds the token only in memory for the current app session. A room's Repository control can then verify read access to a private `github.com` remote without receiving or storing a credential. Tokens are never persisted or published to Matrix. The selected checkout remains local; Hypha does not silently clone, fetch, or pull it.
 

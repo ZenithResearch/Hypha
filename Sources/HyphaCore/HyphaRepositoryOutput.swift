@@ -4,6 +4,7 @@ public enum HyphaArtifactViewer: String, Codable, Equatable, Sendable {
     case quickLook
     case web
     case image
+    case markdown
     case text
 }
 
@@ -21,8 +22,8 @@ public enum HyphaArtifactViewerRegistry {
         "gif": .image,
         "heic": .image,
         "txt": .text,
-        "md": .text,
-        "markdown": .text,
+        "md": .markdown,
+        "markdown": .markdown,
         "json": .text,
         "log": .text,
     ]

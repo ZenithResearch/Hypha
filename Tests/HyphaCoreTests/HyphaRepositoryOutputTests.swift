@@ -8,6 +8,12 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         XCTAssertEqual(HyphaArtifactViewerRegistry.viewer(forFormat: ".PPTX"), .quickLook)
     }
 
+    func testViewerRegistryMapsMarkdownToRenderedMarkdown() {
+        XCTAssertEqual(HyphaArtifactViewerRegistry.viewer(forFormat: "md"), .markdown)
+        XCTAssertEqual(HyphaArtifactViewerRegistry.viewer(forFormat: ".MARKDOWN"), .markdown)
+        XCTAssertEqual(HyphaArtifactViewerRegistry.viewer(forFormat: "txt"), .text)
+    }
+
     func testOutManifestSelectsAnExplicitPresentation() throws {
         let output = try temporaryDirectory()
         let deck = output.appendingPathComponent("slides/deck.pptx")
