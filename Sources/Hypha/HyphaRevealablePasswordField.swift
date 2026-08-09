@@ -38,7 +38,7 @@ struct HyphaRevealablePasswordField: View {
                 isRevealed.toggle()
             } label: {
                 Image(systemName: isRevealed ? "eye.slash" : "eye")
-                    .frame(width: 20, height: 20)
+                    .frame(width: HyphaPlatform.minimumIconButtonHitSize, height: HyphaPlatform.minimumIconButtonHitSize)
             }
             .buttonStyle(.plain)
             .foregroundStyle(ZenithDesign.Palette.muted)

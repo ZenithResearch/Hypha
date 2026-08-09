@@ -136,6 +136,49 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(continuousSyncStartCount, 1)
     }
 
+    func testQrLoginPersistsCanonicalAccountWithItsProvisionalEncryptedStore() async throws {
+        let vault = MemorySessionVault()
+        let client = FakeLiveClient(
+            sessionUserID: "@alice:synapse.zenith-research.ca",
+            qrLoginUpdates: [
+                .starting,
+                .checkCodeDisplay("42"),
+                .syncingSecrets,
+                .completed,
+            ]
+        )
+        await client.setRooms([
+            MatrixRoomSummary(id: "!encrypted:example.org", name: "Encrypted", isEncrypted: true, hasInvite: false)
+        ])
+        let factory = FakeLiveClientFactory(client: client, qrLoginSupported: true)
+        let provisionalNamespace = String(repeating: "a", count: 64)
+        let storeKey = Data(repeating: 0xB6, count: 32)
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: factory,
+            randomStoreKey: { storeKey },
+            randomStoreNamespace: { provisionalNamespace }
+        )
+        let updates = LockedQrProgress()
+
+        let rooms = try await service.signInWithQrCode(Data([0x4d, 0x41, 0x54, 0x52, 0x49, 0x58])) {
+            updates.append($0)
+        }
+
+        let canonicalAccountKey = MatrixRustSDKChatService.accountKey(
+            username: "@alice:synapse.zenith-research.ca",
+            homeserver: MatrixProductConfiguration.production.homeserver
+        )
+        let qrStoreNamespaces = await factory.qrStoreNamespaces()
+        XCTAssertEqual(rooms.map(\.id), ["!encrypted:example.org"])
+        XCTAssertEqual(updates.values(), [.starting, .checkCodeDisplay("42"), .syncingSecrets, .completed])
+        XCTAssertEqual(qrStoreNamespaces, [provisionalNamespace])
+        XCTAssertEqual(try vault.loadedStoreKey(), storeKey)
+        XCTAssertEqual(try vault.loadSession()?.accountKey, canonicalAccountKey)
+        XCTAssertEqual(try vault.loadSession()?.storeNamespace, provisionalNamespace)
+    }
+
     func testPasswordSignInResetsAbandonedCryptoStoreWhenNoSessionRemains() async throws {
         let accountKey = MatrixRustSDKChatService.accountKey(
             username: "beaver",
@@ -781,9 +824,9 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
     func testSASSessionRecordsAcceptanceAndSASStartBoundaries() async {
         let controller = DiagnosticSessionVerificationController()
         let stages = VerificationStageRecorder()
-        let session = MatrixSASVerificationSession(controller: controller) { stage in
+        let session = MatrixSASVerificationSession(controller: controller, stageObserver: { stage in
             stages.append(stage)
-        }
+        })
         let challengeTask = Task {
             try await session.requestChallenge()
         }
@@ -808,6 +851,34 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
 
         controller.deliverFailure()
         _ = try? await challengeTask.value
+    }
+
+    func testSASSessionAcknowledgesIncomingRequestAndPublishesChallenge() async {
+        let controller = DiagnosticSessionVerificationController()
+        let challenges = LockedVerificationChallenges()
+        let session = MatrixSASVerificationSession(
+            controller: controller,
+            incomingChallengeObserver: { challenges.append($0) }
+        )
+
+        controller.deliverIncomingRequest(senderID: "@alice:example.org", flowID: "flow-1")
+        await controller.waitUntilIncomingAccepted()
+        controller.deliverVerificationData(.decimals(values: [111, 222, 333]))
+        await challenges.waitUntilPresent()
+
+        XCTAssertEqual(challenges.snapshot(), [.decimals([111, 222, 333])])
+        withExtendedLifetime(session) {}
+    }
+}
+
+private final class LockedVerificationChallenges: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [MatrixVerificationChallenge] = []
+
+    func append(_ value: MatrixVerificationChallenge) { lock.withLock { values.append(value) } }
+    func snapshot() -> [MatrixVerificationChallenge] { lock.withLock { values } }
+    func waitUntilPresent() async {
+        while lock.withLock({ values.isEmpty }) { await Task.yield() }
     }
 }
 
@@ -835,6 +906,8 @@ private final class DiagnosticSessionVerificationController: SessionVerification
     private var delegate: SessionVerificationControllerDelegate?
     private var requestStarted = false
     private var sasStarts = 0
+    private var acknowledgedIncoming = false
+    private var acceptedIncoming = false
 
     required init(unsafeFromHandle handle: UInt64) {
         fatalError("Not used by this test")
@@ -852,6 +925,18 @@ private final class DiagnosticSessionVerificationController: SessionVerification
         lock.withLock { requestStarted = true }
     }
 
+    override func acknowledgeVerificationRequest(senderId: String, flowId: String) async throws {
+        lock.withLock { acknowledgedIncoming = true }
+    }
+
+    override func acceptVerificationRequest() async throws {
+        let currentDelegate = lock.withLock {
+            acceptedIncoming = true
+            return delegate
+        }
+        currentDelegate?.didAcceptVerificationRequest()
+    }
+
     override func startSasVerification() async throws {
         let currentDelegate = lock.withLock {
             sasStarts += 1
@@ -863,6 +948,31 @@ private final class DiagnosticSessionVerificationController: SessionVerification
 
     func deliverAcceptance() {
         lock.withLock { delegate }?.didAcceptVerificationRequest()
+    }
+
+    func deliverIncomingRequest(senderID: String, flowID: String) {
+        let details = SessionVerificationRequestDetails(
+            senderProfile: UserProfile(
+                userId: senderID,
+                displayName: nil,
+                avatarUrl: nil,
+                status: nil,
+                call: nil
+            ),
+            flowId: flowID,
+            deviceId: "DEVICE",
+            deviceDisplayName: "Other Hypha",
+            firstSeenTimestamp: 0
+        )
+        lock.withLock { delegate }?.didReceiveVerificationRequest(details: details)
+    }
+
+    func deliverVerificationData(_ data: SessionVerificationData) {
+        lock.withLock { delegate }?.didReceiveVerificationData(data: data)
+    }
+
+    func waitUntilIncomingAccepted() async {
+        while !lock.withLock({ acknowledgedIncoming && acceptedIncoming }) { await Task.yield() }
     }
 
     func deliverFailure() {
@@ -883,6 +993,19 @@ private final class DiagnosticSessionVerificationController: SessionVerification
 
     func sasStartCount() -> Int {
         lock.withLock { sasStarts }
+    }
+}
+
+private final class LockedQrProgress: @unchecked Sendable {
+    private let lock = NSLock()
+    private var updates: [MatrixQrLoginProgress] = []
+
+    func append(_ update: MatrixQrLoginProgress) {
+        lock.withLock { updates.append(update) }
+    }
+
+    func values() -> [MatrixQrLoginProgress] {
+        lock.withLock { updates }
     }
 }
 
@@ -940,6 +1063,8 @@ private actor FakeLiveClient: MatrixLiveClient {
     private let recoveryState: MatrixRecoveryState
     private let createdRoom: MatrixRoomSummary?
     private let sessionHomeserverURL: String
+    private let sessionUserID: String
+    private let qrLoginUpdates: [MatrixQrLoginProgress]
     private let loginError: Error?
     private let sessionError: Error?
     private let syncError: Error?
@@ -951,6 +1076,8 @@ private actor FakeLiveClient: MatrixLiveClient {
 
     init(
         sessionHomeserverURL: String = "https://synapse.zenith-research.ca",
+        sessionUserID: String = "@alice:example.org",
+        qrLoginUpdates: [MatrixQrLoginProgress] = [],
         loginError: Error? = nil,
         sessionError: Error? = nil,
         syncError: Error? = nil,
@@ -968,6 +1095,8 @@ private actor FakeLiveClient: MatrixLiveClient {
         createdRoom: MatrixRoomSummary? = nil
     ) {
         self.sessionHomeserverURL = sessionHomeserverURL
+        self.sessionUserID = sessionUserID
+        self.qrLoginUpdates = qrLoginUpdates
         self.loginError = loginError
         self.sessionError = sessionError
         self.syncError = syncError
@@ -990,10 +1119,16 @@ private actor FakeLiveClient: MatrixLiveClient {
         if let loginError { throw loginError }
         logins += 1
     }
+    func signInWithQrCode(
+        _ qrCodeData: Data,
+        progress: @escaping MatrixQrLoginProgressHandler
+    ) async throws {
+        qrLoginUpdates.forEach(progress)
+    }
     func restore(session: MatrixSDKSessionRecord) async throws { restored.append(session) }
     func sessionRecord(accountKey: String) async throws -> MatrixSDKSessionRecord {
         if let sessionError { throw sessionError }
-        return .fixture(accountKey: accountKey, homeserverURL: sessionHomeserverURL)
+        return .fixture(accountKey: accountKey, homeserverURL: sessionHomeserverURL, userID: sessionUserID)
     }
     func syncOnce() async throws {
         if let syncError { throw syncError }
@@ -1115,17 +1250,34 @@ private actor FakeLiveClientFactory: MatrixLiveClientFactory {
     private var makes = 0
     private var resets: [String] = []
     private var storeKeys: [Data] = []
+    private var qrNamespaces: [String] = []
+    private let supportsQrLogin: Bool
 
-    init(client: FakeLiveClient) { self.client = client }
+    init(client: FakeLiveClient, qrLoginSupported: Bool = false) {
+        self.client = client
+        self.supportsQrLogin = qrLoginSupported
+    }
     func make(accountKey: String, storeKey: Data) async throws -> any MatrixLiveClient {
         makes += 1
         storeKeys.append(storeKey)
         return client
     }
+    func makeForQrLogin(
+        qrCodeData: Data,
+        storeNamespace: String,
+        storeKey: Data
+    ) async throws -> any MatrixLiveClient {
+        makes += 1
+        qrNamespaces.append(storeNamespace)
+        storeKeys.append(storeKey)
+        return client
+    }
+    func qrLoginSupported() async throws -> Bool { supportsQrLogin }
     func resetStore(accountKey: String) async throws { resets.append(accountKey) }
     func makeCount() -> Int { makes }
     func resetAccountKeys() -> [String] { resets }
     func madeStoreKeys() -> [Data] { storeKeys }
+    func qrStoreNamespaces() -> [String] { qrNamespaces }
 }
 
 private actor FakePasswordSessionReauthenticator: MatrixPasswordSessionReauthenticating {

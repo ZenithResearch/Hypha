@@ -49,6 +49,7 @@ public final class AppleSharedWebCredentialStore: HyphaSharedWebCredentialStore,
     }
 
     public static func isAvailable(for domain: String) -> Bool {
+        #if os(macOS)
         guard validDomain(domain),
               let task = SecTaskCreateFromSelf(nil),
               let associatedDomains = SecTaskCopyValueForEntitlement(
@@ -59,6 +60,9 @@ public final class AppleSharedWebCredentialStore: HyphaSharedWebCredentialStore,
             return false
         }
         return associatedDomains.contains("webcredentials:\(domain)")
+        #else
+        return false
+        #endif
     }
 
     public func save(password: String, username: String, domain: String) async throws {

@@ -1,0 +1,45 @@
+name: HyphaMobile
+options:
+  minimumXcodeGenVersion: 2.46.0
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+packages:
+  HyphaPackage:
+    path: .
+targets:
+  HyphaMobile:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Sources/Hypha
+      - path: Resources/iOS/Assets.xcassets
+        buildPhase: resources
+    dependencies:
+      - package: HyphaPackage
+        product: HyphaCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ca.zenithresearch.ios.client
+        PRODUCT_NAME: Hypha
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.10"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: KR4YTNKK3Y
+        SUPPORTS_MACCATALYST: false
+        "EXCLUDED_ARCHS[sdk=iphonesimulator*]": x86_64
+        GENERATE_INFOPLIST_FILE: false
+        INFOPLIST_FILE: Resources/iOS/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.1.0
+schemes:
+  HyphaMobile:
+    build:
+      targets:
+        HyphaMobile: all
+    run:
+      config: Debug
+    archive:
+      config: Release

@@ -3,6 +3,8 @@ import HyphaCore
 
 /// Authentication molecule that presents one account identity and its independent actions.
 struct HyphaAccountChoiceCard: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     let choice: HyphaLoginAccountChoice
     let isPending: Bool
     let isInteractionDisabled: Bool
@@ -66,35 +68,17 @@ struct HyphaAccountChoiceCard: View {
                 }
             }
 
-            HStack(spacing: ZenithDesign.Space.x2) {
-                if let session = choice.session {
-                    HyphaButton(
-                        title: "Delete local session…",
-                        systemImage: "rectangle.portrait.and.arrow.right",
-                        variant: .quiet
-                    ) {
-                        deleteLocalSession(session)
-                    }
-                    .disabled(isInteractionDisabled)
-                    .accessibilityLabel("Delete local session for \(choice.displayAccount)")
-                    .accessibilityIdentifier("matrix.session.delete.\(choice.id)")
-                    .fixedSize(horizontal: true, vertical: false)
+            if horizontalSizeClass == .compact {
+                VStack(spacing: ZenithDesign.Space.x2) {
+                    deletionActions
                 }
-                if let credential = choice.credential {
-                    HyphaButton(
-                        title: "Delete saved password…",
-                        systemImage: "key.slash",
-                        variant: .quiet
-                    ) {
-                        deleteSavedPassword(credential)
-                    }
-                    .disabled(isInteractionDisabled)
-                    .accessibilityLabel("Delete saved password for \(choice.displayAccount)")
-                    .accessibilityIdentifier("matrix.password.delete.\(choice.id)")
-                    .fixedSize(horizontal: true, vertical: false)
+                .frame(maxWidth: .infinity)
+            } else {
+                HStack(spacing: ZenithDesign.Space.x2) {
+                    deletionActions
                 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(ZenithDesign.Space.x4)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -103,6 +87,36 @@ struct HyphaAccountChoiceCard: View {
         .overlay {
             RoundedRectangle(cornerRadius: ZenithDesign.Radius.sheet, style: .continuous)
                 .stroke(ZenithDesign.Palette.border, lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var deletionActions: some View {
+        if let session = choice.session {
+            HyphaButton(
+                title: "Delete local session…",
+                systemImage: "rectangle.portrait.and.arrow.right",
+                variant: .quiet,
+                fillsWidth: horizontalSizeClass == .compact
+            ) {
+                deleteLocalSession(session)
+            }
+            .disabled(isInteractionDisabled)
+            .accessibilityLabel("Delete local session for \(choice.displayAccount)")
+            .accessibilityIdentifier("matrix.session.delete.\(choice.id)")
+        }
+        if let credential = choice.credential {
+            HyphaButton(
+                title: "Delete saved password…",
+                systemImage: "key.slash",
+                variant: .quiet,
+                fillsWidth: horizontalSizeClass == .compact
+            ) {
+                deleteSavedPassword(credential)
+            }
+            .disabled(isInteractionDisabled)
+            .accessibilityLabel("Delete saved password for \(choice.displayAccount)")
+            .accessibilityIdentifier("matrix.password.delete.\(choice.id)")
         }
     }
 

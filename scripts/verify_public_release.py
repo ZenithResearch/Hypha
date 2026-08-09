@@ -39,10 +39,15 @@ LICENSE_HASHES = {
 ALLOWED_SPDX_IDS = set(LICENSE_HASHES) | {"MPL-2.0-or-later"}
 BINARY_HASHES = {
     "Resources/ZenithOSIcon.icns": "59f627b5e8996335d8be81b5fcc6092088b9c1915ed9b2cd82e49e0b9a348a78",
+    "Resources/iOS/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png": "af1d53159a8fe909f0308a413942d368243aefe2f4d170df3638435285dbe382",
+    "Resources/iOS/Assets.xcassets/HyphaMark.imageset/HyphaMark.png": "af1d53159a8fe909f0308a413942d368243aefe2f4d170df3638435285dbe382",
     "docs/evidence/issue-2/native-shell.png": "7e88b4366551f923c2e12b33eea737cef01558899484060b37a5ce2a37a0b84b",
     "Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip": SDK_SHA256,
 }
 CRITICAL_POLICY_HASHES = {
+    "project.yml": "788e6adac72d77d709bfee4c4256a02cb9de7fbc28aa266ddc362fd4b451ee7a",
+    "Resources/iOS/Info.plist": "f684655642e476f10aa8b909f0bf62fecb65e9d91f2bcdf3ef7f60666625b2f6",
+    "HyphaMobile.xcodeproj/project.pbxproj": "516b1918cb72e111123523a120638667f33459f5ac1e393af1e39cd87fc53494",
     ".github/workflows/ci.yml": "93b2d8b9692a6c43849e854e73d1946918e464e9e8897cd34fe66a134aaf90cc",
     ".github/workflows/release.yml": "a471607fe5e1ccd41d810433ee0a927fa25db4218306f2626176777d09dd58bf",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
@@ -59,7 +64,7 @@ CRITICAL_POLICY_HASHES = {
     "scripts/generate_zenith_icon.py": "f91f71cdf8309fe9217e06cafd0477c32faa380c66b4f31feedc8d0944250b18",
     "Resources/ZenithOSIcon.svg": "b553714e443d6ab856295676f92ee363d9b9ccfb8a0a6711e73ce9780fe2ac78",
 }
-TEXT_SUFFIXES = {"", ".command", ".entitlements", ".hbs", ".html", ".json", ".md", ".plist", ".py", ".sh", ".svg", ".swift", ".toml", ".txt", ".yml", ".yaml"}
+TEXT_SUFFIXES = {"", ".command", ".entitlements", ".hbs", ".html", ".json", ".md", ".pbxproj", ".plist", ".py", ".sh", ".svg", ".swift", ".toml", ".txt", ".xcworkspacedata", ".xcscheme", ".yml", ".yaml"}
 BINARY_MAGIC_PREFIXES = (b"PK\x03\x04", b"\x89PNG\r\n\x1a\n", b"icns", b"\x7fELF", b"%PDF", b"\x1f\x8b")
 
 

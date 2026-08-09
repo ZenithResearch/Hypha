@@ -2,18 +2,20 @@ import SwiftUI
 
 /// Authentication molecule: product identity plus flow-specific title and guidance.
 struct HyphaAuthHeader: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     let title: String
     let message: String
     var symbol: String = "lock.shield.fill"
 
     var body: some View {
-        VStack(spacing: ZenithDesign.Space.x3) {
+        VStack(spacing: horizontalSizeClass == .compact ? ZenithDesign.Space.x2 : ZenithDesign.Space.x3) {
             ZStack {
                 Circle()
                     .fill(ZenithDesign.Palette.brand.opacity(0.1))
-                    .frame(width: 74, height: 74)
+                    .frame(width: horizontalSizeClass == .compact ? 60 : 74, height: horizontalSizeClass == .compact ? 60 : 74)
                 Image(systemName: symbol)
-                    .font(.system(size: 34, weight: .medium))
+                    .font(.system(size: horizontalSizeClass == .compact ? 28 : 34, weight: .medium))
                     .foregroundStyle(ZenithDesign.Palette.brand)
             }
 
@@ -27,7 +29,7 @@ struct HyphaAuthHeader: View {
                 .foregroundStyle(ZenithDesign.Palette.muted)
 
             Text(title)
-                .font(ZenithDesign.Typography.technical(size: 28, weight: .semibold))
+                .font(ZenithDesign.Typography.technical(size: horizontalSizeClass == .compact ? 24 : 28, weight: .semibold))
                 .multilineTextAlignment(.center)
 
             Text(message)

@@ -53,7 +53,8 @@ struct MatrixAdminSheet: View {
                 }
             }
         }
-        .frame(minWidth: 680, idealWidth: 760, minHeight: 560, idealHeight: 680)
+        .hyphaFlexibleSheetFrame(minWidth: 680, idealWidth: 760, minHeight: 560, idealHeight: 680)
+        .hyphaMobileSheetPresentation()
         .task {
             await model.refreshAdministratorAccess()
             await model.refreshAdministratorSnapshot()
@@ -534,7 +535,8 @@ private struct MatrixAdminPasswordResetSheet: View {
                 }
             }
         }
-        .frame(minWidth: 500, idealWidth: 560, minHeight: 340)
+        .hyphaFlexibleSheetFrame(minWidth: 500, idealWidth: 560, minHeight: 340)
+        .hyphaMobileSheetPresentation()
         .interactiveDismissDisabled(model.isAdminOperationInFlight)
         .onDisappear(perform: clearSecrets)
     }

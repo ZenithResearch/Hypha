@@ -2,17 +2,17 @@
 
 `SPDX-License-Identifier: AGPL-3.0-or-later`
 
-Hypha is Zenith Research's native macOS client for Zenith. It is intended to grow into a broader sovereign interface for participating in Zenith and Castalia from the Mac. Matrix chat is the first implemented capability, not the product boundary.
+Hypha is Zenith Research's native Apple-platform client for Zenith on macOS, iPhone, and iPad. It is intended to grow into a broader sovereign interface for participating in Zenith and Castalia. Matrix chat is the first implemented capability, not the product boundary.
 
 ## Product boundary
 
-The app is a standalone human Zenith client, not part of the ZenithOS daemon/UI bundle. Swift and SwiftUI own the native macOS shell. Capabilities remain isolated behind narrow adapters so Matrix does not become Hypha's product architecture. For the first implemented capability, the official Matrix Rust SDK owns Matrix networking, sync, Olm/Megolm, crypto storage, device trust, and recovery state.
+The app is a standalone human Zenith client, not part of the ZenithOS daemon/UI bundle. Swift and SwiftUI own the native Apple-platform shells. Capabilities remain isolated behind narrow adapters so Matrix does not become Hypha's product architecture. For the first implemented capability, the official Matrix Rust SDK owns Matrix networking, sync, Olm/Megolm, crypto storage, device trust, and recovery state.
 
 Current Matrix capability:
 
 - configurable HTTPS Matrix homeserver with loopback-only HTTP development support;
 - password sign-in and capability-gated invite-token registration;
-- per-username Matrix passwords saved as generic-password items under the human-readable macOS Keychain service `Hypha` in all builds;
+- per-username Matrix passwords saved through the platform's protected credential store under the human-readable service `Hypha`;
 - durable session/device restoration with Keychain-backed crypto-store material;
 - joined and invited rooms;
 - private, invite-only encrypted room creation;
@@ -40,7 +40,7 @@ A standalone app keeps human credentials and capability state away from ZenithOS
 
 ## Glossary
 
-- **Hypha:** this native macOS human client.
+- **Hypha:** this native macOS, iPhone, and iPad human client.
 - **Zenith:** the broader user-owned network and product ecosystem Hypha is designed to participate in.
 - **Castalia:** Zenith's permissioned homeserver-syndicate architecture; it is future integration context, not an authority implemented by this client.
 - **Matrix Rust SDK:** the pinned upstream SDK that exclusively owns Matrix networking, rooms, sync, devices, and E2EE state below Hypha's adapter boundary.
@@ -75,6 +75,17 @@ Any command from the UI or local manifest requires explicit confirmation before 
 Repository settings only bind the local checkout, remote identity, optional command, and output contract. Builds and output viewers run from the room's content dashboard. A global chat store independently owns the active room reference, the current leading sheet, and main-view presentation. The application shell—not room content—gives the native draggable `NavigationSplitView` sidebar three explicit states: workspace navigation, a Messages-inspired global directory, and the selected room’s timeline/composer. The contextual chat control opens the selected room’s chat in that leading sheet while keeping the room dashboard in the main surface; only a roomless workspace opens the global directory. There are no sidebar tabs and no simultaneous trailing chat column. Compact, accessible chat, repository, security, and Settings controls sit beside the native drawer icon instead of depending on focus-sensitive custom application-menu commands. Markdown uses a dedicated bounded renderer rather than the raw monospaced text viewer.
 
 GitHub is connected globally from Settings, not separately for each room. Until the Hypha Git GitHub App/device flow is available, Settings accepts a fine-grained personal access token as a temporary fallback, validates the GitHub account, clears the input before the request, and holds the token only in memory for the current app session. A room's Repository control can then verify read access to a private `github.com` remote without receiving or storing a credential. Tokens are never persisted or published to Matrix. The selected checkout remains local; Hypha does not silently clone, fetch, or pull it.
+
+Generate and build the iPhone/iPad project with XcodeGen:
+
+```bash
+xcodegen generate
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  xcodebuild -project HyphaMobile.xcodeproj -scheme HyphaMobile \
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+```
+
+The generated `HyphaMobile` target supports iPhone and iPad and uses bundle identifier `ca.zenithresearch.ios.client`. Device builds require the Zenith Research development team and normal Xcode provisioning.
 
 The packaged app uses a checksummed, repository-local Matrix Rust SDK binary artifact tracked with Git LFS. After cloning, run `git lfs install --local` and `git lfs pull`. Its source commits, macOS 26.4 build boundary, regression tests, and checksum are recorded in [`Vendor/MatrixRustSDK/PROVENANCE.md`](Vendor/MatrixRustSDK/PROVENANCE.md). It never offers a synthetic room or plaintext fallback. Invite-token account creation is shown only when the connected homeserver's registration UIA advertises `m.login.registration_token`; otherwise the sign-in surface does not solicit an invite token.
 

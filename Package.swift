@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "Hypha",
-    platforms: [.macOS("26.4")],
+    platforms: [.macOS("26.4"), .iOS("18.0")],
     products: [
         .library(name: "HyphaCore", targets: ["HyphaCore"]),
         .executable(name: "Hypha", targets: ["Hypha"])

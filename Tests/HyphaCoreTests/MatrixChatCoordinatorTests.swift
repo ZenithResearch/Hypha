@@ -159,6 +159,36 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.verificationFlowState, .idle)
     }
 
+    func testQrSignInPublishesProtocolProgressAndLoadsRooms() async {
+        let room = MatrixRoomSummary(
+            id: "!encrypted:example.org",
+            name: "Encrypted",
+            isEncrypted: true,
+            hasInvite: false
+        )
+        let service = FakeMatrixChatService(
+            restoredRooms: [room],
+            qrLoginUpdates: [.starting, .checkCodeDisplay("42"), .syncingSecrets, .completed]
+        )
+        let coordinator = MatrixChatCoordinator(service: service)
+
+        await coordinator.signInWithQrCode(Data([0x4d, 0x41, 0x54, 0x52, 0x49, 0x58]))
+
+        XCTAssertEqual(coordinator.state, .rooms([room]))
+        XCTAssertEqual(coordinator.qrLoginProgress, .completed)
+    }
+
+    func testIncomingSASChallengeIsPublishedAfterSignIn() async {
+        let challenge = MatrixVerificationChallenge.decimals([101, 202, 303])
+        let service = FakeMatrixChatService(incomingVerificationChallenge: challenge)
+        let coordinator = MatrixChatCoordinator(service: service)
+
+        await coordinator.signIn(username: "alice", password: "not-recorded")
+        while coordinator.verificationFlowState != .challenge(challenge) { await Task.yield() }
+
+        XCTAssertEqual(coordinator.verificationFlowState, .challenge(challenge))
+    }
+
     func testSignInPublishesAuthoritativePeerVerificationEligibility() async {
         for eligibility in [
             MatrixPeerVerificationEligibility.eligiblePeer,
@@ -1043,9 +1073,14 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     var adminAccountCreationRoles: [Bool] = []
     var timelineHandler: (@Sendable (String) async throws -> [MatrixTimelineEvent])?
     var sendTextHandler: (@Sendable (String, String) async throws -> Void)?
+    var qrLoginUpdates: [MatrixQrLoginProgress]
+    var incomingVerificationChallenge: MatrixVerificationChallenge?
+    var incomingVerificationHandler: (@Sendable (MatrixVerificationChallenge) -> Void)?
 
     init(
         restoredRooms: [MatrixRoomSummary] = [],
+        qrLoginUpdates: [MatrixQrLoginProgress] = [],
+        incomingVerificationChallenge: MatrixVerificationChallenge? = nil,
         events: [MatrixTimelineEvent] = [],
         eventsAfterSend: [MatrixTimelineEvent]? = nil,
         restoreError: MatrixChatServiceError? = nil,
@@ -1069,6 +1104,8 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
         roomCreationError: MatrixChatServiceError? = nil
     ) {
         self.restoredRooms = restoredRooms
+        self.qrLoginUpdates = qrLoginUpdates
+        self.incomingVerificationChallenge = incomingVerificationChallenge
         self.events = events
         self.eventsAfterSend = eventsAfterSend
         self.restoreError = restoreError
@@ -1099,6 +1136,23 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
 
     func signIn(username: String, password: String) async throws -> [MatrixRoomSummary] {
         if let signInError { throw signInError }
+        if let incomingVerificationChallenge { incomingVerificationHandler?(incomingVerificationChallenge) }
+        return restoredRooms
+    }
+
+    func setIncomingDeviceVerificationHandler(
+        _ handler: (@Sendable (MatrixVerificationChallenge) -> Void)?
+    ) async {
+        incomingVerificationHandler = handler
+    }
+
+    func qrLoginAvailability() async -> MatrixQrLoginAvailability { .available }
+
+    func signInWithQrCode(
+        _ qrCodeData: Data,
+        progress: @escaping MatrixQrLoginProgressHandler
+    ) async throws -> [MatrixRoomSummary] {
+        qrLoginUpdates.forEach(progress)
         return restoredRooms
     }
 

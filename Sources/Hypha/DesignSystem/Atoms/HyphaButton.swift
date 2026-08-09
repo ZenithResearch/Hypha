@@ -1,4 +1,6 @@
+#if os(macOS)
 import AppKit
+#endif
 import SwiftUI
 
 /// Atomic button variants shared by Hypha product views.
@@ -37,7 +39,7 @@ private struct HyphaInteractiveButtonBody: View {
             .font(ZenithDesign.Typography.corporate(.callout, weight: .semibold))
             .foregroundStyle(foregroundColor)
             .padding(.horizontal, ZenithDesign.Space.x4)
-            .frame(minHeight: 36)
+            .frame(minHeight: HyphaPlatform.minimumControlHeight)
             .background(backgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.control, style: .continuous))
             .overlay {
@@ -126,6 +128,7 @@ private struct HyphaInteractiveButtonBody: View {
     }
 
     private func updateCursor(hovering: Bool) {
+        #if os(macOS)
         if hovering && isEnabled {
             guard !isCursorPushed else { return }
             NSCursor.pointingHand.push()
@@ -133,12 +136,15 @@ private struct HyphaInteractiveButtonBody: View {
         } else {
             releaseCursorIfNeeded()
         }
+        #endif
     }
 
     private func releaseCursorIfNeeded() {
+        #if os(macOS)
         guard isCursorPushed else { return }
         NSCursor.pop()
         isCursorPushed = false
+        #endif
     }
 }
 
@@ -183,7 +189,7 @@ struct HyphaIconButton: View {
             Image(systemName: systemImage)
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(isHovered && isEnabled ? ZenithDesign.Palette.content : ZenithDesign.Palette.brand)
-                .frame(width: 24, height: 24)
+                .frame(width: HyphaPlatform.minimumIconButtonHitSize, height: HyphaPlatform.minimumIconButtonHitSize)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -212,6 +218,7 @@ struct HyphaIconButton: View {
     }
 
     private func updateCursor(hovering: Bool) {
+        #if os(macOS)
         if hovering && isEnabled {
             guard !isCursorPushed else { return }
             NSCursor.pointingHand.push()
@@ -219,12 +226,15 @@ struct HyphaIconButton: View {
         } else {
             releaseCursorIfNeeded()
         }
+        #endif
     }
 
     private func releaseCursorIfNeeded() {
+        #if os(macOS)
         guard isCursorPushed else { return }
         NSCursor.pop()
         isCursorPushed = false
+        #endif
     }
 }
 
