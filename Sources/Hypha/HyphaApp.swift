@@ -1252,14 +1252,13 @@ private struct MatrixCompanionShell: View {
     @ObservedObject var model: MatrixAppModel
     @StateObject private var updater = HyphaUpdateController()
     @StateObject private var githubConnection = HyphaGitHubConnectionModel()
+    @StateObject private var chatPanel = HyphaChatPanelStore()
     @State private var showsRecovery = false
     @State private var showsRecoverySetup = false
     @State private var showsNewRoom = false
     @State private var showsRoomInvite = false
 #if os(macOS)
     @State private var repositoryRoom: MatrixRoomSummary?
-    @State private var roomChatPlacement: HyphaRoomChatPlacement = .content
-    @State private var showsChatInspector = false
     @State private var roomContentRefreshID = UUID()
 #endif
     @State private var newRoomKind: MatrixRoomKind = .room
@@ -1290,12 +1289,22 @@ private struct MatrixCompanionShell: View {
                         .navigationTitle(detailTitle)
                 }
 #if os(macOS)
-                .inspector(isPresented: $showsChatInspector) {
+                .inspector(isPresented: chatInspectorIsPresented) {
                     roomChatInspector
                 }
 #endif
             } else {
                 contentSurface
+            }
+        }
+        .onChange(of: isAuthenticated) { _, authenticated in
+            if !authenticated {
+                chatPanel.send(.clear)
+            }
+        }
+        .onChange(of: model.rooms.map(\.id)) { _, roomIDs in
+            if let activeRoomID = chatPanel.activeRoomID, !roomIDs.contains(activeRoomID) {
+                chatPanel.send(.clear)
             }
         }
         .sheet(isPresented: $showsRecovery) {
@@ -1428,6 +1437,7 @@ private struct MatrixCompanionShell: View {
             ToolbarItemGroup(placement: .primaryAction) {
 #if os(macOS)
                 if let room = activeRepositoryRoom {
+                    chatToolbarMenu
                     Button {
                         repositoryRoom = room
                     } label: {
@@ -1448,14 +1458,52 @@ private struct MatrixCompanionShell: View {
     }
 
 #if os(macOS)
+    private var chatInspectorIsPresented: Binding<Bool> {
+        Binding(
+            get: { chatPanel.presentation == .inspector },
+            set: { isPresented in
+                sendChatAction(isPresented ? .showInspector : .showContent)
+            }
+        )
+    }
+
+    private var chatToolbarMenu: some View {
+        Menu {
+            Button("Show chat sidebar") { sendChatAction(.showInspector) }
+                .disabled(chatPanel.presentation == .inspector)
+            Button("Show chat in main view") { sendChatAction(.showMain) }
+                .disabled(chatPanel.presentation == .main)
+            Button("Show room content") { chatPanel.send(.showContent) }
+                .disabled(chatPanel.presentation == .hidden)
+
+            Divider()
+            Section("Active chat") {
+                ForEach(model.rooms.filter { !$0.hasInvite && !$0.isSpace }) { room in
+                    Button {
+                        activateChat(room)
+                    } label: {
+                        if chatPanel.activeRoomID == room.id {
+                            Label(room.name, systemImage: "checkmark")
+                        } else {
+                            Text(room.name)
+                        }
+                    }
+                }
+            }
+        } label: {
+            Label("Chat", systemImage: "message.fill")
+        }
+        .accessibilityIdentifier("matrix.global.chat-menu")
+    }
+
     private var roomChatInspector: some View {
         VStack(spacing: 0) {
             HStack {
-                Label("Chat", systemImage: "message.fill")
+                Label(activeChatRoom?.name ?? "Chat", systemImage: "message.fill")
                     .font(ZenithDesign.Typography.technical(size: 13, weight: .semibold))
                 Spacer()
                 Button {
-                    showsChatInspector = false
+                    chatPanel.send(.showContent)
                 } label: {
                     Image(systemName: "xmark")
                 }
@@ -1474,7 +1522,24 @@ private struct MatrixCompanionShell: View {
         }
         .background(ZenithDesign.Palette.baseSubtle)
         .inspectorColumnWidth(min: 320, ideal: 380, max: 500)
-        .accessibilityIdentifier("matrix.room.chat-inspector")
+        .accessibilityIdentifier("matrix.global.chat-inspector")
+    }
+
+    private var activeChatRoom: MatrixRoomSummary? {
+        guard let activeRoomID = chatPanel.activeRoomID else { return nil }
+        return model.rooms.first { $0.id == activeRoomID }
+    }
+
+    private func sendChatAction(_ action: HyphaChatPanelAction) {
+        if chatPanel.activeRoomID == nil, let room = activeRepositoryRoom {
+            chatPanel.send(.activate(roomID: room.id))
+        }
+        chatPanel.send(action)
+    }
+
+    private func activateChat(_ room: MatrixRoomSummary) {
+        chatPanel.send(.activate(roomID: room.id))
+        Task { await model.open(room) }
     }
 
     private var activeRepositoryRoom: MatrixRoomSummary? {
@@ -1932,6 +1997,13 @@ private struct MatrixCompanionShell: View {
     private func roomRow(_ room: MatrixRoomSummary) -> some View {
         HStack(spacing: ZenithDesign.Space.x2) {
             Button {
+#if os(macOS)
+                if room.isSpace {
+                    chatPanel.send(.clear)
+                } else {
+                    chatPanel.send(.activate(roomID: room.id))
+                }
+#endif
                 Task { await model.open(room) }
             } label: {
                 HStack(spacing: ZenithDesign.Space.x2) {
@@ -2052,42 +2124,28 @@ private struct MatrixCompanionShell: View {
     private var primaryDetail: some View {
 #if os(macOS)
         if case let .thread(room, events, composer) = model.state, !room.isSpace {
-            HyphaRoomWorkspaceView(
-                room: room,
-                chatPlacement: $roomChatPlacement,
-                showsChatInspector: $showsChatInspector,
-                content: {
-                    HyphaRoomContentView(
-                        model: model,
-                        room: room,
-                        openRepositorySettings: { repositoryRoom = room }
-                    )
-                    .id("\(room.id)-\(roomContentRefreshID.uuidString)")
-                },
-                chat: {
-                    thread(room: room, events: events, composerState: composer)
-                }
-            )
-            .accessibilityValue(
-                roomChatPlacement == .content
-                    ? "matrix.room.layout.content"
-                    : "matrix.room.layout.chat-main"
-            )
+            if chatPanel.presentation == .main, chatPanel.activeRoomID == room.id {
+                thread(room: room, events: events, composerState: composer)
+                    .accessibilityIdentifier("matrix.global.chat-main")
+            } else {
+                HyphaRoomContentView(
+                    model: model,
+                    room: room,
+                    openRepositorySettings: { repositoryRoom = room }
+                )
+                .id("\(room.id)-\(roomContentRefreshID.uuidString)")
+            }
         } else if case let .trustBlocked(room) = model.state, !room.isSpace {
-            HyphaRoomWorkspaceView(
-                room: room,
-                chatPlacement: $roomChatPlacement,
-                showsChatInspector: $showsChatInspector,
-                content: {
-                    HyphaRoomContentView(
-                        model: model,
-                        room: room,
-                        openRepositorySettings: { repositoryRoom = room }
-                    )
-                    .id("\(room.id)-\(roomContentRefreshID.uuidString)")
-                },
-                chat: { chatDetail }
-            )
+            if chatPanel.presentation == .main, chatPanel.activeRoomID == room.id {
+                chatDetail
+            } else {
+                HyphaRoomContentView(
+                    model: model,
+                    room: room,
+                    openRepositorySettings: { repositoryRoom = room }
+                )
+                .id("\(room.id)-\(roomContentRefreshID.uuidString)")
+            }
         } else {
             chatDetail
         }

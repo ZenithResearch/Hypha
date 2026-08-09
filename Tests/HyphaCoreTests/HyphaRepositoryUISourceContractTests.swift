@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 
 final class HyphaRepositoryUISourceContractTests: XCTestCase {
-    func testRoomWorkspaceStartsContentFirstAndKeepsArtifactViewerOutOfRepositorySettings() throws {
+    func testRoomContentStartsPrimaryAndKeepsArtifactViewerOutOfRepositorySettings() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -17,14 +17,12 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         )
 
         for marker in [
-            "HyphaRoomWorkspaceView",
             "HyphaRoomContentView",
-            "HyphaRoomChatPlacement",
-            ".content",
+            "HyphaChatPanelStore",
+            "chatPanel.presentation == .main",
+            "matrix.global.chat-main",
             "roomContentRefreshID",
             "onDismiss:",
-            "matrix.room.layout.content",
-            "matrix.room.layout.chat-main",
         ] {
             XCTAssertTrue(app.contains(marker), "Missing content-first room workspace contract: \(marker)")
         }
@@ -34,13 +32,13 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         )
     }
 
-    func testChatUsesARightInspectorMirroringTheRoomSidebar() throws {
+    func testGlobalChatStoreOwnsTheRightInspectorOutsideRoomContent() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let workspace = try String(
-            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaRoomWorkspaceView.swift"),
+        let roomContent = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaRoomContentView.swift"),
             encoding: .utf8
         )
         let app = try String(
@@ -49,19 +47,27 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         )
 
         for marker in [
-            "showsChatInspector",
-            ".inspector(isPresented: $showsChatInspector)",
+            "@StateObject private var chatPanel",
+            "HyphaChatPanelStore",
+            ".inspector(isPresented: chatInspectorIsPresented)",
             ".inspectorColumnWidth(",
-            "matrix.room.chat-inspector",
+            "matrix.global.chat-inspector",
+            "matrix.global.chat-menu",
             "roomChatInspector",
+            "chatPanel.send(",
+            "activeRoomID",
         ] {
-            XCTAssertTrue(app.contains(marker), "Missing right-side chat inspector contract: \(marker)")
+            XCTAssertTrue(app.contains(marker), "Missing global chat inspector contract: \(marker)")
         }
-        XCTAssertTrue(workspace.contains("matrix.room.chat-inspector.toggle"))
-        XCTAssertFalse(workspace.contains("HSplitView"), "Chat must overlay content rather than resize it")
-        XCTAssertFalse(workspace.contains(".overlay(alignment: .trailing)"), "Chat belongs in the main layout's sheet presentation")
-        XCTAssertFalse(workspace.contains(".sheet(isPresented:"), "Chat is a right layout column, not a modal sheet")
-        XCTAssertFalse(workspace.contains("Content + chat"), "The room mode control must not describe another split view")
+        for forbidden in [
+            "HyphaRoomWorkspaceView",
+            "Room view",
+            "matrix.room.chat-inspector.toggle",
+            "HSplitView",
+            ".sheet(isPresented:",
+        ] {
+            XCTAssertFalse(roomContent.contains(forbidden), "Room content must not own global chat UI: \(forbidden)")
+        }
     }
 
     func testRepositorySettingsConfigureBindingWhileRoomContentOwnsBuildAndViewer() throws {
@@ -77,8 +83,8 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaArtifactViewerView.swift"),
             encoding: .utf8
         )
-        let workspace = try String(
-            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaRoomWorkspaceView.swift"),
+        let roomContent = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaRoomContentView.swift"),
             encoding: .utf8
         )
         let app = try String(
@@ -114,7 +120,7 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             "Open output",
             "matrix.room.content.open-output",
         ] {
-            XCTAssertTrue(workspace.contains(marker), "Missing room-content output contract: \(marker)")
+            XCTAssertTrue(roomContent.contains(marker), "Missing room-content output contract: \(marker)")
         }
         for marker in [
             "import QuickLookUI",
