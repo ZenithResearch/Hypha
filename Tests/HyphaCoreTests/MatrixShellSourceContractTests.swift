@@ -133,10 +133,10 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(source.contains("ZenithDesign.Typography.technical(.caption2, weight: .semibold)"))
         XCTAssertTrue(source.contains(".accessibilityLabel(\"Open \\(room.isSpace"))
         XCTAssertTrue(source.contains(".menuIndicator(.hidden)"))
-        XCTAssertTrue(source.contains("Image(systemName: securityToolbarSymbol)"))
+        XCTAssertTrue(source.contains("Menu(\"Security\")"))
     }
 
-    func testSecurityActionsLiveInToolbarAndOnlyCriticalTrustOccupiesChatSurface() throws {
+    func testSecurityActionsLiveInMenuBarAndOnlyCriticalTrustOccupiesChatSurface() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
             .deletingLastPathComponent()
@@ -147,7 +147,8 @@ final class MatrixShellSourceContractTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(source.contains("private var securityToolbarMenu"))
+        XCTAssertTrue(source.contains("struct HyphaCommands: Commands"))
+        XCTAssertTrue(source.contains("CommandGroup(after: .appSettings)"))
         XCTAssertTrue(source.contains(".sheet(isPresented: $showsSecurityCenter)"))
         XCTAssertTrue(source.contains("Security Center…"))
         XCTAssertTrue(source.contains("if securityPresentation.requiresPersistentCriticalBanner"))
@@ -784,7 +785,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "MatrixRustSDKChatService(",
             "MatrixEncryptedSessionVault()",
             "MatrixRustLiveClientFactory(",
-            ".navigationSplitViewColumnWidth(min: 230, ideal: 268, max: 340)",
+            ".navigationSplitViewColumnWidth(min: 230, ideal: 320, max: 560)",
             "private var detailTitle",
             ".keyboardShortcut(.defaultAction)"
         ]
@@ -1158,7 +1159,8 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "Update from GitHub main",
             "navigationTitle(\"Settings\")",
             "Section(\"Application Updates\")",
-            "hypha.settings",
+            "Button(\"Settings…\")",
+            "CommandGroup(replacing: .appSettings)",
         ] {
             XCTAssertTrue(app.contains(marker), "Missing updater UI contract: \(marker)")
         }

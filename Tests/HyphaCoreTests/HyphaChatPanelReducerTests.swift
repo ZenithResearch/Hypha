@@ -9,12 +9,12 @@ final class HyphaChatPanelReducerTests: XCTestCase {
         XCTAssertEqual(state.activeRoomID, "room-a")
         XCTAssertEqual(state.presentation, .hidden)
 
-        HyphaChatPanelReducer.reduce(state: &state, action: .showInspector)
-        XCTAssertEqual(state.presentation, .inspector)
+        HyphaChatPanelReducer.reduce(state: &state, action: .showSidebar)
+        XCTAssertEqual(state.presentation, .sidebar)
 
         HyphaChatPanelReducer.reduce(state: &state, action: .activate(roomID: "room-b"))
         XCTAssertEqual(state.activeRoomID, "room-b")
-        XCTAssertEqual(state.presentation, .inspector)
+        XCTAssertEqual(state.presentation, .sidebar)
 
         HyphaChatPanelReducer.reduce(state: &state, action: .showMain)
         XCTAssertEqual(state.presentation, .main)
@@ -27,7 +27,7 @@ final class HyphaChatPanelReducerTests: XCTestCase {
     func testPanelCannotOpenWithoutAnActiveChatAndClearResetsEverything() {
         var state = HyphaChatPanelState()
 
-        HyphaChatPanelReducer.reduce(state: &state, action: .showInspector)
+        HyphaChatPanelReducer.reduce(state: &state, action: .showSidebar)
         XCTAssertEqual(state, HyphaChatPanelState())
 
         HyphaChatPanelReducer.reduce(state: &state, action: .activate(roomID: "room-a"))
@@ -37,9 +37,4 @@ final class HyphaChatPanelReducerTests: XCTestCase {
         XCTAssertEqual(state, HyphaChatPanelState())
     }
 
-    func testNarrowWindowsOverlayChatInsteadOfCompressingNavigationColumns() {
-        XCTAssertEqual(HyphaChatPanelLayout.mode(availableWidth: 996), .overlay)
-        XCTAssertEqual(HyphaChatPanelLayout.mode(availableWidth: 1_099), .overlay)
-        XCTAssertEqual(HyphaChatPanelLayout.mode(availableWidth: 1_100), .inspector)
-    }
 }

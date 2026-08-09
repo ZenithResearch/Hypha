@@ -32,7 +32,7 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         )
     }
 
-    func testGlobalChatStoreOwnsTheRightInspectorOutsideRoomContent() throws {
+    func testGlobalChatStoreOwnsADraggableChatTabInTheLeadingSidebar() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -49,19 +49,28 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         for marker in [
             "@StateObject private var chatPanel",
             "HyphaChatPanelStore",
-            ".inspector(isPresented: chatInspectorIsPresented)",
-            ".inspectorColumnWidth(",
-            "matrix.global.chat-inspector",
-            "matrix.global.chat-menu",
-            "adaptiveAuthenticatedShell",
-            "HyphaChatPanelLayout.mode",
-            "matrix.global.chat-overlay",
-            "roomChatInspector",
+            "HyphaSidebarTab",
+            "sidebarTabBinding",
+            "matrix.global.sidebar.tabs",
+            "matrix.global.chat-tab",
+            ".navigationSplitViewColumnWidth(min: 230, ideal: 320, max: 560)",
             "chatPanel.send(",
             "activeRoomID",
+            ".focusedSceneValue(\\.hyphaCommandActions",
         ] {
-            XCTAssertTrue(app.contains(marker), "Missing global chat inspector contract: \(marker)")
+            XCTAssertTrue(app.contains(marker), "Missing global sidebar chat contract: \(marker)")
         }
+        for commandMarker in [
+            "struct HyphaCommands: Commands",
+            "CommandGroup(replacing: .appSettings)",
+            "CommandGroup(after: .sidebar)",
+            "CommandGroup(after: .newItem)",
+            ".commands { HyphaCommands() }",
+        ] {
+            XCTAssertTrue(app.contains(commandMarker), "Missing macOS menu command: \(commandMarker)")
+        }
+        XCTAssertFalse(app.contains(".inspector(isPresented:"))
+        XCTAssertFalse(app.contains("matrix.global.chat-overlay"))
         for forbidden in [
             "HyphaRoomWorkspaceView",
             "Room view",
@@ -142,7 +151,8 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             XCTAssertTrue(viewer.contains(marker), "Missing artifact-viewer contract: \(marker)")
         }
         XCTAssertTrue(app.contains("HyphaRoomRepositorySheet"))
-        XCTAssertTrue(app.contains("matrix.room.repository.open"))
+        XCTAssertTrue(app.contains("Repository Settings…"))
+        XCTAssertTrue(app.contains("openRepository:"))
         XCTAssertTrue(app.contains("Section(\"GitHub\")"))
         XCTAssertTrue(app.contains("SecureField(\"GitHub API token"))
         XCTAssertTrue(app.contains("Connect GitHub"))

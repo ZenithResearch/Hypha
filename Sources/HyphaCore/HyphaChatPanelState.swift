@@ -2,7 +2,7 @@ import Foundation
 
 public enum HyphaChatPanelPresentation: Equatable, Sendable {
     case hidden
-    case inspector
+    case sidebar
     case main
 }
 
@@ -21,7 +21,7 @@ public struct HyphaChatPanelState: Equatable, Sendable {
 
 public enum HyphaChatPanelAction: Equatable, Sendable {
     case activate(roomID: String)
-    case showInspector
+    case showSidebar
     case showMain
     case showContent
     case clear
@@ -36,9 +36,9 @@ public enum HyphaChatPanelReducer {
         case let .activate(roomID):
             guard !roomID.isEmpty else { return }
             state.activeRoomID = roomID
-        case .showInspector:
+        case .showSidebar:
             guard state.activeRoomID != nil else { return }
-            state.presentation = .inspector
+            state.presentation = .sidebar
         case .showMain:
             guard state.activeRoomID != nil else { return }
             state.presentation = .main
@@ -47,18 +47,5 @@ public enum HyphaChatPanelReducer {
         case .clear:
             state = HyphaChatPanelState()
         }
-    }
-}
-
-public enum HyphaChatPanelLayoutMode: Equatable, Sendable {
-    case overlay
-    case inspector
-}
-
-public enum HyphaChatPanelLayout {
-    public static let inspectorMinimumWidth = 1_100.0
-
-    public static func mode(availableWidth: Double) -> HyphaChatPanelLayoutMode {
-        availableWidth < inspectorMinimumWidth ? .overlay : .inspector
     }
 }
