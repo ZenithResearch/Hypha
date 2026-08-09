@@ -49,3 +49,16 @@ public enum HyphaChatPanelReducer {
         }
     }
 }
+
+public enum HyphaChatPanelLayoutMode: Equatable, Sendable {
+    case overlay
+    case inspector
+}
+
+public enum HyphaChatPanelLayout {
+    public static let inspectorMinimumWidth = 1_100.0
+
+    public static func mode(availableWidth: Double) -> HyphaChatPanelLayoutMode {
+        availableWidth < inspectorMinimumWidth ? .overlay : .inspector
+    }
+}

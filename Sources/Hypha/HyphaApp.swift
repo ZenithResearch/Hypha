@@ -1278,20 +1278,12 @@ private struct MatrixCompanionShell: View {
     var body: some View {
         Group {
             if isAuthenticated {
-                NavigationSplitView {
-                    sidebar
-                        .navigationTitle("Hypha")
-                        .navigationSplitViewColumnWidth(min: 230, ideal: 268, max: 340)
-                        .scrollContentBackground(.hidden)
-                        .background(ZenithDesign.Palette.baseSubtle)
-                } detail: {
-                    contentSurface
-                        .navigationTitle(detailTitle)
-                }
 #if os(macOS)
-                .inspector(isPresented: chatInspectorIsPresented) {
-                    roomChatInspector
+                GeometryReader { geometry in
+                    adaptiveAuthenticatedShell(availableWidth: geometry.size.width)
                 }
+#else
+                authenticatedNavigationShell
 #endif
             } else {
                 contentSurface
@@ -1399,6 +1391,44 @@ private struct MatrixCompanionShell: View {
             Text("This removes the saved password for \(credential.username) from Hypha on this Mac. Any active encrypted session remains signed in.")
         }
     }
+
+    private var authenticatedNavigationShell: some View {
+        NavigationSplitView {
+            sidebar
+                .navigationTitle("Hypha")
+                .navigationSplitViewColumnWidth(min: 230, ideal: 268, max: 340)
+                .scrollContentBackground(.hidden)
+                .background(ZenithDesign.Palette.baseSubtle)
+        } detail: {
+            contentSurface
+                .navigationTitle(detailTitle)
+        }
+    }
+
+#if os(macOS)
+    @ViewBuilder
+    private func adaptiveAuthenticatedShell(availableWidth: CGFloat) -> some View {
+        switch HyphaChatPanelLayout.mode(availableWidth: Double(availableWidth)) {
+        case .overlay:
+            authenticatedNavigationShell
+                .overlay(alignment: .trailing) {
+                    if chatPanel.presentation == .inspector {
+                        roomChatInspector
+                            .frame(width: min(380, max(320, availableWidth * 0.38)))
+                            .background(ZenithDesign.Palette.baseSubtle)
+                            .shadow(color: .black.opacity(0.28), radius: 18, x: -8)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                            .accessibilityIdentifier("matrix.global.chat-overlay")
+                    }
+                }
+        case .inspector:
+            authenticatedNavigationShell
+                .inspector(isPresented: chatInspectorIsPresented) {
+                    roomChatInspector
+                }
+        }
+    }
+#endif
 
     private var contentSurface: some View {
         VStack(spacing: 0) {

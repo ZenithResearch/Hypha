@@ -36,4 +36,10 @@ final class HyphaChatPanelReducerTests: XCTestCase {
 
         XCTAssertEqual(state, HyphaChatPanelState())
     }
+
+    func testNarrowWindowsOverlayChatInsteadOfCompressingNavigationColumns() {
+        XCTAssertEqual(HyphaChatPanelLayout.mode(availableWidth: 996), .overlay)
+        XCTAssertEqual(HyphaChatPanelLayout.mode(availableWidth: 1_099), .overlay)
+        XCTAssertEqual(HyphaChatPanelLayout.mode(availableWidth: 1_100), .inspector)
+    }
 }
