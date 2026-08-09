@@ -34,7 +34,7 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         )
     }
 
-    func testChatUsesASheetAttachedToTheMainRoomLayout() throws {
+    func testChatUsesARightInspectorMirroringTheRoomSidebar() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -43,17 +43,24 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaRoomWorkspaceView.swift"),
             encoding: .utf8
         )
+        let app = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
+            encoding: .utf8
+        )
 
         for marker in [
-            "showsChatSheet",
-            ".sheet(isPresented: $showsChatSheet)",
-            "matrix.room.chat-sheet",
-            "matrix.room.chat-sheet.toggle",
+            "showsChatInspector",
+            ".inspector(isPresented: $showsChatInspector)",
+            ".inspectorColumnWidth(",
+            "matrix.room.chat-inspector",
+            "roomChatInspector",
         ] {
-            XCTAssertTrue(workspace.contains(marker), "Missing main-layout chat-sheet contract: \(marker)")
+            XCTAssertTrue(app.contains(marker), "Missing right-side chat inspector contract: \(marker)")
         }
+        XCTAssertTrue(workspace.contains("matrix.room.chat-inspector.toggle"))
         XCTAssertFalse(workspace.contains("HSplitView"), "Chat must overlay content rather than resize it")
         XCTAssertFalse(workspace.contains(".overlay(alignment: .trailing)"), "Chat belongs in the main layout's sheet presentation")
+        XCTAssertFalse(workspace.contains(".sheet(isPresented:"), "Chat is a right layout column, not a modal sheet")
         XCTAssertFalse(workspace.contains("Content + chat"), "The room mode control must not describe another split view")
     }
 

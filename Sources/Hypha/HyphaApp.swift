@@ -1259,6 +1259,7 @@ private struct MatrixCompanionShell: View {
 #if os(macOS)
     @State private var repositoryRoom: MatrixRoomSummary?
     @State private var roomChatPlacement: HyphaRoomChatPlacement = .content
+    @State private var showsChatInspector = false
     @State private var roomContentRefreshID = UUID()
 #endif
     @State private var newRoomKind: MatrixRoomKind = .room
@@ -1288,6 +1289,11 @@ private struct MatrixCompanionShell: View {
                     contentSurface
                         .navigationTitle(detailTitle)
                 }
+#if os(macOS)
+                .inspector(isPresented: $showsChatInspector) {
+                    roomChatInspector
+                }
+#endif
             } else {
                 contentSurface
             }
@@ -1442,6 +1448,35 @@ private struct MatrixCompanionShell: View {
     }
 
 #if os(macOS)
+    private var roomChatInspector: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Label("Chat", systemImage: "message.fill")
+                    .font(ZenithDesign.Typography.technical(size: 13, weight: .semibold))
+                Spacer()
+                Button {
+                    showsChatInspector = false
+                } label: {
+                    Image(systemName: "xmark")
+                }
+                .buttonStyle(.plain)
+                .help("Hide chat")
+            }
+            .padding(.horizontal, ZenithDesign.Space.x3)
+            .padding(.vertical, ZenithDesign.Space.x2)
+            .background(ZenithDesign.Palette.baseSubtle)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(ZenithDesign.Palette.border)
+                    .frame(height: 1)
+            }
+            chatDetail
+        }
+        .background(ZenithDesign.Palette.baseSubtle)
+        .inspectorColumnWidth(min: 320, ideal: 380, max: 500)
+        .accessibilityIdentifier("matrix.room.chat-inspector")
+    }
+
     private var activeRepositoryRoom: MatrixRoomSummary? {
         switch model.state {
         case let .thread(room, _, _) where !room.isSpace,
@@ -2020,6 +2055,7 @@ private struct MatrixCompanionShell: View {
             HyphaRoomWorkspaceView(
                 room: room,
                 chatPlacement: $roomChatPlacement,
+                showsChatInspector: $showsChatInspector,
                 content: {
                     HyphaRoomContentView(
                         model: model,
@@ -2041,6 +2077,7 @@ private struct MatrixCompanionShell: View {
             HyphaRoomWorkspaceView(
                 room: room,
                 chatPlacement: $roomChatPlacement,
+                showsChatInspector: $showsChatInspector,
                 content: {
                     HyphaRoomContentView(
                         model: model,

@@ -12,9 +12,9 @@ enum HyphaRoomChatPlacement: String, CaseIterable, Identifiable {
 struct HyphaRoomWorkspaceView<Content: View, Chat: View>: View {
     let room: MatrixRoomSummary
     @Binding var chatPlacement: HyphaRoomChatPlacement
+    @Binding var showsChatInspector: Bool
     @ViewBuilder let content: () -> Content
     @ViewBuilder let chat: () -> Chat
-    @State private var showsChatSheet = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,13 +40,13 @@ struct HyphaRoomWorkspaceView<Content: View, Chat: View>: View {
                 if chatPlacement == .content {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
-                            showsChatSheet.toggle()
+                            showsChatInspector.toggle()
                         }
                     } label: {
-                        Label(showsChatSheet ? "Hide chat" : "Chat", systemImage: "message.fill")
+                        Label(showsChatInspector ? "Hide chat" : "Chat", systemImage: "message.fill")
                     }
                     .buttonStyle(.bordered)
-                    .accessibilityIdentifier("matrix.room.chat-sheet.toggle")
+                    .accessibilityIdentifier("matrix.room.chat-inspector.toggle")
                 }
             }
             .padding(.horizontal, ZenithDesign.Space.x3)
@@ -67,23 +67,10 @@ struct HyphaRoomWorkspaceView<Content: View, Chat: View>: View {
             }
         }
         .accessibilityIdentifier("matrix.room.workspace")
-        .sheet(isPresented: $showsChatSheet) {
-            VStack(spacing: 0) {
-                HStack {
-                    Label("Chat", systemImage: "message.fill")
-                        .font(ZenithDesign.Typography.technical(size: 13, weight: .semibold))
-                    Spacer()
-                    Button("Done") { showsChatSheet = false }
-                        .keyboardShortcut(.cancelAction)
-                }
-                .padding(.horizontal, ZenithDesign.Space.x3)
-                .padding(.vertical, ZenithDesign.Space.x2)
-                .background(ZenithDesign.Palette.baseSubtle)
-                chat()
+        .onChange(of: chatPlacement) { _, placement in
+            if placement == .chatMain {
+                showsChatInspector = false
             }
-            .frame(minWidth: 520, idealWidth: 620, minHeight: 620, idealHeight: 760)
-            .background(ZenithDesign.Palette.base)
-            .accessibilityIdentifier("matrix.room.chat-sheet")
         }
     }
 }
