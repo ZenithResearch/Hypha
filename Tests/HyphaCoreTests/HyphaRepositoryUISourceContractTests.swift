@@ -34,7 +34,7 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         )
     }
 
-    func testChatUsesATrailingOverlaySheetWithoutCompressingRoomContent() throws {
+    func testChatUsesASheetAttachedToTheMainRoomLayout() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -46,14 +46,14 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
 
         for marker in [
             "showsChatSheet",
-            ".overlay(alignment: .trailing)",
-            ".transition(.move(edge: .trailing))",
+            ".sheet(isPresented: $showsChatSheet)",
             "matrix.room.chat-sheet",
             "matrix.room.chat-sheet.toggle",
         ] {
-            XCTAssertTrue(workspace.contains(marker), "Missing trailing chat-sheet contract: \(marker)")
+            XCTAssertTrue(workspace.contains(marker), "Missing main-layout chat-sheet contract: \(marker)")
         }
         XCTAssertFalse(workspace.contains("HSplitView"), "Chat must overlay content rather than resize it")
+        XCTAssertFalse(workspace.contains(".overlay(alignment: .trailing)"), "Chat belongs in the main layout's sheet presentation")
         XCTAssertFalse(workspace.contains("Content + chat"), "The room mode control must not describe another split view")
     }
 
@@ -118,6 +118,9 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             "case .markdown",
             "case .text",
             "HyphaMarkdownArtifactView",
+            "HyphaMarkdownParser.blocks",
+            "case let .heading",
+            "case let .codeBlock",
             "AttributedString(markdown:",
         ] {
             XCTAssertTrue(viewer.contains(marker), "Missing artifact-viewer contract: \(marker)")

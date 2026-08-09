@@ -116,7 +116,7 @@ private struct HyphaImageArtifactView: View {
 
 private struct HyphaMarkdownArtifactView: View {
     let url: URL
-    @State private var markdown = AttributedString()
+    @State private var blocks: [HyphaMarkdownBlock] = []
     @State private var errorMessage: String?
 
     var body: some View {
@@ -129,12 +129,14 @@ private struct HyphaMarkdownArtifactView: View {
                 )
             } else {
                 ScrollView(.vertical) {
-                    Text(markdown)
-                        .font(.body)
-                        .lineSpacing(5)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .padding(32)
+                    LazyVStack(alignment: .leading, spacing: 16) {
+                        ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                            markdownBlock(block)
+                        }
+                    }
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .padding(32)
                 }
             }
         }
@@ -150,14 +152,79 @@ private struct HyphaMarkdownArtifactView: View {
                 return
             }
             let source = String(decoding: data, as: UTF8.self)
-            do {
-                markdown = try AttributedString(markdown: source)
-            } catch {
-                markdown = AttributedString(source)
-            }
+            blocks = HyphaMarkdownParser.blocks(in: source)
             errorMessage = nil
         } catch {
             errorMessage = "Hypha could not read this Markdown output."
+        }
+    }
+
+    @ViewBuilder
+    private func markdownBlock(_ block: HyphaMarkdownBlock) -> some View {
+        switch block {
+        case let .heading(level, text):
+            Text(inlineMarkdown(text))
+                .font(.system(size: headingSize(level), weight: .bold))
+                .padding(.top, level == 1 ? 8 : 2)
+        case let .paragraph(text):
+            Text(inlineMarkdown(text))
+                .font(.body)
+                .lineSpacing(4)
+        case let .unorderedListItem(text):
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text("•")
+                    .fontWeight(.bold)
+                Text(inlineMarkdown(text))
+            }
+            .padding(.leading, 8)
+        case let .orderedListItem(number, text):
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text("\(number).")
+                    .fontWeight(.semibold)
+                Text(inlineMarkdown(text))
+            }
+            .padding(.leading, 8)
+        case let .quote(text):
+            HStack(alignment: .top, spacing: 12) {
+                Rectangle()
+                    .fill(ZenithDesign.Palette.border)
+                    .frame(width: 3)
+                Text(inlineMarkdown(text))
+                    .italic()
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+            }
+        case let .codeBlock(language, code):
+            VStack(alignment: .leading, spacing: 6) {
+                if let language {
+                    Text(language.uppercased())
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                }
+                ScrollView(.horizontal) {
+                    Text(code)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .padding(14)
+                }
+                .background(ZenithDesign.Palette.baseSubtle)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        case .horizontalRule:
+            Divider()
+        }
+    }
+
+    private func inlineMarkdown(_ source: String) -> AttributedString {
+        (try? AttributedString(markdown: source)) ?? AttributedString(source)
+    }
+
+    private func headingSize(_ level: Int) -> CGFloat {
+        switch level {
+        case 1: 30
+        case 2: 25
+        case 3: 21
+        case 4: 18
+        default: 16
         }
     }
 }

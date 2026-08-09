@@ -14,6 +14,32 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         XCTAssertEqual(HyphaArtifactViewerRegistry.viewer(forFormat: "txt"), .text)
     }
 
+    func testMarkdownParserPreservesDocumentBlockStructure() {
+        let blocks = HyphaMarkdownParser.blocks(in: """
+        # Output
+
+        Generated **deck** files from `src/`.
+
+        - Slides
+        2. Notes
+
+        > Local review only.
+
+        ```json
+        {"viewer":"quickLook"}
+        ```
+        """)
+
+        XCTAssertEqual(blocks, [
+            .heading(level: 1, text: "Output"),
+            .paragraph("Generated **deck** files from `src/`."),
+            .unorderedListItem("Slides"),
+            .orderedListItem(number: 2, text: "Notes"),
+            .quote("Local review only."),
+            .codeBlock(language: "json", code: "{\"viewer\":\"quickLook\"}"),
+        ])
+    }
+
     func testOutManifestSelectsAnExplicitPresentation() throws {
         let output = try temporaryDirectory()
         let deck = output.appendingPathComponent("slides/deck.pptx")
