@@ -1436,8 +1436,10 @@ private struct MatrixCompanionShell: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
 #if os(macOS)
-                if let room = activeRepositoryRoom {
+                if isAuthenticated {
                     chatToolbarMenu
+                }
+                if let room = activeRepositoryRoom {
                     Button {
                         repositoryRoom = room
                     } label: {
@@ -1470,9 +1472,9 @@ private struct MatrixCompanionShell: View {
     private var chatToolbarMenu: some View {
         Menu {
             Button("Show chat sidebar") { sendChatAction(.showInspector) }
-                .disabled(chatPanel.presentation == .inspector)
+                .disabled(!canPresentChat || chatPanel.presentation == .inspector)
             Button("Show chat in main view") { sendChatAction(.showMain) }
-                .disabled(chatPanel.presentation == .main)
+                .disabled(!canPresentChat || chatPanel.presentation == .main)
             Button("Show room content") { chatPanel.send(.showContent) }
                 .disabled(chatPanel.presentation == .hidden)
 
@@ -1494,6 +1496,10 @@ private struct MatrixCompanionShell: View {
             Label("Chat", systemImage: "message.fill")
         }
         .accessibilityIdentifier("matrix.global.chat-menu")
+    }
+
+    private var canPresentChat: Bool {
+        chatPanel.activeRoomID != nil || activeRepositoryRoom != nil
     }
 
     private var roomChatInspector: some View {
