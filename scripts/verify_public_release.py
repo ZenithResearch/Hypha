@@ -45,9 +45,9 @@ BINARY_HASHES = {
     "Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip": SDK_SHA256,
 }
 CRITICAL_POLICY_HASHES = {
-    "project.yml": "788e6adac72d77d709bfee4c4256a02cb9de7fbc28aa266ddc362fd4b451ee7a",
+    "project.yml": "24dfe46d130050ee80d0f236cd6f6a2eb6bdacc7ad08114c22c1bd7f1dbbb477",
     "Resources/iOS/Info.plist": "f684655642e476f10aa8b909f0bf62fecb65e9d91f2bcdf3ef7f60666625b2f6",
-    "HyphaMobile.xcodeproj/project.pbxproj": "516b1918cb72e111123523a120638667f33459f5ac1e393af1e39cd87fc53494",
+    "HyphaMobile.xcodeproj/project.pbxproj": "173e2258749cc2ab2c6cb8ae35b557ada38df1d8f0ebdc7e293685284423d319",
     ".github/workflows/ci.yml": "93b2d8b9692a6c43849e854e73d1946918e464e9e8897cd34fe66a134aaf90cc",
     ".github/workflows/release.yml": "a471607fe5e1ccd41d810433ee0a927fa25db4218306f2626176777d09dd58bf",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
