@@ -19,7 +19,7 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         for marker in [
             "HyphaRoomContentView",
             "HyphaChatPanelStore",
-            "chatPanel.presentation == .main",
+            "chatPanel.mainPresentation == .chat",
             "matrix.global.chat-main",
             "roomContentRefreshID",
             "onDismiss:",
@@ -32,7 +32,7 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         )
     }
 
-    func testGlobalChatStoreOwnsADraggableChatTabInTheLeadingSidebar() throws {
+    func testGlobalChatStoreSwapsAReferenceDesignedChatSheetIntoTheLeadingSidebar() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -49,10 +49,12 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         for marker in [
             "@StateObject private var chatPanel",
             "HyphaChatPanelStore",
-            "HyphaSidebarTab",
-            "sidebarTabBinding",
-            "matrix.global.sidebar.tabs",
-            "matrix.global.chat-tab",
+            "chatPanel.sidebarSheet",
+            "chatNavigationSheet",
+            "matrix.global.chat-sheet",
+            "matrix.global.chat-search",
+            "matrix.global.chat-recents",
+            "matrix.global.chat-conversations",
             ".navigationSplitViewColumnWidth(min: 230, ideal: 320, max: 560)",
             "chatPanel.send(",
             "activeRoomID",
@@ -71,6 +73,8 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         }
         XCTAssertFalse(app.contains(".inspector(isPresented:"))
         XCTAssertFalse(app.contains("matrix.global.chat-overlay"))
+        XCTAssertFalse(app.contains("Picker(\"Sidebar\""))
+        XCTAssertFalse(app.contains("matrix.global.sidebar.tabs"))
         for forbidden in [
             "HyphaRoomWorkspaceView",
             "Room view",

@@ -6,7 +6,8 @@ final class HyphaChatPanelStore: ObservableObject {
     @Published private(set) var state = HyphaChatPanelState()
 
     var activeRoomID: String? { state.activeRoomID }
-    var presentation: HyphaChatPanelPresentation { state.presentation }
+    var sidebarSheet: HyphaSidebarSheet { state.sidebarSheet }
+    var mainPresentation: HyphaMainPresentation { state.mainPresentation }
 
     func send(_ action: HyphaChatPanelAction) {
         var next = state

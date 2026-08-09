@@ -78,10 +78,10 @@ struct HyphaCommands: Commands {
                 .disabled(actions?.canOpenRepository != true)
         }
         CommandGroup(after: .sidebar) {
-            Button("Rooms Sidebar Tab") { actions?.showRooms() }
+            Button("Workspace Navigation Sheet") { actions?.showRooms() }
                 .keyboardShortcut("1", modifiers: [.command, .option])
                 .disabled(actions == nil)
-            Button("Chat Sidebar Tab") { actions?.showChat() }
+            Button("Chat Navigation Sheet") { actions?.showChat() }
                 .keyboardShortcut("2", modifiers: [.command, .option])
                 .disabled(actions?.canShowChat != true)
             Divider()
@@ -1339,13 +1339,6 @@ private enum HyphaAuthRoute {
     case registration
 }
 
-private enum HyphaSidebarTab: String, CaseIterable, Identifiable {
-    case rooms
-    case chat
-
-    var id: String { rawValue }
-}
-
 private struct MatrixCompanionShell: View {
     @ObservedObject var model: MatrixAppModel
     @StateObject private var updater = HyphaUpdateController()
@@ -1372,6 +1365,7 @@ private struct MatrixCompanionShell: View {
     @State private var invitationAcceptanceInFlightID: String?
     @State private var credentialPendingDeletion: HyphaMatrixCredentialDescriptor?
     @State private var authRoute: HyphaAuthRoute = .landing
+    @State private var chatSearchText = ""
 
     var body: some View {
         Group {
@@ -1533,79 +1527,236 @@ private struct MatrixCompanionShell: View {
         .background(ZenithDesign.Palette.base)
     }
 
-    private var sidebarTabBinding: Binding<HyphaSidebarTab> {
-        Binding(
-            get: { chatPanel.presentation == .sidebar ? .chat : .rooms },
-            set: { tab in
-                switch tab {
-                case .rooms:
-                    chatPanel.send(.showContent)
-                case .chat:
-                    sendChatAction(.showSidebar)
-                }
-            }
-        )
-    }
-
     private var globalSidebar: some View {
-        VStack(spacing: 0) {
-            Picker("Sidebar", selection: sidebarTabBinding) {
-                Label("Rooms", systemImage: "rectangle.3.group")
-                    .tag(HyphaSidebarTab.rooms)
-                Label("Chat", systemImage: "message.fill")
-                    .tag(HyphaSidebarTab.chat)
-                    .disabled(!canPresentChat)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .padding(.horizontal, ZenithDesign.Space.x3)
-            .padding(.vertical, ZenithDesign.Space.x2)
-            .accessibilityIdentifier("matrix.global.sidebar.tabs")
-
-            Divider()
-
-            switch sidebarTabBinding.wrappedValue {
-            case .rooms:
-                sidebar
+        ZStack {
+            switch chatPanel.sidebarSheet {
+            case .navigation:
+                navigationSheet
+                    .transition(.move(edge: .leading).combined(with: .opacity))
             case .chat:
-                sidebarChat
+                chatNavigationSheet
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
         .background(ZenithDesign.Palette.baseSubtle)
+        .clipped()
+        .animation(.easeInOut(duration: 0.18), value: chatPanel.sidebarSheet)
+    }
+
+    private var navigationSheet: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Workspace")
+                    .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
+                Spacer(minLength: 0)
+                Button(action: showChatNavigationSheet) {
+                    Image(systemName: "message.fill")
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(ZenithDesign.Palette.base))
+                }
+                .buttonStyle(.plain)
+                .help("Open chat navigation")
+                .disabled(!canPresentChat)
+                .accessibilityIdentifier("matrix.global.chat-sheet.open")
+            }
+            .padding(.horizontal, ZenithDesign.Space.x3)
+            .padding(.vertical, ZenithDesign.Space.x2)
+            Divider()
+            sidebar
+        }
+    }
+
+    private var chatNavigationSheet: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Chats")
+                    .font(ZenithDesign.Typography.corporate(.title2, weight: .bold))
+                Spacer(minLength: 0)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        chatPanel.send(.showNavigationSheet)
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(ZenithDesign.Palette.base))
+                }
+                .buttonStyle(.plain)
+                .help("Show workspace navigation")
+                .accessibilityIdentifier("matrix.global.navigation-sheet.open")
+            }
+            .padding(.horizontal, ZenithDesign.Space.x3)
+            .padding(.vertical, ZenithDesign.Space.x2)
+
+            HStack(spacing: ZenithDesign.Space.x2) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                TextField("Search", text: $chatSearchText)
+                    .textFieldStyle(.plain)
+            }
+            .padding(.horizontal, ZenithDesign.Space.x3)
+            .frame(height: 42)
+            .background(
+                RoundedRectangle(cornerRadius: 21, style: .continuous)
+                    .fill(ZenithDesign.Palette.base)
+            )
+            .padding(.horizontal, ZenithDesign.Space.x3)
+            .padding(.bottom, ZenithDesign.Space.x3)
+            .accessibilityIdentifier("matrix.global.chat-search")
+
+            if !recentChatRooms.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: ZenithDesign.Space.x2) {
+                        ForEach(recentChatRooms.prefix(5)) { room in
+                            recentChatCard(room)
+                        }
+                    }
+                    .padding(.horizontal, ZenithDesign.Space.x3)
+                }
+                .padding(.bottom, ZenithDesign.Space.x2)
+                .accessibilityIdentifier("matrix.global.chat-recents")
+            }
+
+            Divider()
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(filteredChatRooms) { room in
+                        chatConversationRow(room)
+                        Divider()
+                            .padding(.leading, 74)
+                    }
+                }
+            }
+            .accessibilityIdentifier("matrix.global.chat-conversations")
+        }
+        .background(ZenithDesign.Palette.baseSubtle)
+        .accessibilityIdentifier("matrix.global.chat-sheet")
+    }
+
+    private var chatRooms: [MatrixRoomSummary] {
+        model.rooms.filter { !$0.hasInvite && !$0.isSpace }
+    }
+
+    private var filteredChatRooms: [MatrixRoomSummary] {
+        let query = chatSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return chatRooms }
+        return chatRooms.filter {
+            $0.name.localizedCaseInsensitiveContains(query)
+                || ($0.topic?.localizedCaseInsensitiveContains(query) ?? false)
+        }
+    }
+
+    private var recentChatRooms: [MatrixRoomSummary] {
+        let direct = chatRooms.filter(\.isDirect)
+        return direct.isEmpty ? Array(chatRooms.prefix(5)) : Array(direct.prefix(5))
     }
 
     private var canPresentChat: Bool {
-        chatPanel.activeRoomID != nil || activeRepositoryRoom != nil
+        !chatRooms.isEmpty || activeRepositoryRoom != nil
     }
 
-    private var sidebarChat: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: ZenithDesign.Space.x2) {
-                Menu {
-                    ForEach(model.rooms.filter { !$0.hasInvite && !$0.isSpace }) { room in
-                        Button {
-                            activateChat(room)
-                        } label: {
-                            if chatPanel.activeRoomID == room.id {
-                                Label(room.name, systemImage: "checkmark")
-                            } else {
-                                Text(room.name)
-                            }
-                        }
-                    }
-                } label: {
-                    Label(activeChatRoom?.name ?? "Chat", systemImage: "message.fill")
+    private func recentChatCard(_ room: MatrixRoomSummary) -> some View {
+        let isActive = chatPanel.activeRoomID == room.id
+        return Button { openChatConversation(room) } label: {
+            VStack(spacing: ZenithDesign.Space.x1) {
+                chatAvatar(for: room, size: 58)
+                Text(room.name)
+                    .font(ZenithDesign.Typography.corporate(.caption, weight: .semibold))
+                    .lineLimit(1)
+                    .frame(width: 68)
+            }
+            .padding(ZenithDesign.Space.x2)
+            .foregroundStyle(isActive ? Color.white : ZenithDesign.Palette.content)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isActive ? Color.accentColor : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func chatConversationRow(_ room: MatrixRoomSummary) -> some View {
+        Button { openChatConversation(room) } label: {
+            HStack(spacing: ZenithDesign.Space.x3) {
+                chatAvatar(for: room, size: 46)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(room.name)
+                        .font(ZenithDesign.Typography.corporate(.body, weight: .semibold))
+                        .foregroundStyle(ZenithDesign.Palette.content)
+                        .lineLimit(1)
+                    Text(chatRoomSubtitle(room))
+                        .font(ZenithDesign.Typography.corporate(.caption, weight: .regular))
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .lineLimit(1)
                 }
-                .menuStyle(.borderlessButton)
-                Spacer(minLength: 0)
+                Spacer(minLength: ZenithDesign.Space.x2)
+                chatConversationStatus(room)
             }
             .padding(.horizontal, ZenithDesign.Space.x3)
             .padding(.vertical, ZenithDesign.Space.x2)
-            Divider()
-            chatDetail
+            .contentShape(Rectangle())
         }
-        .background(ZenithDesign.Palette.baseSubtle)
-        .accessibilityIdentifier("matrix.global.chat-tab")
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func chatConversationStatus(_ room: MatrixRoomSummary) -> some View {
+        if chatPanel.activeRoomID == room.id {
+            Circle()
+                .fill(Color.accentColor)
+                .frame(width: 8, height: 8)
+        } else if room.isEncrypted {
+            Image(systemName: "lock.fill")
+                .font(.caption2)
+                .foregroundStyle(ZenithDesign.Palette.muted)
+        }
+    }
+
+    private func chatAvatar(for room: MatrixRoomSummary, size: CGFloat) -> some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.accentColor.opacity(0.42), Color.accentColor.opacity(0.82)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            Text(chatInitials(room.name))
+                .font(.system(size: size * 0.36, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+        }
+        .frame(width: size, height: size)
+    }
+
+    private func chatInitials(_ name: String) -> String {
+        let initials = name
+            .split(whereSeparator: \.isWhitespace)
+            .prefix(2)
+            .compactMap(\.first)
+            .map(String.init)
+            .joined()
+            .uppercased()
+        return initials.isEmpty ? "#" : initials
+    }
+
+    private func chatRoomSubtitle(_ room: MatrixRoomSummary) -> String {
+        if let topic = room.topic?.trimmingCharacters(in: .whitespacesAndNewlines), !topic.isEmpty {
+            return topic
+        }
+        return room.isDirect ? "Encrypted direct chat" : "Encrypted room"
+    }
+
+    private func showChatNavigationSheet() {
+        if chatPanel.activeRoomID == nil,
+           let room = activeRepositoryRoom ?? chatRooms.first {
+            chatPanel.send(.activate(roomID: room.id))
+        }
+        withAnimation(.easeInOut(duration: 0.18)) {
+            chatPanel.send(.showChatSheet)
+        }
     }
 
     private var activeChatRoom: MatrixRoomSummary? {
@@ -1614,14 +1765,16 @@ private struct MatrixCompanionShell: View {
     }
 
     private func sendChatAction(_ action: HyphaChatPanelAction) {
-        if chatPanel.activeRoomID == nil, let room = activeRepositoryRoom {
+        if chatPanel.activeRoomID == nil,
+           let room = activeRepositoryRoom ?? chatRooms.first {
             chatPanel.send(.activate(roomID: room.id))
         }
         chatPanel.send(action)
     }
 
-    private func activateChat(_ room: MatrixRoomSummary) {
+    private func openChatConversation(_ room: MatrixRoomSummary) {
         chatPanel.send(.activate(roomID: room.id))
+        chatPanel.send(.showMain)
         Task { await model.open(room) }
     }
 
@@ -1639,8 +1792,8 @@ private struct MatrixCompanionShell: View {
         HyphaCommandActions(
             canShowChat: canPresentChat,
             canOpenRepository: activeRepositoryRoom != nil,
-            showRooms: { chatPanel.send(.showContent) },
-            showChat: { sendChatAction(.showSidebar) },
+            showRooms: { chatPanel.send(.showNavigationSheet) },
+            showChat: { sendChatAction(.showChatSheet) },
             showChatMain: { sendChatAction(.showMain) },
             showRoomContent: { chatPanel.send(.showContent) },
             openRepository: {
@@ -2142,6 +2295,7 @@ private struct MatrixCompanionShell: View {
                     chatPanel.send(.clear)
                 } else {
                     chatPanel.send(.activate(roomID: room.id))
+                    chatPanel.send(.showContent)
                 }
 #endif
                 Task { await model.open(room) }
@@ -2264,7 +2418,7 @@ private struct MatrixCompanionShell: View {
     private var primaryDetail: some View {
 #if os(macOS)
         if case let .thread(room, events, composer) = model.state, !room.isSpace {
-            if chatPanel.presentation == .main, chatPanel.activeRoomID == room.id {
+            if chatPanel.mainPresentation == .chat, chatPanel.activeRoomID == room.id {
                 thread(room: room, events: events, composerState: composer)
                     .accessibilityIdentifier("matrix.global.chat-main")
             } else {
@@ -2276,7 +2430,7 @@ private struct MatrixCompanionShell: View {
                 .id("\(room.id)-\(roomContentRefreshID.uuidString)")
             }
         } else if case let .trustBlocked(room) = model.state, !room.isSpace {
-            if chatPanel.presentation == .main, chatPanel.activeRoomID == room.id {
+            if chatPanel.mainPresentation == .chat, chatPanel.activeRoomID == room.id {
                 chatDetail
             } else {
                 HyphaRoomContentView(
