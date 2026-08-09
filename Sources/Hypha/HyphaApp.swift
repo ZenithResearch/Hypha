@@ -1258,6 +1258,8 @@ private struct MatrixCompanionShell: View {
     @State private var showsRoomInvite = false
 #if os(macOS)
     @State private var repositoryRoom: MatrixRoomSummary?
+    @State private var roomChatPlacement: HyphaRoomChatPlacement = .contentWithChatSidebar
+    @State private var roomContentRefreshID = UUID()
 #endif
     @State private var newRoomKind: MatrixRoomKind = .room
     @State private var showsFirstDevicePassword = false
@@ -1307,7 +1309,9 @@ private struct MatrixCompanionShell: View {
             MatrixRoomInviteSheet(model: model, isPresented: $showsRoomInvite)
         }
 #if os(macOS)
-        .sheet(item: $repositoryRoom) { room in
+        .sheet(item: $repositoryRoom, onDismiss: {
+            roomContentRefreshID = UUID()
+        }) { room in
             HyphaRoomRepositorySheet(
                 model: model,
                 githubConnection: githubConnection,
@@ -1439,8 +1443,13 @@ private struct MatrixCompanionShell: View {
 
 #if os(macOS)
     private var activeRepositoryRoom: MatrixRoomSummary? {
-        guard case let .thread(room, _, _) = model.state, !room.isSpace else { return nil }
-        return room
+        switch model.state {
+        case let .thread(room, _, _) where !room.isSpace,
+             let .trustBlocked(room) where !room.isSpace:
+            return room
+        default:
+            return nil
+        }
     }
 #endif
 
@@ -1999,9 +2008,55 @@ private struct MatrixCompanionShell: View {
                         criticalSecurityStrip
                     }
                 }
-                chatDetail
+                primaryDetail
             }
         }
+    }
+
+    @ViewBuilder
+    private var primaryDetail: some View {
+#if os(macOS)
+        if case let .thread(room, events, composer) = model.state, !room.isSpace {
+            HyphaRoomWorkspaceView(
+                room: room,
+                chatPlacement: $roomChatPlacement,
+                content: {
+                    HyphaRoomContentView(
+                        model: model,
+                        room: room,
+                        openRepositorySettings: { repositoryRoom = room }
+                    )
+                    .id("\(room.id)-\(roomContentRefreshID.uuidString)")
+                },
+                chat: {
+                    thread(room: room, events: events, composerState: composer)
+                }
+            )
+            .accessibilityValue(
+                roomChatPlacement == .contentWithChatSidebar
+                    ? "matrix.room.layout.content-chat"
+                    : "matrix.room.layout.chat-main"
+            )
+        } else if case let .trustBlocked(room) = model.state, !room.isSpace {
+            HyphaRoomWorkspaceView(
+                room: room,
+                chatPlacement: $roomChatPlacement,
+                content: {
+                    HyphaRoomContentView(
+                        model: model,
+                        room: room,
+                        openRepositorySettings: { repositoryRoom = room }
+                    )
+                    .id("\(room.id)-\(roomContentRefreshID.uuidString)")
+                },
+                chat: { chatDetail }
+            )
+        } else {
+            chatDetail
+        }
+#else
+        chatDetail
+#endif
     }
 
     private var isAuthenticated: Bool {

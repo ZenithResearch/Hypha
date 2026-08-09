@@ -16,42 +16,20 @@ struct HyphaRoomRepositorySheet: View {
     @State private var githubAccessIsError = false
     @State private var isVerifyingGitHubAccess = false
     @State private var buildCommand = ""
-    @State private var pendingBuildCommand = ""
     @State private var serverAttachment: MatrixRoomRepositoryAttachment?
-    @State private var artifact: HyphaArtifactSelection?
-    @State private var buildLog = ""
     @State private var statusMessage: String?
     @State private var statusIsError = false
     @State private var isLoading = true
     @State private var isAttaching = false
-    @State private var isBuilding = false
-    @State private var showsBuildConfirmation = false
     @State private var scopedURL: URL?
     @State private var isAccessingSecurityScope = false
 
     private let bindingStore = HyphaRoomRepositoryLocalBindingStore()
-    private let builder = HyphaRepositoryBuilder()
-    private let resolver = HyphaArtifactOutputResolver()
 
     private var canAttach: Bool {
         !isAttaching
-            && !isBuilding
             && repositoryRoot != nil
             && !remoteRepositoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var canBuild: Bool {
-        !isAttaching
-            && !isBuilding
-            && serverAttachment != nil
-            && repositoryRoot != nil
-    }
-
-    private var outputActionLabel: String {
-        if isBuilding { return "Working…" }
-        return buildCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? "Load output"
-            : "Run build"
     }
 
     var body: some View {
@@ -144,37 +122,9 @@ struct HyphaRoomRepositorySheet: View {
                     }
                 }
 
-                if !buildLog.isEmpty {
-                    Section("Build log") {
-                        ScrollView {
-                            Text(buildLog)
-                                .font(.system(.caption, design: .monospaced))
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        .frame(maxHeight: 140)
-                    }
-                }
             }
             .formStyle(.grouped)
-            .frame(maxHeight: artifact == nil ? .infinity : 390)
-
-            if let artifact {
-                Divider()
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text(artifact.url.lastPathComponent)
-                            .font(.headline)
-                        Spacer()
-                        Text(artifact.format.uppercased())
-                            .font(.caption.monospaced())
-                            .foregroundStyle(ZenithDesign.Palette.muted)
-                    }
-                    HyphaArtifactViewerView(selection: artifact)
-                }
-                .padding()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            .frame(maxHeight: .infinity)
 
             Divider()
             HStack {
@@ -183,15 +133,9 @@ struct HyphaRoomRepositorySheet: View {
                 Button(isAttaching ? "Attaching…" : "Attach to room") {
                     attach()
                 }
+                .buttonStyle(.borderedProminent)
                 .disabled(!canAttach)
                 .accessibilityIdentifier("matrix.room.repository.attach")
-
-                Button(outputActionLabel) {
-                    prepareOutput()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canBuild)
-                .accessibilityIdentifier("matrix.room.repository.build")
             }
             .padding()
         }
@@ -200,16 +144,7 @@ struct HyphaRoomRepositorySheet: View {
         .onDisappear {
             endSecurityScope()
         }
-        .confirmationDialog(
-            "Run this local build command?",
-            isPresented: $showsBuildConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Run build") { runBuild(command: pendingBuildCommand) }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Build commands run with your user permissions from the repository root. Review the command before continuing:\n\n\(pendingBuildCommand)\n\nHypha will inspect only the out/ directory for viewer output.")
-        }
+
     }
 
     private func load() async {
@@ -253,7 +188,6 @@ struct HyphaRoomRepositorySheet: View {
         endSecurityScope()
         repositoryRoot = url.standardizedFileURL
         repositoryPath = url.standardizedFileURL.path
-        artifact = nil
         beginSecurityScope(for: url)
         statusMessage = nil
         if remoteRepositoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -329,71 +263,6 @@ struct HyphaRoomRepositorySheet: View {
         }
     }
 
-    private func prepareOutput() {
-        guard let repositoryRoot else { return }
-        let explicitCommand = buildCommand.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !explicitCommand.isEmpty {
-            pendingBuildCommand = explicitCommand
-            showsBuildConfirmation = true
-            return
-        }
-
-        let out = repositoryRoot.appendingPathComponent("out", isDirectory: true)
-        do {
-            if FileManager.default.fileExists(atPath: out.path),
-               let manifestCommand = try resolver.buildCommand(outDirectory: out) {
-                pendingBuildCommand = manifestCommand
-                showsBuildConfirmation = true
-            } else {
-                runBuild(command: "")
-            }
-        } catch let error as HyphaArtifactOutputError {
-            status("Hypha could not read out/out.json: \(artifactErrorMessage(error))", error: true)
-        } catch {
-            status("Hypha could not inspect the existing output contract.", error: true)
-        }
-    }
-
-    private func runBuild(command: String) {
-        guard let repositoryRoot else { return }
-        isBuilding = true
-        artifact = nil
-        buildLog = ""
-        statusMessage = nil
-        Task {
-            defer { isBuilding = false }
-            do {
-                let result = try await builder.build(
-                    repositoryRoot: repositoryRoot,
-                    command: command
-                )
-                buildLog = result.log
-                guard result.exitCode == 0 else {
-                    status("Build failed with exit code \(result.exitCode). Review the build log.", error: true)
-                    return
-                }
-                artifact = result.artifact
-                guard let artifact = result.artifact else {
-                    let prefix = result.didRunCommand ? "Build succeeded" : "No build command was provided"
-                    status("\(prefix), but out/ contains no supported output. Add out/out.json with viewer, path, or format to identify the intended output.", error: true)
-                    return
-                }
-                if artifact.source == .discovery {
-                    let prefix = result.didRunCommand ? "Build succeeded" : "Output loaded"
-                    status("\(prefix). Hypha inferred \(artifact.url.lastPathComponent); add out/out.json to make the viewer selection explicit.")
-                } else {
-                    let prefix = result.didRunCommand ? "Build succeeded" : "Output loaded"
-                    status("\(prefix), and out/out.json selected \(artifact.url.lastPathComponent).")
-                }
-            } catch let error as HyphaArtifactOutputError {
-                status("out/out.json is invalid: \(artifactErrorMessage(error))", error: true)
-            } catch let error as HyphaRepositoryBuildError {
-                status(buildErrorMessage(error), error: true)
-            } catch {
-                status("The build or output viewer failed without producing a usable artifact.", error: true)
-            }
-        }
-    }
 
     private func gitOrigin(at root: URL) async -> String? {
         await Task.detached(priority: .utility) {
@@ -421,14 +290,6 @@ struct HyphaRoomRepositorySheet: View {
         statusIsError = error
     }
 
-    private func buildErrorMessage(_ error: HyphaRepositoryBuildError) -> String {
-        switch error {
-        case .unavailableOnPlatform: "Local repository builds are available on macOS only."
-        case .invalidRepository: "Choose a valid Git repository root."
-        case .launchFailed: "Hypha could not launch the local build shell."
-        case .timedOut: "The build exceeded the 15-minute limit and was terminated."
-        }
-    }
 
     private func githubAccessErrorMessage(_ error: HyphaGitHubRepositoryAccessError) -> String {
         switch error {
@@ -447,17 +308,5 @@ struct HyphaRoomRepositorySheet: View {
         }
     }
 
-    private func artifactErrorMessage(_ error: HyphaArtifactOutputError) -> String {
-        switch error {
-        case .outputDirectoryUnavailable: "the out directory is unavailable."
-        case .invalidManifest: "the file is not valid JSON for the output manifest."
-        case .emptyManifest: "define at least one of build, viewer, path, or format."
-        case .pathEscapesOutputDirectory: "path must remain inside out/."
-        case .selectedFileUnavailable: "the selected file is missing or ambiguous."
-        case let .unsupportedFormat(format): "format \(format) is not supported."
-        case .viewerFormatMismatch: "viewer does not match the supported-type map."
-        case .ambiguousManifestSelection: "more than one file matches; add path."
-        }
-    }
 }
 #endif

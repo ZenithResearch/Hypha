@@ -2,7 +2,39 @@ import Foundation
 import XCTest
 
 final class HyphaRepositoryUISourceContractTests: XCTestCase {
-    func testRoomRepositorySheetUsesSecurityScopedSelectionExplicitBuildConfirmationAndArtifactViewer() throws {
+    func testRoomWorkspaceStartsContentFirstAndKeepsArtifactViewerOutOfRepositorySettings() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let app = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
+            encoding: .utf8
+        )
+        let sheet = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaRoomRepositorySheet.swift"),
+            encoding: .utf8
+        )
+
+        for marker in [
+            "HyphaRoomWorkspaceView",
+            "HyphaRoomContentView",
+            "HyphaRoomChatPlacement",
+            ".contentWithChatSidebar",
+            "roomContentRefreshID",
+            "onDismiss:",
+            "matrix.room.layout.content-chat",
+            "matrix.room.layout.chat-main",
+        ] {
+            XCTAssertTrue(app.contains(marker), "Missing content-first room workspace contract: \(marker)")
+        }
+        XCTAssertFalse(
+            sheet.contains("HyphaArtifactViewerView"),
+            "Repository settings must configure output without rendering it"
+        )
+    }
+
+    func testRepositorySettingsConfigureBindingWhileRoomContentOwnsBuildAndViewer() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -13,6 +45,10 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         )
         let viewer = try String(
             contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaArtifactViewerView.swift"),
+            encoding: .utf8
+        )
+        let workspace = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaRoomWorkspaceView.swift"),
             encoding: .utf8
         )
         let app = try String(
@@ -28,15 +64,27 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             "Remote repository URL",
             "Verify private access",
             "githubConnection.verify(remote:",
-            "Run this local build command?",
-            "Build commands run with your user permissions",
-            "Load output",
-            "buildCommand(outDirectory:",
             "out.json",
-            "HyphaRepositoryBuilder",
-            "matrix.room.repository.build",
+            "matrix.room.repository.attach",
         ] {
             XCTAssertTrue(sheet.contains(marker), "Missing repository-sheet contract: \(marker)")
+        }
+        for forbidden in [
+            "HyphaArtifactViewerView",
+            "HyphaRepositoryBuilder",
+            "Run this local build command?",
+            "matrix.room.repository.build",
+        ] {
+            XCTAssertFalse(sheet.contains(forbidden), "Repository settings own configuration only: \(forbidden)")
+        }
+        for marker in [
+            "HyphaArtifactViewerView",
+            "HyphaRepositoryBuilder",
+            "Run this local build command?",
+            "Open output",
+            "matrix.room.content.open-output",
+        ] {
+            XCTAssertTrue(workspace.contains(marker), "Missing room-content output contract: \(marker)")
         }
         for marker in [
             "import QuickLookUI",
