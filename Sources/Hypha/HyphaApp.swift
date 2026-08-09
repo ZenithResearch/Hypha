@@ -1258,7 +1258,7 @@ private struct MatrixCompanionShell: View {
     @State private var showsRoomInvite = false
 #if os(macOS)
     @State private var repositoryRoom: MatrixRoomSummary?
-    @State private var roomChatPlacement: HyphaRoomChatPlacement = .contentWithChatSidebar
+    @State private var roomChatPlacement: HyphaRoomChatPlacement = .content
     @State private var roomContentRefreshID = UUID()
 #endif
     @State private var newRoomKind: MatrixRoomKind = .room
@@ -2033,8 +2033,8 @@ private struct MatrixCompanionShell: View {
                 }
             )
             .accessibilityValue(
-                roomChatPlacement == .contentWithChatSidebar
-                    ? "matrix.room.layout.content-chat"
+                roomChatPlacement == .content
+                    ? "matrix.room.layout.content"
                     : "matrix.room.layout.chat-main"
             )
         } else if case let .trustBlocked(room) = model.state, !room.isSpace {

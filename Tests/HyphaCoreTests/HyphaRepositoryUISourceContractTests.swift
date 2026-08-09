@@ -20,10 +20,10 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             "HyphaRoomWorkspaceView",
             "HyphaRoomContentView",
             "HyphaRoomChatPlacement",
-            ".contentWithChatSidebar",
+            ".content",
             "roomContentRefreshID",
             "onDismiss:",
-            "matrix.room.layout.content-chat",
+            "matrix.room.layout.content",
             "matrix.room.layout.chat-main",
         ] {
             XCTAssertTrue(app.contains(marker), "Missing content-first room workspace contract: \(marker)")
@@ -32,6 +32,29 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             sheet.contains("HyphaArtifactViewerView"),
             "Repository settings must configure output without rendering it"
         )
+    }
+
+    func testChatUsesATrailingOverlaySheetWithoutCompressingRoomContent() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let workspace = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaRoomWorkspaceView.swift"),
+            encoding: .utf8
+        )
+
+        for marker in [
+            "showsChatSheet",
+            ".overlay(alignment: .trailing)",
+            ".transition(.move(edge: .trailing))",
+            "matrix.room.chat-sheet",
+            "matrix.room.chat-sheet.toggle",
+        ] {
+            XCTAssertTrue(workspace.contains(marker), "Missing trailing chat-sheet contract: \(marker)")
+        }
+        XCTAssertFalse(workspace.contains("HSplitView"), "Chat must overlay content rather than resize it")
+        XCTAssertFalse(workspace.contains("Content + chat"), "The room mode control must not describe another split view")
     }
 
     func testRepositorySettingsConfigureBindingWhileRoomContentOwnsBuildAndViewer() throws {

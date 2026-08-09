@@ -3,7 +3,7 @@ import HyphaCore
 import SwiftUI
 
 enum HyphaRoomChatPlacement: String, CaseIterable, Identifiable {
-    case contentWithChatSidebar
+    case content
     case chatMain
 
     var id: String { rawValue }
@@ -14,6 +14,7 @@ struct HyphaRoomWorkspaceView<Content: View, Chat: View>: View {
     @Binding var chatPlacement: HyphaRoomChatPlacement
     @ViewBuilder let content: () -> Content
     @ViewBuilder let chat: () -> Chat
+    @State private var showsChatSheet = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,8 +23,8 @@ struct HyphaRoomWorkspaceView<Content: View, Chat: View>: View {
                     .font(ZenithDesign.Typography.technical(size: 13, weight: .semibold))
                     .foregroundStyle(ZenithDesign.Palette.muted)
                 Picker("Room view", selection: $chatPlacement) {
-                    Label("Content + chat", systemImage: "rectangle.split.2x1")
-                        .tag(HyphaRoomChatPlacement.contentWithChatSidebar)
+                    Label("Content", systemImage: "rectangle.fill")
+                        .tag(HyphaRoomChatPlacement.content)
                     Label("Chat in main view", systemImage: "message.fill")
                         .tag(HyphaRoomChatPlacement.chatMain)
                 }
@@ -31,11 +32,22 @@ struct HyphaRoomWorkspaceView<Content: View, Chat: View>: View {
                 .labelsHidden()
                 .frame(maxWidth: 320)
                 .accessibilityIdentifier(
-                    chatPlacement == .contentWithChatSidebar
-                        ? "matrix.room.layout.content-chat"
+                    chatPlacement == .content
+                        ? "matrix.room.layout.content"
                         : "matrix.room.layout.chat-main"
                 )
                 Spacer()
+                if chatPlacement == .content {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showsChatSheet.toggle()
+                        }
+                    } label: {
+                        Label(showsChatSheet ? "Hide chat" : "Chat", systemImage: "message.fill")
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("matrix.room.chat-sheet.toggle")
+                }
             }
             .padding(.horizontal, ZenithDesign.Space.x3)
             .padding(.vertical, ZenithDesign.Space.x2)
@@ -47,23 +59,44 @@ struct HyphaRoomWorkspaceView<Content: View, Chat: View>: View {
             }
 
             switch chatPlacement {
-            case .contentWithChatSidebar:
-                HSplitView {
-                    content()
-                        .frame(minWidth: 430, maxWidth: .infinity, maxHeight: .infinity)
-                    VStack(spacing: 0) {
-                        HStack {
-                            Label("Chat", systemImage: "message.fill")
-                                .font(ZenithDesign.Typography.technical(size: 13, weight: .semibold))
-                            Spacer()
+            case .content:
+                content()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .trailing) {
+                        if showsChatSheet {
+                            VStack(spacing: 0) {
+                                HStack {
+                                    Label("Chat", systemImage: "message.fill")
+                                        .font(ZenithDesign.Typography.technical(size: 13, weight: .semibold))
+                                    Spacer()
+                                    Button {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            showsChatSheet = false
+                                        }
+                                    } label: {
+                                        Image(systemName: "xmark")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Close chat")
+                                }
+                                .padding(.horizontal, ZenithDesign.Space.x3)
+                                .padding(.vertical, ZenithDesign.Space.x2)
+                                .background(ZenithDesign.Palette.baseSubtle)
+                                chat()
+                            }
+                            .frame(width: 420)
+                            .frame(maxHeight: .infinity)
+                            .background(ZenithDesign.Palette.base)
+                            .overlay(alignment: .leading) {
+                                Rectangle()
+                                    .fill(ZenithDesign.Palette.border)
+                                    .frame(width: 1)
+                            }
+                            .shadow(color: .black.opacity(0.28), radius: 18, x: -8)
+                            .transition(.move(edge: .trailing))
+                            .accessibilityIdentifier("matrix.room.chat-sheet")
                         }
-                        .padding(.horizontal, ZenithDesign.Space.x3)
-                        .padding(.vertical, ZenithDesign.Space.x2)
-                        .background(ZenithDesign.Palette.baseSubtle)
-                        chat()
                     }
-                    .frame(minWidth: 340, idealWidth: 390, maxWidth: 520, maxHeight: .infinity)
-                }
             case .chatMain:
                 chat()
             }
