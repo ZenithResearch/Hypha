@@ -22,6 +22,16 @@ public protocol HyphaSharedWebCredentialStore: Sendable {
     func save(password: String, username: String, domain: String) async throws
 }
 
+public extension HyphaSharedWebCredentialStore {
+    func saveRecoveryKey(_ recoveryKey: String, userID: String, domain: String) async throws {
+        try await save(
+            password: recoveryKey,
+            username: "\(userID) — Hypha Matrix recovery key",
+            domain: domain
+        )
+    }
+}
+
 public final class AppleSharedWebCredentialStore: HyphaSharedWebCredentialStore, @unchecked Sendable {
     public typealias AddCredential = @Sendable (
         _ domain: String,

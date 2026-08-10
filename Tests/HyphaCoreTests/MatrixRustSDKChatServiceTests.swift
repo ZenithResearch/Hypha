@@ -179,6 +179,69 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(try vault.loadSession()?.storeNamespace, provisionalNamespace)
     }
 
+    func testQrLoginRefusesToReplaceAnExistingCanonicalEncryptedStore() async throws {
+        let canonicalAccountKey = MatrixRustSDKChatService.accountKey(
+            username: "@alice:synapse.zenith-research.ca",
+            homeserver: MatrixProductConfiguration.production.homeserver
+        )
+        let existingKey = Data(repeating: 0xA5, count: 32)
+        let existingSession = MatrixSDKSessionRecord.fixture(
+            accountKey: canonicalAccountKey,
+            storeNamespace: String(repeating: "b", count: 64)
+        )
+        let vault = MemorySessionVault()
+        try vault.saveStoreKey(existingKey, accountKey: canonicalAccountKey)
+        try vault.saveSession(existingSession)
+        let provisionalNamespace = String(repeating: "a", count: 64)
+        let factory = FakeLiveClientFactory(
+            client: FakeLiveClient(sessionUserID: "@alice:synapse.zenith-research.ca"),
+            qrLoginSupported: true
+        )
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: factory,
+            randomStoreKey: { Data(repeating: 0xB6, count: 32) },
+            randomStoreNamespace: { provisionalNamespace }
+        )
+
+        await XCTAssertThrowsMatrixError(
+            try await service.signInWithQrCode(Data([0x4d])) { _ in },
+            expected: .unavailable(reason: "A saved Hypha session already owns this account")
+        )
+
+        XCTAssertEqual(try vault.loadSession(accountKey: canonicalAccountKey), existingSession)
+        XCTAssertEqual(try vault.loadStoreKey(accountKey: canonicalAccountKey), existingKey)
+        let resetAccountKeys = await factory.resetAccountKeys()
+        XCTAssertEqual(resetAccountKeys, [provisionalNamespace])
+    }
+
+    func testQrLoginRollsBackCanonicalStoreKeyWhenSessionPersistenceFails() async throws {
+        let provisionalNamespace = String(repeating: "a", count: 64)
+        let vault = MemorySessionVault(saveSessionError: FixtureSDKError("write failed"))
+        let factory = FakeLiveClientFactory(
+            client: FakeLiveClient(sessionUserID: "@alice:synapse.zenith-research.ca"),
+            qrLoginSupported: true
+        )
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: factory,
+            randomStoreKey: { Data(repeating: 0xB6, count: 32) },
+            randomStoreNamespace: { provisionalNamespace }
+        )
+
+        await XCTAssertThrowsMatrixError(
+            try await service.signInWithQrCode(Data([0x4d])) { _ in },
+            expected: .unavailable(reason: "Secure QR login failed")
+        )
+
+        XCTAssertNil(try vault.loadSession())
+        XCTAssertNil(try vault.loadedStoreKey())
+        let resetAccountKeys = await factory.resetAccountKeys()
+        XCTAssertEqual(resetAccountKeys, [provisionalNamespace])
+    }
+
     func testPasswordSignInResetsAbandonedCryptoStoreWhenNoSessionRemains() async throws {
         let accountKey = MatrixRustSDKChatService.accountKey(
             username: "beaver",
@@ -853,32 +916,56 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         _ = try? await challengeTask.value
     }
 
-    func testSASSessionAcknowledgesIncomingRequestAndPublishesChallenge() async {
+    func testSASSessionRequiresConsentBeforeAcceptingIncomingRequest() async throws {
         let controller = DiagnosticSessionVerificationController()
-        let challenges = LockedVerificationChallenges()
+        let states = LockedVerificationStates()
         let session = MatrixSASVerificationSession(
             controller: controller,
-            incomingChallengeObserver: { challenges.append($0) }
+            incomingStateObserver: { states.append($0) }
         )
 
         controller.deliverIncomingRequest(senderID: "@alice:example.org", flowID: "flow-1")
+        await states.waitUntilContains(.incomingRequest)
+        XCTAssertFalse(controller.incomingWasAcknowledged())
+        XCTAssertFalse(controller.incomingWasAccepted())
+
+        try await session.acceptIncomingRequest()
         await controller.waitUntilIncomingAccepted()
         controller.deliverVerificationData(.decimals(values: [111, 222, 333]))
-        await challenges.waitUntilPresent()
+        await states.waitUntilContains(.challenge(.decimals([111, 222, 333])))
 
-        XCTAssertEqual(challenges.snapshot(), [.decimals([111, 222, 333])])
+        XCTAssertEqual(states.snapshot(), [
+            .incomingRequest,
+            .challenge(.decimals([111, 222, 333])),
+        ])
         withExtendedLifetime(session) {}
+    }
+
+    func testSASSessionCanDeclineIncomingRequestBeforeProtocolAcceptance() async {
+        let controller = DiagnosticSessionVerificationController()
+        let states = LockedVerificationStates()
+        let session = MatrixSASVerificationSession(
+            controller: controller,
+            incomingStateObserver: { states.append($0) }
+        )
+
+        controller.deliverIncomingRequest(senderID: "@alice:example.org", flowID: "flow-1")
+        await states.waitUntilContains(.incomingRequest)
+        await session.declineOrCancel()
+
+        XCTAssertFalse(controller.incomingWasAcknowledged())
+        XCTAssertFalse(controller.incomingWasAccepted())
     }
 }
 
-private final class LockedVerificationChallenges: @unchecked Sendable {
+private final class LockedVerificationStates: @unchecked Sendable {
     private let lock = NSLock()
-    private var values: [MatrixVerificationChallenge] = []
+    private var values: [MatrixVerificationFlowState] = []
 
-    func append(_ value: MatrixVerificationChallenge) { lock.withLock { values.append(value) } }
-    func snapshot() -> [MatrixVerificationChallenge] { lock.withLock { values } }
-    func waitUntilPresent() async {
-        while lock.withLock({ values.isEmpty }) { await Task.yield() }
+    func append(_ value: MatrixVerificationFlowState) { lock.withLock { values.append(value) } }
+    func snapshot() -> [MatrixVerificationFlowState] { lock.withLock { values } }
+    func waitUntilContains(_ state: MatrixVerificationFlowState) async {
+        while !lock.withLock({ values.contains(state) }) { await Task.yield() }
     }
 }
 
@@ -937,6 +1024,9 @@ private final class DiagnosticSessionVerificationController: SessionVerification
         currentDelegate?.didAcceptVerificationRequest()
     }
 
+    override func cancelVerification() async throws {}
+    override func declineVerification() async throws {}
+
     override func startSasVerification() async throws {
         let currentDelegate = lock.withLock {
             sasStarts += 1
@@ -974,6 +1064,9 @@ private final class DiagnosticSessionVerificationController: SessionVerification
     func waitUntilIncomingAccepted() async {
         while !lock.withLock({ acknowledgedIncoming && acceptedIncoming }) { await Task.yield() }
     }
+
+    func incomingWasAcknowledged() -> Bool { lock.withLock { acknowledgedIncoming } }
+    func incomingWasAccepted() -> Bool { lock.withLock { acceptedIncoming } }
 
     func deliverFailure() {
         lock.withLock { delegate }?.didFail()
@@ -1013,12 +1106,20 @@ private final class MemorySessionVault: MatrixSDKSessionVault, @unchecked Sendab
     private let lock = NSLock()
     private var session: MatrixSDKSessionRecord?
     private var storeKey: Data?
+    private let saveSessionError: Error?
+
+    init(saveSessionError: Error? = nil) {
+        self.saveSessionError = saveSessionError
+    }
 
     func loadSession() throws -> MatrixSDKSessionRecord? { lock.withLock { session } }
     func loadSession(accountKey: String) throws -> MatrixSDKSessionRecord? {
         lock.withLock { session?.accountKey == accountKey ? session : nil }
     }
-    func saveSession(_ value: MatrixSDKSessionRecord) throws { lock.withLock { session = value } }
+    func saveSession(_ value: MatrixSDKSessionRecord) throws {
+        if let saveSessionError { throw saveSessionError }
+        lock.withLock { session = value }
+    }
     func deleteSession() throws { lock.withLock { session = nil } }
     func loadStoreKey(accountKey: String) throws -> Data? { lock.withLock { storeKey } }
     func saveStoreKey(_ value: Data, accountKey: String) throws { lock.withLock { storeKey = value } }
@@ -1305,7 +1406,8 @@ private extension MatrixSDKSessionRecord {
         accessToken: String = "fixture-token",
         homeserverURL: String = "https://synapse.zenith-research.ca",
         userID: String = "@alice:example.org",
-        deviceID: String = "FIXTURE"
+        deviceID: String = "FIXTURE",
+        storeNamespace: String? = nil
     ) -> Self {
         .init(
             accessToken: accessToken,
@@ -1314,7 +1416,8 @@ private extension MatrixSDKSessionRecord {
             deviceId: deviceID,
             homeserverURL: homeserverURL,
             slidingSyncVersion: "native",
-            accountKey: accountKey
+            accountKey: accountKey,
+            storeNamespace: storeNamespace
         )
     }
 }

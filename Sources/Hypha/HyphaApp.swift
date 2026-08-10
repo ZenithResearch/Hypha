@@ -7,22 +7,31 @@ struct HyphaApp: App {
     @StateObject private var model: MatrixAppModel
 
     init() {
+        let storageIdentity = MatrixPlatformStorageIdentity.current
         let healthChecker = MatrixHomeserverHealthChecker()
-        let sessionVault = MatrixEncryptedSessionVault()
-        let credentialStore = HyphaMigratingCredentialStore(
+        let sessionVault = MatrixEncryptedSessionVault(identity: storageIdentity)
+        #if os(macOS)
+        let credentialStore: any HyphaMatrixCredentialStore = HyphaMigratingCredentialStore(
             primary: sessionVault,
             legacy: HyphaMatrixKeychainCredentialStore()
         )
+        #else
+        let credentialStore: any HyphaMatrixCredentialStore = sessionVault
+        #endif
         _model = StateObject(wrappedValue: MatrixAppModel(
             healthChecker: healthChecker,
             sessionVault: sessionVault,
             credentialStore: credentialStore,
-            sharedPasswordStore: AppleSharedWebCredentialStore()
+            sharedPasswordStore: AppleSharedWebCredentialStore(),
+            storageIdentity: storageIdentity
         ) { configuration in
             MatrixRustSDKChatService(
                 configuration: configuration,
                 vault: sessionVault,
-                clientFactory: MatrixRustLiveClientFactory(configuration: configuration)
+                clientFactory: MatrixRustLiveClientFactory(
+                    configuration: configuration,
+                    identity: storageIdentity
+                )
             )
         })
     }
@@ -63,6 +72,13 @@ fileprivate enum MatrixAppPasswordChangeOutcome: Equatable {
     case failed(String)
 }
 
+enum MatrixRecoveryKeySaveState: Equatable {
+    case idle
+    case saving
+    case saved
+    case failed(String)
+}
+
 enum MatrixAppAdminAccessState: Equatable {
     case unknown
     case checking
@@ -91,6 +107,7 @@ final class MatrixAppModel: ObservableObject {
     @Published var trustState: MatrixDeviceTrustState = .unknown
     @Published var verificationFlowState: MatrixVerificationFlowState = .idle
     @Published var recoveryState: MatrixRecoveryState = .unknown
+    @Published private(set) var recoveryKeySaveState: MatrixRecoveryKeySaveState = .idle
     @Published var firstDeviceTrustBootstrapState: MatrixFirstDeviceTrustBootstrapState = .notBootstrapped
     @Published var peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable
     @Published var registrationAvailability: MatrixRegistrationAvailability = .unavailable
@@ -118,14 +135,9 @@ final class MatrixAppModel: ObservableObject {
     @Published private(set) var isPasswordResetRequestInFlight = false
     @Published private(set) var passwordResetRequestMessage: String?
 
-    private static let homeserverDefaultsKey = "ca.zenithresearch.macos.client.matrix.homeserver"
-    private static let legacyHomeserverDefaultsKey = [
-        "ca", "zenith-research", "mobile-macos", "matrix", "homeserver",
-    ].joined(separator: ".")
-    private static let legacyDefaultsSuite = ["ca", "zenithresearch", "mobile", "macos"].joined(separator: ".")
-    private static let pendingInitialPasswordResetAccountKeys = "ca.zenithresearch.hypha.pending-initial-password-reset-account-keys"
-    private let defaults = UserDefaults.standard
-    private let legacyDefaults = UserDefaults(suiteName: MatrixAppModel.legacyDefaultsSuite)
+    private let storageIdentity: MatrixPlatformStorageIdentity
+    private let defaults: UserDefaults
+    private let legacyDefaults: UserDefaults?
     private let healthChecker: MatrixHomeserverHealthChecker
     private let sessionVault: MatrixEncryptedSessionVault
     private let credentialStore: any HyphaMatrixCredentialStore
@@ -142,8 +154,13 @@ final class MatrixAppModel: ObservableObject {
         sessionVault: MatrixEncryptedSessionVault,
         credentialStore: any HyphaMatrixCredentialStore,
         sharedPasswordStore: any HyphaSharedWebCredentialStore = AppleSharedWebCredentialStore(),
+        storageIdentity: MatrixPlatformStorageIdentity = .current,
+        defaults: UserDefaults = .standard,
         serviceFactory: @escaping ServiceFactory
     ) {
+        self.storageIdentity = storageIdentity
+        self.defaults = defaults
+        self.legacyDefaults = storageIdentity.legacyDefaultsSuite.flatMap(UserDefaults.init(suiteName:))
         self.healthChecker = healthChecker
         self.sessionVault = sessionVault
         self.credentialStore = credentialStore
@@ -188,7 +205,7 @@ final class MatrixAppModel: ObservableObject {
             activeConfiguration = configuration
             self.coordinator = coordinator
             homeserverInput = configuration.homeserver.absoluteString
-            defaults.set(homeserverInput, forKey: Self.homeserverDefaultsKey)
+            defaults.set(homeserverInput, forKey: storageIdentity.homeserverDefaultsKey)
             homeserverState = .connected(configuration.homeserver)
             refreshSavedCredentials(configuration: configuration)
             let sessionsLoaded = refreshSavedSessions(configuration: configuration)
@@ -232,13 +249,17 @@ final class MatrixAppModel: ObservableObject {
 
     func restoreSavedHomeserverIfAvailable() async {
         guard homeserverState == .awaitingInput else { return }
-        let currentValue = defaults.string(forKey: Self.homeserverDefaultsKey)
-        let legacyValue = legacyDefaults?.string(forKey: Self.legacyHomeserverDefaultsKey)
+        let currentValue = defaults.string(forKey: storageIdentity.homeserverDefaultsKey)
+        let legacyValue = storageIdentity.legacyHomeserverDefaultsKey.flatMap {
+            legacyDefaults?.string(forKey: $0)
+        }
         guard let savedHomeserver = currentValue ?? legacyValue,
               !savedHomeserver.isEmpty else { return }
         if currentValue == nil {
-            defaults.set(savedHomeserver, forKey: Self.homeserverDefaultsKey)
-            legacyDefaults?.removeObject(forKey: Self.legacyHomeserverDefaultsKey)
+            defaults.set(savedHomeserver, forKey: storageIdentity.homeserverDefaultsKey)
+            if let legacyKey = storageIdentity.legacyHomeserverDefaultsKey {
+                legacyDefaults?.removeObject(forKey: legacyKey)
+            }
         }
         homeserverInput = savedHomeserver
         await connectHomeserver()
@@ -248,8 +269,10 @@ final class MatrixAppModel: ObservableObject {
         guard !isAuthenticationOperationInFlight else { return }
         timelineRefreshTask?.cancel()
         timelineRefreshTask = nil
-        defaults.removeObject(forKey: Self.homeserverDefaultsKey)
-        legacyDefaults?.removeObject(forKey: Self.legacyHomeserverDefaultsKey)
+        defaults.removeObject(forKey: storageIdentity.homeserverDefaultsKey)
+        if let legacyKey = storageIdentity.legacyHomeserverDefaultsKey {
+            legacyDefaults?.removeObject(forKey: legacyKey)
+        }
         activeConfiguration = nil
         coordinator = nil
         registrationClient = nil
@@ -564,17 +587,17 @@ final class MatrixAppModel: ObservableObject {
     }
 
     private func markInitialPasswordResetRequired(accountKey: String) {
-        var pending = Set(defaults.stringArray(forKey: Self.pendingInitialPasswordResetAccountKeys) ?? [])
+        var pending = Set(defaults.stringArray(forKey: storageIdentity.pendingPasswordResetDefaultsKey) ?? [])
         pending.insert(accountKey)
-        defaults.set(Array(pending).sorted(), forKey: Self.pendingInitialPasswordResetAccountKeys)
+        defaults.set(Array(pending).sorted(), forKey: storageIdentity.pendingPasswordResetDefaultsKey)
         requiresInitialPasswordReset = activeSessionAccountKey == accountKey
     }
 
     func completeInitialPasswordReset() {
         guard let accountKey = activeSessionAccountKey else { return }
-        var pending = Set(defaults.stringArray(forKey: Self.pendingInitialPasswordResetAccountKeys) ?? [])
+        var pending = Set(defaults.stringArray(forKey: storageIdentity.pendingPasswordResetDefaultsKey) ?? [])
         pending.remove(accountKey)
-        defaults.set(Array(pending).sorted(), forKey: Self.pendingInitialPasswordResetAccountKeys)
+        defaults.set(Array(pending).sorted(), forKey: storageIdentity.pendingPasswordResetDefaultsKey)
         requiresInitialPasswordReset = false
     }
 
@@ -583,7 +606,7 @@ final class MatrixAppModel: ObservableObject {
             requiresInitialPasswordReset = false
             return
         }
-        let pending = Set(defaults.stringArray(forKey: Self.pendingInitialPasswordResetAccountKeys) ?? [])
+        let pending = Set(defaults.stringArray(forKey: storageIdentity.pendingPasswordResetDefaultsKey) ?? [])
         requiresInitialPasswordReset = pending.contains(accountKey)
     }
 
@@ -718,6 +741,12 @@ final class MatrixAppModel: ObservableObject {
         applySecurityState(from: coordinator)
     }
 
+    func acceptIncomingDeviceVerification() async {
+        guard let coordinator else { return }
+        await coordinator.acceptIncomingDeviceVerification()
+        applySecurityState(from: coordinator)
+    }
+
     func approveDeviceVerification() async {
         guard let coordinator else { return }
         await coordinator.approveDeviceVerification()
@@ -736,21 +765,54 @@ final class MatrixAppModel: ObservableObject {
         applySecurityState(from: coordinator)
     }
 
-    func restoreEncryption(recoveryKey: String) async {
-        guard let coordinator else { return }
+    @discardableResult
+    func restoreEncryption(recoveryKey: String) async -> Bool {
+        guard let coordinator else { return false }
         await coordinator.restoreEncryption(recoveryKey: recoveryKey)
         applySecurityState(from: coordinator)
         if case .ready = recoveryState {
+            let saved = await saveRecoveryKeyInApplePasswords(recoveryKey)
             await coordinator.refreshOpenRoom()
             applyState(from: coordinator)
+            return saved
         }
+        return false
     }
 
     func setupEncryptionRecovery() async -> String? {
         guard let coordinator else { return nil }
         let recoveryKey = await coordinator.setupEncryptionRecovery()
         applySecurityState(from: coordinator)
+        if let recoveryKey {
+            _ = await saveRecoveryKeyInApplePasswords(recoveryKey)
+        }
         return recoveryKey
+    }
+
+    @discardableResult
+    func saveRecoveryKeyInApplePasswords(_ recoveryKey: String) async -> Bool {
+        guard let configuration = activeConfiguration,
+              let domain = configuration.homeserver.host,
+              let accountKey = activeSessionAccountKey,
+              let userID = savedSessions.first(where: { $0.accountKey == accountKey })?.userId else {
+            recoveryKeySaveState = .failed("No active Matrix account is available for Apple Passwords.")
+            return false
+        }
+        recoveryKeySaveState = .saving
+        do {
+            try await sharedPasswordStore.saveRecoveryKey(
+                recoveryKey,
+                userID: userID,
+                domain: domain
+            )
+            recoveryKeySaveState = .saved
+            return true
+        } catch {
+            recoveryKeySaveState = .failed(
+                "Apple Passwords did not save the recovery key. Keep this screen open and try again."
+            )
+            return false
+        }
     }
 
     fileprivate func changePassword(
@@ -1071,6 +1133,7 @@ final class MatrixAppModel: ObservableObject {
         trustState = .unknown
         verificationFlowState = .idle
         recoveryState = .unknown
+        recoveryKeySaveState = .idle
         firstDeviceTrustBootstrapState = .notBootstrapped
         peerVerificationEligibility = .unavailable
     }
@@ -1324,14 +1387,14 @@ private struct MatrixCompanionShell: View {
     #if os(macOS)
     @StateObject private var updater = HyphaUpdateController()
     @StateObject private var githubConnection = HyphaGitHubConnectionModel()
-    @StateObject private var chatPanel = HyphaChatPanelStore()
     #endif
+    @StateObject private var chatPanel = HyphaChatPanelStore()
     @State private var showsRecovery = false
     @State private var showsRecoverySetup = false
     @State private var showsNewRoom = false
     @State private var showsRoomInvite = false
-#if os(macOS)
     @State private var repositoryRoom: MatrixRoomSummary?
+#if os(macOS)
     @State private var roomContentRefreshID = UUID()
 #endif
     @State private var newRoomKind: MatrixRoomKind = .room
@@ -1348,9 +1411,7 @@ private struct MatrixCompanionShell: View {
     @State private var invitationAcceptanceInFlightID: String?
     @State private var credentialPendingDeletion: HyphaMatrixCredentialDescriptor?
     @State private var authRoute: HyphaAuthRoute = .landing
-    #if os(macOS)
     @State private var chatSearchText = ""
-    #endif
     @State private var splitViewVisibility: NavigationSplitViewVisibility = .automatic
 
     var body: some View {
@@ -2651,6 +2712,7 @@ private struct MatrixCompanionShell: View {
             onSetUpDevice: beginFirstDeviceSetup,
             onContinueDeviceSetup: continueFirstDeviceSetup,
             onRequestVerification: beginPeerVerification,
+            onAcceptIncomingVerification: { Task { await model.acceptIncomingDeviceVerification() } },
             onApproveVerification: { Task { await model.approveDeviceVerification() } },
             onDeclineVerification: { Task { await model.declineDeviceVerification() } },
             onRefresh: { Task { await model.refreshDeviceVerification() } },
@@ -3712,7 +3774,7 @@ private struct MatrixRecoverySetupSheet: View {
             if let generatedRecoveryKey {
                 Text("Save your recovery key")
                     .font(ZenithDesign.Typography.technical(size: 22, weight: .semibold))
-                Text("This key is shown once. Store it in a password manager before continuing. Hypha does not save it and cannot recover it for you.")
+                Text("Hypha automatically saves this key to Apple Passwords. It is also shown once so you can verify or separately back it up.")
                     .foregroundStyle(ZenithDesign.Palette.muted)
                 Text(generatedRecoveryKey)
                     .font(.body.monospaced())
@@ -3723,6 +3785,7 @@ private struct MatrixRecoverySetupSheet: View {
                     .background(.quaternary)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .accessibilityIdentifier("matrix.recovery.generated-key")
+                recoveryKeySaveStatus(generatedRecoveryKey)
                 HStack {
                     Spacer()
                     Button("I've saved this key") {
@@ -3769,6 +3832,31 @@ private struct MatrixRecoverySetupSheet: View {
         .onDisappear { generatedRecoveryKey = nil }
     }
 
+    @ViewBuilder
+    private func recoveryKeySaveStatus(_ recoveryKey: String) -> some View {
+        switch model.recoveryKeySaveState {
+        case .saved:
+            Label("Saved to Apple Passwords", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(ZenithDesign.Palette.success)
+        case .saving:
+            HStack(spacing: ZenithDesign.Space.x2) {
+                ProgressView().controlSize(.small)
+                Text("Saving to Apple Passwords…")
+            }
+        case let .failed(message):
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(ZenithDesign.Palette.warning)
+                Button("Try saving to Apple Passwords") {
+                    Task { await model.saveRecoveryKeyInApplePasswords(recoveryKey) }
+                }
+                .buttonStyle(HyphaButtonStyle(.secondary))
+            }
+        case .idle:
+            EmptyView()
+        }
+    }
+
     private func setUpRecovery() {
         guard !isSubmitting else { return }
         isSubmitting = true
@@ -3789,9 +3877,10 @@ private struct MatrixRecoverySheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Restore encryption")
                 .font(ZenithDesign.Typography.technical(size: 22, weight: .semibold))
-            Text("Enter the recovery key created by Matrix Secure Backup. It is used only for this recovery request and is not saved by Hypha.")
+            Text("Enter the recovery key created by Matrix Secure Backup. Entering a recovery key here also saves it to Apple Passwords after recovery succeeds.")
                 .foregroundStyle(ZenithDesign.Palette.muted)
             recoveryErrorPresentation
+            recoveryKeySaveError
             SecureField("Recovery key", text: $recoveryKey)
                 .textFieldStyle(ZenithInputStyle())
                 .accessibilityIdentifier("matrix.recovery.key")
@@ -3808,7 +3897,7 @@ private struct MatrixRecoverySheet: View {
                     if isSubmitting {
                         ProgressView().controlSize(.small)
                     } else {
-                        Text("Restore")
+                        Text(model.recoveryState == .ready ? "Save to Apple Passwords" : "Restore")
                     }
                 }
                 .buttonStyle(ZenithPrimaryButtonStyle())
@@ -3838,15 +3927,33 @@ private struct MatrixRecoverySheet: View {
         }
     }
 
+    @ViewBuilder
+    private var recoveryKeySaveError: some View {
+        if model.recoveryState == .ready,
+           case let .failed(message) = model.recoveryKeySaveState {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(ZenithDesign.Palette.warning)
+        }
+    }
+
     private func submit() {
         guard !isSubmitting else { return }
         let keyForRequest = recoveryKey
         recoveryKey = ""
         isSubmitting = true
         Task {
-            await model.restoreEncryption(recoveryKey: keyForRequest)
+            let saved: Bool
+            if model.recoveryState == .ready {
+                saved = await model.saveRecoveryKeyInApplePasswords(keyForRequest)
+            } else {
+                saved = await model.restoreEncryption(recoveryKey: keyForRequest)
+            }
             isSubmitting = false
-            if model.recoveryState == .ready { isPresented = false }
+            if model.recoveryState == .ready, saved {
+                isPresented = false
+            } else if model.recoveryState == .ready {
+                recoveryKey = keyForRequest
+            }
         }
     }
 }

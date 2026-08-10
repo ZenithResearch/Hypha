@@ -10,21 +10,26 @@
 		062863584BBAEEBA271BDBB9 /* HyphaChatEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AA53DAC16D46DF38662D03B /* HyphaChatEmptyState.swift */; };
 		098BB722AE46A08309B566C5 /* HyphaAuthHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 880B64FD5F47D3837E4E2CDB /* HyphaAuthHeader.swift */; };
 		17D9B52F5F2B8367BF496011 /* HyphaTextFieldStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8878C65F7FFEB28CEA4895EF /* HyphaTextFieldStyle.swift */; };
+		1A7E902A53CB774E9C28E781 /* HyphaChatPanelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203C9283601BEFB1A929C16A /* HyphaChatPanelStore.swift */; };
 		2D44AE2DD34FB27AF7839C55 /* HyphaQrScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05FB10B4AA0DB388FBFBA698 /* HyphaQrScannerView.swift */; };
 		32EE6BAE312BE047841B5642 /* HyphaSpaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBC5DDDD43911CAB62B6859 /* HyphaSpaceView.swift */; };
 		35647DA448F9DA9F3866DE2F /* HyphaPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A7FDE4D2FC090FDD1433B75 /* HyphaPlatform.swift */; };
 		3DA1A1A3C9ABC8B0D631B725 /* HyphaQrCodeImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA1CB6D9111B77CC551B8F4 /* HyphaQrCodeImage.swift */; };
 		3EE111BA19D283FAA96D883F /* HyphaCore in Frameworks */ = {isa = PBXBuildFile; productRef = A81A74DCD42A78739DEA566D /* HyphaCore */; };
+		3FB54C3C31BB83C5E4783880 /* HyphaArtifactViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BF0E1847965E31294AFD03F /* HyphaArtifactViewerView.swift */; };
 		54485815B715DA122392EB7D /* HyphaChatMessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CD1B61D9D594C5DDF213D4 /* HyphaChatMessageRow.swift */; };
 		5499136180866E8FD6D74C26 /* HyphaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C0415F26135BD1E5CCF86AE /* HyphaApp.swift */; };
 		57A80EA88E9A9DB8C90C53A5 /* HyphaUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57AC89370A2D4D78C193FD3 /* HyphaUpdateController.swift */; };
 		59E521644B40A9771F281132 /* MatrixAdminSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A5C07EC70B4328D48F5989 /* MatrixAdminSheet.swift */; };
 		6622D59998760C62AA269677 /* HyphaAccountChoiceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AC7121E6B8A9BE2D08B3D8C /* HyphaAccountChoiceCard.swift */; };
+		77784A8D6D716E2EC638B9C0 /* HyphaGitHubConnectionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC405DAE73A4EA9A2D71AFE /* HyphaGitHubConnectionModel.swift */; };
 		81BA3D943D5DEC99330BCADA /* HyphaAuthShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAFBDB3767BB7DB240944DA8 /* HyphaAuthShell.swift */; };
 		88D8FD3095D56B8BE60F46F7 /* ZenithDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C786DFE4959575DE3B0EA1 /* ZenithDesignSystem.swift */; };
 		8D4504FFF60329DB9ABF5427 /* HyphaSecurityBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24E3787E755C14DE51508C70 /* HyphaSecurityBanner.swift */; };
+		99A9DA0B46A25C087DD9C05B /* HyphaRoomRepositorySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E7EEB80444E5D8016064BB /* HyphaRoomRepositorySheet.swift */; };
 		9AC7C857426A212A9C14C4C9 /* HyphaAuthenticationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B702FE046D122E6D1CF34811 /* HyphaAuthenticationViews.swift */; };
 		ADF55CA95B2281CAB3B36FF4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CEC9FA68D8BF6E4C4F165AF2 /* Assets.xcassets */; };
+		B6A1D03D2C5C14E07FC0F83E /* HyphaRoomContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD69A729EF077DE0580DBC21 /* HyphaRoomContentView.swift */; };
 		D637566CF5146F599F6ACF20 /* HyphaButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18B423C51FB1731FA01198F4 /* HyphaButton.swift */; };
 		EF7B81265E4A279CDB26DC2D /* HyphaRevealablePasswordField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FFB2CAE35297BE7B85FF48C /* HyphaRevealablePasswordField.swift */; };
 /* End PBXBuildFile section */
@@ -32,9 +37,12 @@
 /* Begin PBXFileReference section */
 		05FB10B4AA0DB388FBFBA698 /* HyphaQrScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaQrScannerView.swift; sourceTree = "<group>"; };
 		18B423C51FB1731FA01198F4 /* HyphaButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaButton.swift; sourceTree = "<group>"; };
+		203C9283601BEFB1A929C16A /* HyphaChatPanelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaChatPanelStore.swift; sourceTree = "<group>"; };
 		24E3787E755C14DE51508C70 /* HyphaSecurityBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaSecurityBanner.swift; sourceTree = "<group>"; };
 		33CD1B61D9D594C5DDF213D4 /* HyphaChatMessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaChatMessageRow.swift; sourceTree = "<group>"; };
 		3AC7121E6B8A9BE2D08B3D8C /* HyphaAccountChoiceCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaAccountChoiceCard.swift; sourceTree = "<group>"; };
+		59E7EEB80444E5D8016064BB /* HyphaRoomRepositorySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaRoomRepositorySheet.swift; sourceTree = "<group>"; };
+		5BC405DAE73A4EA9A2D71AFE /* HyphaGitHubConnectionModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaGitHubConnectionModel.swift; sourceTree = "<group>"; };
 		635AE8A4C5DF2DA6BAF79473 /* Hypha */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Hypha; path = .; sourceTree = SOURCE_ROOT; };
 		6AA53DAC16D46DF38662D03B /* HyphaChatEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaChatEmptyState.swift; sourceTree = "<group>"; };
 		7A7FDE4D2FC090FDD1433B75 /* HyphaPlatform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaPlatform.swift; sourceTree = "<group>"; };
@@ -42,9 +50,11 @@
 		880B64FD5F47D3837E4E2CDB /* HyphaAuthHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaAuthHeader.swift; sourceTree = "<group>"; };
 		8878C65F7FFEB28CEA4895EF /* HyphaTextFieldStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaTextFieldStyle.swift; sourceTree = "<group>"; };
 		8EBC5DDDD43911CAB62B6859 /* HyphaSpaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaSpaceView.swift; sourceTree = "<group>"; };
+		9BF0E1847965E31294AFD03F /* HyphaArtifactViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaArtifactViewerView.swift; sourceTree = "<group>"; };
 		9FFB2CAE35297BE7B85FF48C /* HyphaRevealablePasswordField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaRevealablePasswordField.swift; sourceTree = "<group>"; };
 		B702FE046D122E6D1CF34811 /* HyphaAuthenticationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaAuthenticationViews.swift; sourceTree = "<group>"; };
 		CC521103C4D56538CE7C02DF /* HyphaMobile.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HyphaMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CD69A729EF077DE0580DBC21 /* HyphaRoomContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaRoomContentView.swift; sourceTree = "<group>"; };
 		CEC9FA68D8BF6E4C4F165AF2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E1C786DFE4959575DE3B0EA1 /* ZenithDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZenithDesignSystem.swift; sourceTree = "<group>"; };
 		E57AC89370A2D4D78C193FD3 /* HyphaUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaUpdateController.swift; sourceTree = "<group>"; };
@@ -163,9 +173,14 @@
 			isa = PBXGroup;
 			children = (
 				7C0415F26135BD1E5CCF86AE /* HyphaApp.swift */,
+				9BF0E1847965E31294AFD03F /* HyphaArtifactViewerView.swift */,
+				203C9283601BEFB1A929C16A /* HyphaChatPanelStore.swift */,
+				5BC405DAE73A4EA9A2D71AFE /* HyphaGitHubConnectionModel.swift */,
 				7A7FDE4D2FC090FDD1433B75 /* HyphaPlatform.swift */,
 				EAA1CB6D9111B77CC551B8F4 /* HyphaQrCodeImage.swift */,
 				9FFB2CAE35297BE7B85FF48C /* HyphaRevealablePasswordField.swift */,
+				CD69A729EF077DE0580DBC21 /* HyphaRoomContentView.swift */,
+				59E7EEB80444E5D8016064BB /* HyphaRoomRepositorySheet.swift */,
 				24E3787E755C14DE51508C70 /* HyphaSecurityBanner.swift */,
 				E57AC89370A2D4D78C193FD3 /* HyphaUpdateController.swift */,
 				E8A5C07EC70B4328D48F5989 /* MatrixAdminSheet.swift */,
@@ -274,16 +289,21 @@
 			files = (
 				6622D59998760C62AA269677 /* HyphaAccountChoiceCard.swift in Sources */,
 				5499136180866E8FD6D74C26 /* HyphaApp.swift in Sources */,
+				3FB54C3C31BB83C5E4783880 /* HyphaArtifactViewerView.swift in Sources */,
 				098BB722AE46A08309B566C5 /* HyphaAuthHeader.swift in Sources */,
 				81BA3D943D5DEC99330BCADA /* HyphaAuthShell.swift in Sources */,
 				9AC7C857426A212A9C14C4C9 /* HyphaAuthenticationViews.swift in Sources */,
 				D637566CF5146F599F6ACF20 /* HyphaButton.swift in Sources */,
 				062863584BBAEEBA271BDBB9 /* HyphaChatEmptyState.swift in Sources */,
 				54485815B715DA122392EB7D /* HyphaChatMessageRow.swift in Sources */,
+				1A7E902A53CB774E9C28E781 /* HyphaChatPanelStore.swift in Sources */,
+				77784A8D6D716E2EC638B9C0 /* HyphaGitHubConnectionModel.swift in Sources */,
 				35647DA448F9DA9F3866DE2F /* HyphaPlatform.swift in Sources */,
 				3DA1A1A3C9ABC8B0D631B725 /* HyphaQrCodeImage.swift in Sources */,
 				2D44AE2DD34FB27AF7839C55 /* HyphaQrScannerView.swift in Sources */,
 				EF7B81265E4A279CDB26DC2D /* HyphaRevealablePasswordField.swift in Sources */,
+				B6A1D03D2C5C14E07FC0F83E /* HyphaRoomContentView.swift in Sources */,
+				99A9DA0B46A25C087DD9C05B /* HyphaRoomRepositorySheet.swift in Sources */,
 				8D4504FFF60329DB9ABF5427 /* HyphaSecurityBanner.swift in Sources */,
 				32EE6BAE312BE047841B5642 /* HyphaSpaceView.swift in Sources */,
 				17D9B52F5F2B8367BF496011 /* HyphaTextFieldStyle.swift in Sources */,

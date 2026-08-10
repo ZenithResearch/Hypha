@@ -1075,7 +1075,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     var sendTextHandler: (@Sendable (String, String) async throws -> Void)?
     var qrLoginUpdates: [MatrixQrLoginProgress]
     var incomingVerificationChallenge: MatrixVerificationChallenge?
-    var incomingVerificationHandler: (@Sendable (MatrixVerificationChallenge) -> Void)?
+    var incomingVerificationHandler: (@Sendable (MatrixVerificationFlowState) -> Void)?
 
     init(
         restoredRooms: [MatrixRoomSummary] = [],
@@ -1136,12 +1136,14 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
 
     func signIn(username: String, password: String) async throws -> [MatrixRoomSummary] {
         if let signInError { throw signInError }
-        if let incomingVerificationChallenge { incomingVerificationHandler?(incomingVerificationChallenge) }
+        if let incomingVerificationChallenge {
+            incomingVerificationHandler?(.challenge(incomingVerificationChallenge))
+        }
         return restoredRooms
     }
 
     func setIncomingDeviceVerificationHandler(
-        _ handler: (@Sendable (MatrixVerificationChallenge) -> Void)?
+        _ handler: (@Sendable (MatrixVerificationFlowState) -> Void)?
     ) async {
         incomingVerificationHandler = handler
     }

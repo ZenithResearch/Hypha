@@ -48,6 +48,28 @@ final class AppleSharedWebCredentialStoreTests: XCTestCase {
             XCTAssertEqual(error as? AppleSharedWebCredentialError, .saveFailed)
         }
     }
+
+    func testRecoveryKeyIsSavedAsADistinctApplePasswordsEntry() async throws {
+        let recorder = SharedCredentialRecorder()
+        let store: any HyphaSharedWebCredentialStore = AppleSharedWebCredentialStore {
+            domain, username, password, completion in
+            recorder.add(domain: domain, username: username, password: password, completion: completion)
+        }
+
+        try await store.saveRecoveryKey(
+            "not-a-real-recovery-key",
+            userID: "@beaver:synapse.zenith-research.ca",
+            domain: "synapse.zenith-research.ca"
+        )
+
+        let request = await recorder.request
+        XCTAssertEqual(request?.domain, "synapse.zenith-research.ca")
+        XCTAssertEqual(
+            request?.username,
+            "@beaver:synapse.zenith-research.ca — Hypha Matrix recovery key"
+        )
+        XCTAssertEqual(request?.password, "not-a-real-recovery-key")
+    }
 }
 
 private enum SharedCredentialTestError: Error {

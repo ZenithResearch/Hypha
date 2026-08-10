@@ -20,6 +20,7 @@ public enum HyphaSecurityLocalOperation: Equatable, Sendable {
     case idle
     case settingUpThisDevice
     case deviceSetupFailed(reason: String)
+    case incomingDeviceVerificationRequest
     case requestingVerificationFromAnotherHyphaDevice
     case comparingWithAnotherHyphaDevice(MatrixVerificationChallenge)
     case approvingAnotherHyphaDevice
@@ -158,6 +159,8 @@ public enum HyphaSecurityPresentationPolicy {
         recoveryState: MatrixRecoveryState
     ) -> HyphaSecurityLocalOperation {
         switch verificationFlowState {
+        case .incomingRequest:
+            return .incomingDeviceVerificationRequest
         case .requesting:
             return .requestingVerificationFromAnotherHyphaDevice
         case let .challenge(challenge):

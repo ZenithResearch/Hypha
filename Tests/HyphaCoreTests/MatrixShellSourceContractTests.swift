@@ -74,6 +74,44 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertFalse(String(appSource[registrationStart.lowerBound..<registrationEnd.lowerBound]).contains("credentialStore.savePassword"))
     }
 
+    func testRecoveryKeysAreAutomaticallySavedToApplePasswordsAfterCreationOrRestore() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
+            encoding: .utf8
+        )
+
+        for marker in [
+            "recoveryKeySaveState",
+            "saveRecoveryKeyInApplePasswords",
+            "saveRecoveryKey(",
+            "Saved to Apple Passwords",
+            "Entering a recovery key here also saves it to Apple Passwords",
+        ] {
+            XCTAssertTrue(source.contains(marker), "Missing recovery-key custody contract: \(marker)")
+        }
+
+        let restoreStart = try XCTUnwrap(source.range(of: "    func restoreEncryption(recoveryKey:"))
+        let restoreEnd = try XCTUnwrap(
+            source.range(of: "    func setupEncryptionRecovery()", range: restoreStart.upperBound..<source.endIndex)
+        )
+        XCTAssertTrue(
+            String(source[restoreStart.lowerBound..<restoreEnd.lowerBound])
+                .contains("saveRecoveryKeyInApplePasswords")
+        )
+
+        let setupEnd = try XCTUnwrap(
+            source.range(of: "    fileprivate func changePassword(", range: restoreEnd.upperBound..<source.endIndex)
+        )
+        XCTAssertTrue(
+            String(source[restoreEnd.lowerBound..<setupEnd.lowerBound])
+                .contains("saveRecoveryKeyInApplePasswords")
+        )
+    }
+
     func testAdministratorControlsAreAuthorityGatedAndPresentedAsASheet() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
@@ -878,8 +916,13 @@ final class MatrixShellSourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("Sources/HyphaCore/MatrixRustSDKChatService.swift"),
             encoding: .utf8
         )
-        XCTAssertTrue(liveService.contains("ca.zenithresearch.macos.client.matrix"))
-        XCTAssertTrue(liveService.contains("ZenithMacOSClient/Matrix"))
+        let storageIdentity = try String(
+            contentsOf: root.appendingPathComponent("Sources/HyphaCore/MatrixPlatformStorageIdentity.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(liveService.contains("MatrixPlatformStorageIdentity"))
+        XCTAssertTrue(storageIdentity.contains("ca.zenithresearch.macos.client.matrix"))
+        XCTAssertTrue(storageIdentity.contains("ZenithMacOSClient/Matrix"))
     }
 
     func testNativeShellContainsRequiredSafeStatesAndAccessibilityIdentifiers() throws {
@@ -932,7 +975,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "recoveryKey = \"\"",
             "restoreSavedHomeserverIfAvailable",
             "await coordinator.restore()",
-            "UserDefaults.standard",
+            "defaults: UserDefaults = .standard",
             "matrix.rooms.sidebar",
             "matrix.rooms.sync",
             "matrix.session.switcher",
@@ -956,7 +999,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "Check and connect",
             "MatrixHomeserverHealthChecker(",
             "MatrixRustSDKChatService(",
-            "MatrixEncryptedSessionVault()",
+            "MatrixEncryptedSessionVault(identity: storageIdentity)",
             "MatrixRustLiveClientFactory(",
             ".navigationSplitViewColumnWidth(min: 230, ideal: 320, max: 560)",
             "private var detailTitle",
@@ -1293,7 +1336,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         )
 
         XCTAssertTrue(app.contains("requiresInitialPasswordReset"))
-        XCTAssertTrue(app.contains("pendingInitialPasswordResetAccountKeys"))
+        XCTAssertTrue(app.contains("storageIdentity.pendingPasswordResetDefaultsKey"))
         XCTAssertTrue(app.contains("serverRequestPending: serverRequestPending"))
         XCTAssertTrue(app.contains("MatrixMandatoryPasswordResetSheet"))
         XCTAssertTrue(app.contains(".interactiveDismissDisabled(true)"))

@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+@testable import HyphaCore
 
 final class PlatformStorageIdentityContractTests: XCTestCase {
     private struct IdentityFixture {
@@ -36,32 +37,28 @@ final class PlatformStorageIdentityContractTests: XCTestCase {
         legacyMigrationEnabled: false
     )
 
-    func testExistingMacOSIdentityAndStorageLiteralsRemainByteForByteStable() throws {
-        let info = try text("Resources/Info.plist")
-        let core = try text("Sources/HyphaCore/MatrixRustSDKChatService.swift")
-        let app = try text("Sources/Hypha/HyphaApp.swift")
+    func testRuntimePlatformStorageIdentitiesPreserveMacOSAndIsolateIOS() {
+        XCTAssertEqual(MatrixPlatformStorageIdentity.macOS.bundleIdentifier, Self.macOS.bundle)
+        XCTAssertEqual(MatrixPlatformStorageIdentity.macOS.keychainService, Self.macOS.keychainService)
+        XCTAssertEqual(MatrixPlatformStorageIdentity.macOS.vaultRoot, Self.macOS.vaultRoot)
+        XCTAssertEqual(MatrixPlatformStorageIdentity.macOS.cryptoRoot, Self.macOS.cryptoRoot)
+        XCTAssertEqual(MatrixPlatformStorageIdentity.macOS.homeserverDefaultsKey, Self.macOS.defaultsKey)
+        XCTAssertEqual(MatrixPlatformStorageIdentity.macOS.loggerSubsystem, Self.macOS.loggerSubsystem)
+        XCTAssertTrue(MatrixPlatformStorageIdentity.macOS.legacyMigrationEnabled)
 
-        XCTAssertTrue(info.contains("<key>CFBundleIdentifier</key><string>ca.zenithresearch.macos.client</string>"))
-        for literal in [
-            "private let service = \"ca.zenithresearch.macos.client.matrix\"",
-            "private let legacyService = [\"ca\", \"zenith-research\", \"mobile-macos\", \"matrix\"].joined(separator: \".\")",
-            "private let rootKeyAccount = \"matrix-vault-key-v1\"",
-            ".appendingPathComponent(\"ca.zenithresearch.macos.client\", isDirectory: true)",
-            ".appendingPathComponent(\"MatrixSessionVault-v1\", isDirectory: true)",
-            ".appendingPathComponent(\"ZenithMacOSClient/Matrix\", isDirectory: true)",
-            "[\"Zenith\", \"Mobile\", \"MacOS\"].joined() + \"/Matrix\"",
-            "subsystem: \"ca.zenithresearch.macos.client\"",
-        ] {
-            XCTAssertTrue(core.contains(literal), "Changed macOS storage identity literal: \(literal)")
-        }
-        for literal in [
-            "private static let homeserverDefaultsKey = \"ca.zenithresearch.macos.client.matrix.homeserver\"",
-            "\"ca\", \"zenith-research\", \"mobile-macos\", \"matrix\", \"homeserver\"",
-            "[\"ca\", \"zenithresearch\", \"mobile\", \"macos\"].joined(separator: \".\")",
-        ] {
-            XCTAssertTrue(app.contains(literal), "Changed macOS defaults identity literal: \(literal)")
-        }
-        XCTAssertEqual(core.components(separatedBy: "subsystem: \"ca.zenithresearch.macos.client\"").count - 1, 2)
+        XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.bundleIdentifier, Self.iOS.bundle)
+        XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.keychainService, Self.iOS.keychainService)
+        XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.vaultRoot, Self.iOS.vaultRoot)
+        XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.cryptoRoot, Self.iOS.cryptoRoot)
+        XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.homeserverDefaultsKey, Self.iOS.defaultsKey)
+        XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.loggerSubsystem, Self.iOS.loggerSubsystem)
+        XCTAssertFalse(MatrixPlatformStorageIdentity.iOS.legacyMigrationEnabled)
+
+        #if os(iOS)
+        XCTAssertEqual(MatrixPlatformStorageIdentity.current, .iOS)
+        #else
+        XCTAssertEqual(MatrixPlatformStorageIdentity.current, .macOS)
+        #endif
     }
 
     func testKeychainWritesKeepCurrentAccessibilityAndNeverSynchronize() throws {
@@ -84,12 +81,14 @@ final class PlatformStorageIdentityContractTests: XCTestCase {
         }
     }
 
-    func testIntendedIOSNamespacesAreDisjointFromMacOSAndDisableLegacyMigration() {
-        XCTAssertFalse(Self.iOS.legacyMigrationEnabled, "The iOS fixture must not import desktop legacy state")
-        XCTAssertTrue(Self.macOS.legacyMigrationEnabled, "The frozen macOS fixture documents its existing migration path")
+    func testRuntimeIOSNamespacesAreDisjointFromMacOSAndDisableLegacyMigration() {
+        let mobileIdentity = MatrixPlatformStorageIdentity.iOS
+        let desktopIdentity = MatrixPlatformStorageIdentity.macOS
+        XCTAssertFalse(mobileIdentity.legacyMigrationEnabled)
+        XCTAssertTrue(desktopIdentity.legacyMigrationEnabled)
 
-        for mobile in Self.iOS.namespaces {
-            for desktop in Self.macOS.namespaces {
+        for mobile in mobileIdentity.namespaces {
+            for desktop in desktopIdentity.namespaces {
                 XCTAssertNotEqual(mobile, desktop)
                 XCTAssertFalse(mobile.hasPrefix(desktop + "."), "iOS namespace nests under macOS: \(mobile)")
                 XCTAssertFalse(mobile.hasPrefix(desktop + "/"), "iOS namespace nests under macOS: \(mobile)")
@@ -98,14 +97,8 @@ final class PlatformStorageIdentityContractTests: XCTestCase {
             }
         }
 
-        let legacyService = ["ca", "zenith-research", "mobile-macos", "matrix"].joined(separator: ".")
-        let desktopLegacyNamespaces = [
-            legacyService,
-            legacyService + ".homeserver",
-            ["ca", "zenithresearch", "mobile", "macos"].joined(separator: "."),
-            ["Zenith", "Mobile", "MacOS"].joined() + "/Matrix",
-        ]
-        for namespace in Self.iOS.namespaces {
+        for namespace in mobileIdentity.namespaces {
+            let desktopLegacyNamespaces = desktopIdentity.legacyNamespaces
             XCTAssertFalse(desktopLegacyNamespaces.contains(where: { namespace == $0 || namespace.hasPrefix($0 + ".") || namespace.hasPrefix($0 + "/") }))
         }
     }

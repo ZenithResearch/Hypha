@@ -386,6 +386,7 @@ public enum MatrixFirstDeviceTrustBootstrapState: Equatable, Hashable, Sendable 
 
 public enum MatrixVerificationFlowState: Equatable, Sendable {
     case idle
+    case incomingRequest
     case requesting
     case challenge(MatrixVerificationChallenge)
     case approving
@@ -498,10 +499,11 @@ public protocol MatrixChatService: Sendable {
     func bootstrapFirstDeviceTrust() async throws -> MatrixFirstDeviceTrustBootstrapState
     func continueFirstDeviceTrust(password: String) async throws -> MatrixFirstDeviceTrustBootstrapState
     func requestDeviceVerification() async throws -> MatrixVerificationChallenge
+    func acceptIncomingDeviceVerification() async throws
     func approveDeviceVerification() async throws
     func declineDeviceVerification() async
     func setIncomingDeviceVerificationHandler(
-        _ handler: (@Sendable (MatrixVerificationChallenge) -> Void)?
+        _ handler: (@Sendable (MatrixVerificationFlowState) -> Void)?
     ) async
     func suspend() async
     func logout() async throws
@@ -631,12 +633,15 @@ public extension MatrixChatService {
     func requestDeviceVerification() async throws -> MatrixVerificationChallenge {
         throw MatrixChatServiceError.unavailable(reason: "Device verification is unavailable")
     }
+    func acceptIncomingDeviceVerification() async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Device verification is unavailable")
+    }
     func approveDeviceVerification() async throws {
         throw MatrixChatServiceError.unavailable(reason: "Device verification is unavailable")
     }
     func declineDeviceVerification() async {}
     func setIncomingDeviceVerificationHandler(
-        _ handler: (@Sendable (MatrixVerificationChallenge) -> Void)?
+        _ handler: (@Sendable (MatrixVerificationFlowState) -> Void)?
     ) async {}
     func suspend() async {}
 }
@@ -788,10 +793,10 @@ public final class MatrixChatCoordinator {
     }
 
     private func installIncomingVerificationObserver() async {
-        await service.setIncomingDeviceVerificationHandler { [weak self] challenge in
+        await service.setIncomingDeviceVerificationHandler { [weak self] state in
             Task { @MainActor in
-                self?.verificationFlowState = .challenge(challenge)
-                self?.incomingVerificationStateObserver?(.challenge(challenge))
+                self?.verificationFlowState = state
+                self?.incomingVerificationStateObserver?(state)
             }
         }
     }
@@ -1295,6 +1300,14 @@ public final class MatrixChatCoordinator {
             verificationFlowState = .challenge(try await service.requestDeviceVerification())
         } catch {
             verificationFlowState = .failed(reason: "Device verification failed")
+        }
+    }
+
+    public func acceptIncomingDeviceVerification() async {
+        do {
+            try await service.acceptIncomingDeviceVerification()
+        } catch {
+            verificationFlowState = .failed(reason: "Device verification acceptance failed")
         }
     }
 
