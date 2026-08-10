@@ -7,13 +7,13 @@
     {
       "title": "Tolerant legacy single-artifact manifest",
       "type": "object",
-      "not": { "required": ["artifacts"] },
       "properties": {
         "version": { "const": 1 },
         "build": { "type": "string" },
         "viewer": { "$ref": "#/$defs/legacyInputViewer" },
         "path": { "$ref": "#/$defs/legacyRelativePath" },
-        "format": { "$ref": "#/$defs/format" }
+        "format": { "$ref": "#/$defs/format" },
+        "artifacts": false
       },
       "anyOf": [
         { "required": ["build"] },
@@ -57,11 +57,15 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 1024,
-      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*//)(?!\\./)(?!.*\\/\\.).+"
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!\\s)(?!.*\\s$)(?!.*\\\\)(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))[^\\u0000-\\u001F\\u007F-\\u009F]+$"
     },
     "format": {
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]{0,31}$"
+    },
+    "htmlFormat": {
+      "type": "string",
+      "pattern": "^[Hh][Tt][Mm][Ll]?$"
     },
     "legacyInputViewer": {
       "description": "Values accepted from existing version-1 manifests.",
@@ -96,9 +100,20 @@
         {
           "if": { "required": ["bundle_root"] },
           "then": {
-            "anyOf": [
-              { "required": ["viewer"], "properties": { "viewer": { "const": "web" } } },
-              { "required": ["format"], "properties": { "format": { "enum": ["html", "htm"] } } }
+            "allOf": [
+              {
+                "if": { "required": ["format"] },
+                "then": { "properties": { "format": { "$ref": "#/$defs/htmlFormat" } } },
+                "else": {
+                  "properties": {
+                    "path": { "type": "string", "pattern": "\\.[Hh][Tt][Mm][Ll]?$" }
+                  }
+                }
+              },
+              {
+                "if": { "required": ["viewer"] },
+                "then": { "properties": { "viewer": { "const": "web" } } }
+              }
             ]
           }
         }

@@ -188,17 +188,10 @@ public struct HyphaArtifactOutputResolver: Sendable {
             throw HyphaArtifactOutputError.outputDirectoryUnavailable
         }
 
-        let discovered = try supportedFiles(in: root).map {
-            HyphaArtifactSelection(
-                id: relativePath(for: $0.url, root: root),
-                url: $0.url,
-                format: $0.format,
-                viewer: $0.viewer,
-                source: .discovery
-            )
-        }
         let manifestURL = root.appendingPathComponent("out.json")
-        guard fileManager.fileExists(atPath: manifestURL.path) else { return discovered }
+        guard fileManager.fileExists(atPath: manifestURL.path) else {
+            return try discoveredSelections(in: root)
+        }
         let manifest = try decodeManifest(at: manifestURL)
         if let version = manifest.version, version != 1, version != 2 {
             throw HyphaArtifactOutputError.unsupportedManifestVersion(version)
@@ -215,7 +208,12 @@ public struct HyphaArtifactOutputResolver: Sendable {
         if let viewer = manifest.viewer, !viewer.isLegacyManifestValue {
             throw HyphaArtifactOutputError.viewerValueNotAllowed(viewer)
         }
-        guard let primary = try resolveLegacyManifest(manifest, root: root) else { return [] }
+        let discovered = try discoveredSelections(in: root)
+        guard let primary = try resolveLegacyManifest(
+            manifest,
+            root: root,
+            discovered: discovered
+        ) else { return [] }
         return [primary] + discovered.filter { $0.url != primary.url }
     }
 
@@ -235,7 +233,8 @@ public struct HyphaArtifactOutputResolver: Sendable {
 
     private func resolveLegacyManifest(
         _ manifest: HyphaArtifactOutputManifest,
-        root: URL
+        root: URL,
+        discovered: [HyphaArtifactSelection]
     ) throws -> HyphaArtifactSelection? {
         let fileManager = FileManager.default
         guard manifest.path != nil || manifest.format != nil || manifest.viewer != nil || manifest.build != nil else {
@@ -243,9 +242,10 @@ public struct HyphaArtifactOutputResolver: Sendable {
         }
 
         if manifest.path == nil, manifest.format == nil, manifest.viewer == nil {
-            return try supportedFiles(in: root).first.map {
+            return discovered.first.map {
                 HyphaArtifactSelection(
-                    id: relativePath(for: $0.url, root: root),
+                    id: $0.id,
+                    title: $0.title,
                     url: $0.url,
                     format: $0.format,
                     viewer: $0.viewer,
@@ -293,7 +293,7 @@ public struct HyphaArtifactOutputResolver: Sendable {
             if let requestedFormat, !isValidFormat(requestedFormat) {
                 throw HyphaArtifactOutputError.unsupportedFormat(requestedFormat)
             }
-            let matches = try supportedFiles(in: root).filter { candidate in
+            let matches = discovered.filter { candidate in
                 (requestedFormat == nil || candidate.format == requestedFormat)
                     && (manifest.viewer == nil
                         || HyphaArtifactViewerRegistry.isCompatible(
@@ -547,6 +547,18 @@ public struct HyphaArtifactOutputResolver: Sendable {
         return matches.sorted { $0.url.path < $1.url.path }
     }
 
+    private func discoveredSelections(in root: URL) throws -> [HyphaArtifactSelection] {
+        try supportedFiles(in: root).map {
+            HyphaArtifactSelection(
+                id: relativePath(for: $0.url, root: root),
+                url: $0.url,
+                format: $0.format,
+                viewer: $0.viewer,
+                source: .discovery
+            )
+        }
+    }
+
     private func isContained(_ candidate: URL, by root: URL) -> Bool {
         candidate.path == root.path || candidate.path.hasPrefix(root.path + "/")
     }
@@ -572,6 +584,9 @@ public struct HyphaArtifactOutputResolver: Sendable {
         let components = path.split(separator: "/", omittingEmptySubsequences: false)
         guard !components.contains("..") else { return false }
         if strict {
+            guard path == path.trimmingCharacters(in: .whitespacesAndNewlines) else {
+                return false
+            }
             let hasDrivePrefix = path.count >= 2
                 && path.first?.isASCII == true
                 && path.first?.isLetter == true

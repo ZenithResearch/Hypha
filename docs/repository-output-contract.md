@@ -6,7 +6,7 @@
 
 - The manifest lives at `<repository>/<output_directory>/<manifest>`; current room attachments default to `out/out.json`.
 - Every path is relative to the output directory. Hypha rejects absolute paths, traversal, symlink escapes, missing files, and bundle roots outside that directory.
-- `format`, `media_type`, and `viewer` are declarations, not file-type proof. Runtime byte/container classification decides the validated type and renderer route before remote content is promoted or displayed.
+- `format`, `media_type`, and `viewer` are declarations, not file-type proof. The current local compatibility reader normalizes declared format and extension hints; it is not a remote trust boundary. HYPHA-ART-001B adds byte/container classification before remote or cached content can be promoted or displayed.
 - Git commit, source provenance, fetch time, immutable cache URL, digest, and render revision are runtime facts and do not belong in `out.json`.
 - `build` is a local authoring convenience. Hypha may offer it for exact review and confirmation only from a user-selected local checkout. Remote, cached, or Matrix-loaded content must ignore it and must never execute it.
 - Slideshow state such as current slide, autoplay, loop, zoom, or fullscreen preference is UI state and must not be written to the repository contract.
@@ -84,7 +84,7 @@ The mirror deliberately uses a smaller vocabulary than artifact entries. PPTX/PP
 | `format` | No | Normalized extension without a leading dot, at most 32 characters; defaults to the path extension. |
 | `media_type` | No | IANA-style media type without parameters. It remains an untrusted hint until byte preflight succeeds. |
 | `viewer` | No | Constrained renderer preference; omission lets the validated type choose its default route. |
-| `bundle_root` | HTML only | Relative directory containing the HTML entry point and local CSS/image/font dependencies. |
+| `bundle_root` | HTML only | Relative directory containing the HTML entry point and local CSS/image/font dependencies. The effective format (an explicit `format` or the `path` extension) must be `html`/`htm`; if `viewer` is present it must be `web`. |
 
 Artifact order is stable. Hypha returns the primary first, followed by all remaining declarations in their original relative order, and keys user selection by artifact `id` rather than a device-local file URL.
 
@@ -112,7 +112,7 @@ Viewer placement is intentional and is enforced by both the schema and semantic 
 | `md`, `markdown` | `markdown` | `text` |
 | `txt`, `json`, `log` | `text` | `text` |
 
-The manifest cannot enable scripting, network access, executable content, or a renderer incompatible with the declared format. The HTML content blocker and bundle read boundary are baseline protections; the remote snapshot and renderer hardening stages add byte classification and stronger process boundaries.
+The manifest cannot enable scripting, network access, or executable content. The current local reader rejects renderer preferences incompatible with the declared format, but declarations are not file-type proof. HYPHA-ART-001B adds byte/container classification before remote promotion; the HTML content blocker, bundle read boundary, and later renderer hardening add stronger process boundaries.
 
 ## Version 1 compatibility
 
@@ -136,3 +136,7 @@ With no manifest, Hypha discovers supported files. With version 1, the selected 
 3. Validate that the top-level path and any top-level format/viewer mirror the declared primary, including PPTX/PPSX/PDF → `quickLook` and Markdown → `text`.
 4. Return the primary first, then the remaining declarations in manifest order. Do not discover undeclared version-2 files.
 5. Never execute `build` while opening remote, cached, or Matrix-provided room content.
+
+## Validate the writer contract
+
+Run `npm --prefix docs ci --ignore-scripts --no-audit --no-fund` once, then `npm --prefix docs test`. The pinned Draft 2020-12 conformance suite validates the canonical example plus compatible v1/v2 fixtures and expected failures for viewer placement, strict paths, and HTML bundle rules. Hypha's Swift tests separately verify semantic resolution against real files and directories.

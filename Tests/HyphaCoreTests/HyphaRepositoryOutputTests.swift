@@ -154,6 +154,21 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         XCTAssertEqual(selection.viewer, .markdown)
     }
 
+    func testVersionTwoAcceptsHiddenPathComponentsAndInfersHTMLBundleRoute() throws {
+        let output = try temporaryDirectory()
+        let assets = output.appendingPathComponent("site/.assets", isDirectory: true)
+        try FileManager.default.createDirectory(at: assets, withIntermediateDirectories: true)
+        try Data("<html></html>".utf8).write(to: assets.appendingPathComponent("index.html"))
+        try Data(#"{"version":2,"primary":"site","path":"site/.assets/index.html","artifacts":[{"id":"site","path":"site/.assets/index.html","bundle_root":"site/.assets"}]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        let selection = try XCTUnwrap(HyphaArtifactOutputResolver().resolve(outDirectory: output))
+
+        XCTAssertEqual(selection.viewer, .web)
+        XCTAssertEqual(selection.format, "html")
+        XCTAssertEqual(selection.bundleRoot?.lastPathComponent, ".assets")
+    }
+
     func testLegacyPDFQuickLookManifestRemainsReadable() throws {
         let output = try temporaryDirectory()
         try Data("pdf".utf8).write(to: output.appendingPathComponent("document.pdf"))
@@ -246,6 +261,24 @@ final class HyphaRepositoryOutputTests: XCTestCase {
 
         XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
             XCTAssertEqual(error as? HyphaArtifactOutputError, .invalidArtifactDefinition)
+        }
+    }
+
+    func testVersionTwoRejectsDotAndWhitespaceBoundedStrictPaths() throws {
+        for invalidPath in [".", "./artifact.txt", "artifact/.", " artifact.txt", "artifact.txt "] {
+            let output = try temporaryDirectory()
+            let manifest: [String: Any] = [
+                "version": 2,
+                "primary": "artifact",
+                "path": invalidPath,
+                "artifacts": [["id": "artifact", "path": invalidPath]],
+            ]
+            try JSONSerialization.data(withJSONObject: manifest)
+                .write(to: output.appendingPathComponent("out.json"))
+
+            XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+                XCTAssertEqual(error as? HyphaArtifactOutputError, .invalidArtifactDefinition)
+            }
         }
     }
 

@@ -1,0 +1,11 @@
+{
+  "name": "hypha-output-contract-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node test-out-schema.mjs"
+  },
+  "devDependencies": {
+    "ajv": "8.17.1"
+  }
+}
