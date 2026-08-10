@@ -1339,6 +1339,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(app.contains("storageIdentity.pendingPasswordResetDefaultsKey"))
         XCTAssertTrue(app.contains("storageIdentity.completedInitialPasswordChangeDefaultsKey"))
         XCTAssertTrue(app.contains("hasCompletedInitialPasswordChange: hasCompletedInitialPasswordChange"))
+        XCTAssertFalse(app.contains("Reconnect and replace it once more"))
         XCTAssertTrue(app.contains("serverRequestPending: serverRequestPending"))
         XCTAssertTrue(app.contains("MatrixMandatoryPasswordResetSheet"))
         XCTAssertTrue(app.contains(".interactiveDismissDisabled(true)"))

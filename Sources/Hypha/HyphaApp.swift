@@ -408,6 +408,13 @@ final class MatrixAppModel: ObservableObject {
                     accountKey: candidateAccountKey
                 )
                 hasPendingHomeserverPasswordResetRequest = serverRequestPending && !hasCompletedInitialPasswordChange
+                if serverRequestPending && hasCompletedInitialPasswordChange {
+                    let closedServerRequest = await coordinator.completeHomeserverPasswordResetRequest()
+                    if !closedServerRequest {
+                        roomSyncMessage = "Your password is already replaced, but Hypha could not close the stale homeserver reset request yet."
+                        roomSyncMessageTone = .warning
+                    }
+                }
                 if MatrixInitialPasswordResetPolicy.requiresReset(
                     serverRequestPending: serverRequestPending,
                     hasCompletedInitialPasswordChange: hasCompletedInitialPasswordChange
@@ -867,10 +874,12 @@ final class MatrixAppModel: ObservableObject {
                 completeInitialPasswordReset()
             }
             if hasPendingHomeserverPasswordResetRequest {
-                guard await coordinator.completeHomeserverPasswordResetRequest() else {
-                    return .failed("The password changed, but Hypha could not close the homeserver reset request. The new password is now your current password. Reconnect and replace it once more to finish safely.")
-                }
+                let closedServerRequest = await coordinator.completeHomeserverPasswordResetRequest()
                 hasPendingHomeserverPasswordResetRequest = false
+                if !closedServerRequest {
+                    roomSyncMessage = "Password changed. Hypha could not close the homeserver reset request yet and will retry after a future password sign-in."
+                    roomSyncMessageTone = .warning
+                }
             }
             var updatedApplePasswords = false
             if saveInApplePasswords {
