@@ -7,6 +7,7 @@ struct HyphaSecurityBanner: View {
     let onSetUpDevice: () -> Void
     let onContinueDeviceSetup: () -> Void
     let onRequestVerification: () -> Void
+    let onAcceptIncomingVerification: () -> Void
     let onApproveVerification: () -> Void
     let onDeclineVerification: () -> Void
     let onRefresh: () -> Void
@@ -107,6 +108,8 @@ struct HyphaSecurityBanner: View {
             return "Setting up this device."
         case let .deviceSetupFailed(reason):
             return reason
+        case .incomingDeviceVerificationRequest:
+            return "Another Hypha device is requesting verification."
         case .requestingVerificationFromAnotherHyphaDevice:
             return "Waiting for another Hypha device."
         case .comparingWithAnotherHyphaDevice:
@@ -154,6 +157,17 @@ struct HyphaSecurityBanner: View {
             progressRow("Setting up this device…")
         case let .deviceSetupFailed(reason):
             failureRow(reason, retryTitle: "Try device setup again", action: onSetUpDevice)
+        case .incomingDeviceVerificationRequest:
+            HStack {
+                Label("Another Hypha device is requesting verification.", systemImage: "iphone.and.arrow.forward")
+                Spacer()
+                Button("Decline", action: onDeclineVerification)
+                    .buttonStyle(HyphaButtonStyle(.quiet))
+                    .accessibilityIdentifier("matrix.verification.decline")
+                Button("Accept", action: onAcceptIncomingVerification)
+                    .buttonStyle(HyphaButtonStyle(.primary))
+                    .accessibilityIdentifier("matrix.verification.accept-request")
+            }
         case .requestingVerificationFromAnotherHyphaDevice:
             HStack {
                 progressRow("Waiting for another Hypha device…")

@@ -1,5 +1,4 @@
 import Accessibility
-import AppKit
 import SwiftUI
 import HyphaCore
 
@@ -8,22 +7,31 @@ struct HyphaApp: App {
     @StateObject private var model: MatrixAppModel
 
     init() {
+        let storageIdentity = MatrixPlatformStorageIdentity.current
         let healthChecker = MatrixHomeserverHealthChecker()
-        let sessionVault = MatrixEncryptedSessionVault()
-        let credentialStore = HyphaMigratingCredentialStore(
+        let sessionVault = MatrixEncryptedSessionVault(identity: storageIdentity)
+        #if os(macOS)
+        let credentialStore: any HyphaMatrixCredentialStore = HyphaMigratingCredentialStore(
             primary: sessionVault,
             legacy: HyphaMatrixKeychainCredentialStore()
         )
+        #else
+        let credentialStore: any HyphaMatrixCredentialStore = sessionVault
+        #endif
         _model = StateObject(wrappedValue: MatrixAppModel(
             healthChecker: healthChecker,
             sessionVault: sessionVault,
             credentialStore: credentialStore,
-            sharedPasswordStore: AppleSharedWebCredentialStore()
+            sharedPasswordStore: AppleSharedWebCredentialStore(),
+            storageIdentity: storageIdentity
         ) { configuration in
             MatrixRustSDKChatService(
                 configuration: configuration,
                 vault: sessionVault,
-                clientFactory: MatrixRustLiveClientFactory(configuration: configuration)
+                clientFactory: MatrixRustLiveClientFactory(
+                    configuration: configuration,
+                    identity: storageIdentity
+                )
             )
         })
     }
@@ -31,11 +39,19 @@ struct HyphaApp: App {
     var body: some Scene {
         WindowGroup("Hypha") {
             MatrixCompanionShell(model: model)
-                .frame(minWidth: 760, minHeight: 520)
+                .hyphaPlatformRootFrame()
                 .zenithAppSurface()
-                .task { await model.restoreSavedHomeserverIfAvailable() }
+                .task {
+                    #if os(iOS)
+                    await model.connectDefaultHomeserver()
+                    #else
+                    await model.restoreSavedHomeserverIfAvailable()
+                    #endif
+                }
         }
+        #if os(macOS)
         .defaultSize(width: 980, height: 680)
+        #endif
     }
 }
 
@@ -53,6 +69,13 @@ fileprivate enum MatrixAppPasswordChangeOutcome: Equatable {
     case successWithCredentialUpdates
     case successWithCredentialWarning
     case invalidCurrentPassword
+    case failed(String)
+}
+
+enum MatrixRecoveryKeySaveState: Equatable {
+    case idle
+    case saving
+    case saved
     case failed(String)
 }
 
@@ -74,7 +97,7 @@ final class MatrixAppModel: ObservableObject {
     typealias ServiceFactory = (MatrixProductConfiguration) -> any MatrixChatService
 
     @Published var state: MatrixChatState = .signedOut(message: nil)
-    @Published var homeserverInput = ""
+    @Published var homeserverInput = MatrixProductConfiguration.production.homeserver.absoluteString
     @Published var homeserverState: HomeserverOnboardingState = .awaitingInput
     @Published var username = ""
     @Published var password = ""
@@ -84,9 +107,14 @@ final class MatrixAppModel: ObservableObject {
     @Published var trustState: MatrixDeviceTrustState = .unknown
     @Published var verificationFlowState: MatrixVerificationFlowState = .idle
     @Published var recoveryState: MatrixRecoveryState = .unknown
+    @Published private(set) var recoveryKeySaveState: MatrixRecoveryKeySaveState = .idle
     @Published var firstDeviceTrustBootstrapState: MatrixFirstDeviceTrustBootstrapState = .notBootstrapped
     @Published var peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable
     @Published var registrationAvailability: MatrixRegistrationAvailability = .unavailable
+    @Published private(set) var qrLoginAvailability: MatrixQrLoginAvailability = .unavailable(
+        reason: "Secure QR login availability has not been checked"
+    )
+    @Published var qrLoginProgress: MatrixQrLoginProgress?
     @Published var registrationError: String?
     @Published var showsFirstRunGuidance = false
     @Published var isSyncingRooms = false
@@ -107,14 +135,9 @@ final class MatrixAppModel: ObservableObject {
     @Published private(set) var isPasswordResetRequestInFlight = false
     @Published private(set) var passwordResetRequestMessage: String?
 
-    private static let homeserverDefaultsKey = "ca.zenithresearch.macos.client.matrix.homeserver"
-    private static let legacyHomeserverDefaultsKey = [
-        "ca", "zenith-research", "mobile-macos", "matrix", "homeserver",
-    ].joined(separator: ".")
-    private static let legacyDefaultsSuite = ["ca", "zenithresearch", "mobile", "macos"].joined(separator: ".")
-    private static let pendingInitialPasswordResetAccountKeys = "ca.zenithresearch.hypha.pending-initial-password-reset-account-keys"
-    private let defaults = UserDefaults.standard
-    private let legacyDefaults = UserDefaults(suiteName: MatrixAppModel.legacyDefaultsSuite)
+    private let storageIdentity: MatrixPlatformStorageIdentity
+    private let defaults: UserDefaults
+    private let legacyDefaults: UserDefaults?
     private let healthChecker: MatrixHomeserverHealthChecker
     private let sessionVault: MatrixEncryptedSessionVault
     private let credentialStore: any HyphaMatrixCredentialStore
@@ -131,13 +154,26 @@ final class MatrixAppModel: ObservableObject {
         sessionVault: MatrixEncryptedSessionVault,
         credentialStore: any HyphaMatrixCredentialStore,
         sharedPasswordStore: any HyphaSharedWebCredentialStore = AppleSharedWebCredentialStore(),
+        storageIdentity: MatrixPlatformStorageIdentity = .current,
+        defaults: UserDefaults = .standard,
         serviceFactory: @escaping ServiceFactory
     ) {
+        self.storageIdentity = storageIdentity
+        self.defaults = defaults
+        self.legacyDefaults = storageIdentity.legacyDefaultsSuite.flatMap(UserDefaults.init(suiteName:))
         self.healthChecker = healthChecker
         self.sessionVault = sessionVault
         self.credentialStore = credentialStore
         self.sharedPasswordStore = sharedPasswordStore
         self.serviceFactory = serviceFactory
+    }
+
+    private func makeCoordinator(configuration: MatrixProductConfiguration) -> MatrixChatCoordinator {
+        let coordinator = MatrixChatCoordinator(service: serviceFactory(configuration))
+        coordinator.observeIncomingVerificationState { [weak self] state in
+            self?.verificationFlowState = state
+        }
+        return coordinator
     }
 
     var connectedHomeserver: URL? {
@@ -165,11 +201,11 @@ final class MatrixAppModel: ObservableObject {
         password = ""
         do {
             let configuration = try await healthChecker.connect(to: homeserverInput)
-            let coordinator = MatrixChatCoordinator(service: serviceFactory(configuration))
+            let coordinator = makeCoordinator(configuration: configuration)
             activeConfiguration = configuration
             self.coordinator = coordinator
             homeserverInput = configuration.homeserver.absoluteString
-            defaults.set(homeserverInput, forKey: Self.homeserverDefaultsKey)
+            defaults.set(homeserverInput, forKey: storageIdentity.homeserverDefaultsKey)
             homeserverState = .connected(configuration.homeserver)
             refreshSavedCredentials(configuration: configuration)
             let sessionsLoaded = refreshSavedSessions(configuration: configuration)
@@ -186,11 +222,14 @@ final class MatrixAppModel: ObservableObject {
             let registrationClient = MatrixInviteRegistrationClient(homeserver: configuration.homeserver)
             self.registrationClient = registrationClient
             registrationAvailability = await registrationClient.availability()
+            await refreshQrLoginAvailability()
         } catch {
             activeConfiguration = nil
             coordinator = nil
             registrationClient = nil
             registrationAvailability = .unavailable
+            qrLoginAvailability = .unavailable(reason: "The homeserver is unavailable")
+            qrLoginProgress = nil
             savedSessions = []
             savedCredentials = []
             activeSessionAccountKey = nil
@@ -202,15 +241,25 @@ final class MatrixAppModel: ObservableObject {
         }
     }
 
+    func connectDefaultHomeserver() async {
+        guard connectedHomeserver == nil, !isCheckingHomeserver else { return }
+        homeserverInput = MatrixProductConfiguration.production.homeserver.absoluteString
+        await connectHomeserver()
+    }
+
     func restoreSavedHomeserverIfAvailable() async {
         guard homeserverState == .awaitingInput else { return }
-        let currentValue = defaults.string(forKey: Self.homeserverDefaultsKey)
-        let legacyValue = legacyDefaults?.string(forKey: Self.legacyHomeserverDefaultsKey)
+        let currentValue = defaults.string(forKey: storageIdentity.homeserverDefaultsKey)
+        let legacyValue = storageIdentity.legacyHomeserverDefaultsKey.flatMap {
+            legacyDefaults?.string(forKey: $0)
+        }
         guard let savedHomeserver = currentValue ?? legacyValue,
               !savedHomeserver.isEmpty else { return }
         if currentValue == nil {
-            defaults.set(savedHomeserver, forKey: Self.homeserverDefaultsKey)
-            legacyDefaults?.removeObject(forKey: Self.legacyHomeserverDefaultsKey)
+            defaults.set(savedHomeserver, forKey: storageIdentity.homeserverDefaultsKey)
+            if let legacyKey = storageIdentity.legacyHomeserverDefaultsKey {
+                legacyDefaults?.removeObject(forKey: legacyKey)
+            }
         }
         homeserverInput = savedHomeserver
         await connectHomeserver()
@@ -220,8 +269,10 @@ final class MatrixAppModel: ObservableObject {
         guard !isAuthenticationOperationInFlight else { return }
         timelineRefreshTask?.cancel()
         timelineRefreshTask = nil
-        defaults.removeObject(forKey: Self.homeserverDefaultsKey)
-        legacyDefaults?.removeObject(forKey: Self.legacyHomeserverDefaultsKey)
+        defaults.removeObject(forKey: storageIdentity.homeserverDefaultsKey)
+        if let legacyKey = storageIdentity.legacyHomeserverDefaultsKey {
+            legacyDefaults?.removeObject(forKey: legacyKey)
+        }
         activeConfiguration = nil
         coordinator = nil
         registrationClient = nil
@@ -338,9 +389,6 @@ final class MatrixAppModel: ObservableObject {
         let candidateAccountKey = activeConfiguration.map {
             MatrixRustSDKChatService.accountKey(username: usernameForRequest, homeserver: $0.homeserver)
         }
-        let hadExistingSession = candidateAccountKey.map { accountKey in
-            savedSessions.contains { $0.accountKey == accountKey }
-        } ?? false
         password = ""
         savePasswordToApplePasswords = false
         await coordinator.signIn(username: usernameForRequest, password: passwordForRequest)
@@ -356,12 +404,24 @@ final class MatrixAppModel: ObservableObject {
                 } catch {
                     serverRequestPending = true
                 }
-                hasPendingHomeserverPasswordResetRequest = serverRequestPending
-                if serverRequestPending || MatrixInitialPasswordResetPolicy.requiresReset(
-                    authenticationMethod: .manualPassword,
-                    hadExistingSession: hadExistingSession
+                let hasCompletedInitialPasswordChange = hasCompletedInitialPasswordChange(
+                    accountKey: candidateAccountKey
+                )
+                hasPendingHomeserverPasswordResetRequest = serverRequestPending && !hasCompletedInitialPasswordChange
+                if serverRequestPending && hasCompletedInitialPasswordChange {
+                    let closedServerRequest = await coordinator.completeHomeserverPasswordResetRequest()
+                    if !closedServerRequest {
+                        roomSyncMessage = "Your password is already replaced, but Hypha could not close the stale homeserver reset request yet."
+                        roomSyncMessageTone = .warning
+                    }
+                }
+                if MatrixInitialPasswordResetPolicy.requiresReset(
+                    serverRequestPending: serverRequestPending,
+                    hasCompletedInitialPasswordChange: hasCompletedInitialPasswordChange
                 ) {
                     markInitialPasswordResetRequired(accountKey: candidateAccountKey)
+                } else {
+                    clearInitialPasswordResetRequirement(accountKey: candidateAccountKey)
                 }
             }
             if case .rooms = state, shouldSaveInApplePasswords {
@@ -373,6 +433,52 @@ final class MatrixAppModel: ObservableObject {
                 )
             }
         }
+    }
+
+    func refreshQrLoginAvailability() async {
+        guard let coordinator else {
+            qrLoginAvailability = .unavailable(reason: "Connect to the homeserver first")
+            return
+        }
+        qrLoginAvailability = await coordinator.qrLoginAvailability()
+    }
+
+    func signInWithQrCode(_ qrCodeData: Data) async {
+        guard let coordinator else { return }
+        guard beginAuthenticationOperation() else { return }
+        defer { finishAuthenticationOperation() }
+        qrLoginProgress = .starting
+        await coordinator.signInWithQrCode(qrCodeData) { [weak self] update in
+            self?.qrLoginProgress = update
+        }
+        applyState(from: coordinator)
+        applySecurityState(from: coordinator)
+        await refreshAdministratorAccess()
+        if let configuration = activeConfiguration {
+            refreshSavedSessions(configuration: configuration)
+        }
+    }
+
+    func generateQrLoginCode() async {
+        guard let coordinator else { return }
+        qrLoginProgress = .starting
+        await coordinator.generateQrLoginCode { [weak self] update in
+            self?.qrLoginProgress = update
+        }
+    }
+
+    func submitQrLoginCheckCode(_ value: String) async {
+        guard let code = UInt8(value), value.count == 2, code <= 99 else {
+            qrLoginProgress = .failed("Enter the two-digit code shown on the new device")
+            return
+        }
+        await coordinator?.submitQrLoginCheckCode(code)
+        qrLoginProgress = coordinator?.qrLoginProgress
+    }
+
+    func cancelQrLogin() async {
+        await coordinator?.cancelQrLogin()
+        qrLoginProgress = nil
     }
 
     func signIn(with credential: HyphaMatrixCredentialDescriptor) async {
@@ -391,7 +497,7 @@ final class MatrixAppModel: ObservableObject {
                 retrySignIn(username: credential.username, message: .savedCredentialUnavailable)
                 return
             }
-            let coordinator = MatrixChatCoordinator(service: serviceFactory(configuration))
+            let coordinator = makeCoordinator(configuration: configuration)
             self.coordinator = coordinator
             username = credential.username
             password = ""
@@ -430,7 +536,7 @@ final class MatrixAppModel: ObservableObject {
         timelineRefreshTask = nil
         do {
             try sessionVault.activateSession(accountKey: session.accountKey)
-            let coordinator = MatrixChatCoordinator(service: serviceFactory(configuration))
+            let coordinator = makeCoordinator(configuration: configuration)
             self.coordinator = coordinator
             _ = await coordinator.restoreAndRefreshForAccountSwitch()
             applyState(from: coordinator)
@@ -481,7 +587,7 @@ final class MatrixAppModel: ObservableObject {
         await coordinator?.suspend()
         timelineRefreshTask?.cancel()
         timelineRefreshTask = nil
-        coordinator = MatrixChatCoordinator(service: serviceFactory(configuration))
+        coordinator = makeCoordinator(configuration: configuration)
         username = ""
         password = ""
         savePasswordToApplePasswords = false
@@ -494,18 +600,43 @@ final class MatrixAppModel: ObservableObject {
     }
 
     private func markInitialPasswordResetRequired(accountKey: String) {
-        var pending = Set(defaults.stringArray(forKey: Self.pendingInitialPasswordResetAccountKeys) ?? [])
+        guard !hasCompletedInitialPasswordChange(accountKey: accountKey) else {
+            requiresInitialPasswordReset = false
+            return
+        }
+        var pending = Set(defaults.stringArray(forKey: storageIdentity.pendingPasswordResetDefaultsKey) ?? [])
         pending.insert(accountKey)
-        defaults.set(Array(pending).sorted(), forKey: Self.pendingInitialPasswordResetAccountKeys)
+        defaults.set(Array(pending).sorted(), forKey: storageIdentity.pendingPasswordResetDefaultsKey)
         requiresInitialPasswordReset = activeSessionAccountKey == accountKey
     }
 
     func completeInitialPasswordReset() {
         guard let accountKey = activeSessionAccountKey else { return }
-        var pending = Set(defaults.stringArray(forKey: Self.pendingInitialPasswordResetAccountKeys) ?? [])
+        var completed = Set(
+            defaults.stringArray(forKey: storageIdentity.completedInitialPasswordChangeDefaultsKey) ?? []
+        )
+        completed.insert(accountKey)
+        defaults.set(
+            Array(completed).sorted(),
+            forKey: storageIdentity.completedInitialPasswordChangeDefaultsKey
+        )
+        clearInitialPasswordResetRequirement(accountKey: accountKey)
+    }
+
+    private func hasCompletedInitialPasswordChange(accountKey: String) -> Bool {
+        let completed = Set(
+            defaults.stringArray(forKey: storageIdentity.completedInitialPasswordChangeDefaultsKey) ?? []
+        )
+        return completed.contains(accountKey)
+    }
+
+    private func clearInitialPasswordResetRequirement(accountKey: String) {
+        var pending = Set(defaults.stringArray(forKey: storageIdentity.pendingPasswordResetDefaultsKey) ?? [])
         pending.remove(accountKey)
-        defaults.set(Array(pending).sorted(), forKey: Self.pendingInitialPasswordResetAccountKeys)
-        requiresInitialPasswordReset = false
+        defaults.set(Array(pending).sorted(), forKey: storageIdentity.pendingPasswordResetDefaultsKey)
+        if activeSessionAccountKey == accountKey {
+            requiresInitialPasswordReset = false
+        }
     }
 
     private func refreshInitialPasswordResetRequirement() {
@@ -513,8 +644,9 @@ final class MatrixAppModel: ObservableObject {
             requiresInitialPasswordReset = false
             return
         }
-        let pending = Set(defaults.stringArray(forKey: Self.pendingInitialPasswordResetAccountKeys) ?? [])
+        let pending = Set(defaults.stringArray(forKey: storageIdentity.pendingPasswordResetDefaultsKey) ?? [])
         requiresInitialPasswordReset = pending.contains(accountKey)
+            && !hasCompletedInitialPasswordChange(accountKey: accountKey)
     }
 
     @discardableResult
@@ -618,7 +750,7 @@ final class MatrixAppModel: ObservableObject {
         savePasswordToApplePasswords = false
         if let username { self.username = username }
         if let configuration = activeConfiguration {
-            coordinator = MatrixChatCoordinator(service: serviceFactory(configuration))
+            coordinator = makeCoordinator(configuration: configuration)
         }
         state = .signedOut(message: message)
         resetSecurityState()
@@ -648,6 +780,12 @@ final class MatrixAppModel: ObservableObject {
         applySecurityState(from: coordinator)
     }
 
+    func acceptIncomingDeviceVerification() async {
+        guard let coordinator else { return }
+        await coordinator.acceptIncomingDeviceVerification()
+        applySecurityState(from: coordinator)
+    }
+
     func approveDeviceVerification() async {
         guard let coordinator else { return }
         await coordinator.approveDeviceVerification()
@@ -666,21 +804,54 @@ final class MatrixAppModel: ObservableObject {
         applySecurityState(from: coordinator)
     }
 
-    func restoreEncryption(recoveryKey: String) async {
-        guard let coordinator else { return }
+    @discardableResult
+    func restoreEncryption(recoveryKey: String) async -> Bool {
+        guard let coordinator else { return false }
         await coordinator.restoreEncryption(recoveryKey: recoveryKey)
         applySecurityState(from: coordinator)
         if case .ready = recoveryState {
+            let saved = await saveRecoveryKeyInApplePasswords(recoveryKey)
             await coordinator.refreshOpenRoom()
             applyState(from: coordinator)
+            return saved
         }
+        return false
     }
 
     func setupEncryptionRecovery() async -> String? {
         guard let coordinator else { return nil }
         let recoveryKey = await coordinator.setupEncryptionRecovery()
         applySecurityState(from: coordinator)
+        if let recoveryKey {
+            _ = await saveRecoveryKeyInApplePasswords(recoveryKey)
+        }
         return recoveryKey
+    }
+
+    @discardableResult
+    func saveRecoveryKeyInApplePasswords(_ recoveryKey: String) async -> Bool {
+        guard let configuration = activeConfiguration,
+              let domain = configuration.homeserver.host,
+              let accountKey = activeSessionAccountKey,
+              let userID = savedSessions.first(where: { $0.accountKey == accountKey })?.userId else {
+            recoveryKeySaveState = .failed("No active Matrix account is available for Apple Passwords.")
+            return false
+        }
+        recoveryKeySaveState = .saving
+        do {
+            try await sharedPasswordStore.saveRecoveryKey(
+                recoveryKey,
+                userID: userID,
+                domain: domain
+            )
+            recoveryKeySaveState = .saved
+            return true
+        } catch {
+            recoveryKeySaveState = .failed(
+                "Apple Passwords did not save the recovery key. Keep this screen open and try again."
+            )
+            return false
+        }
     }
 
     fileprivate func changePassword(
@@ -699,14 +870,16 @@ final class MatrixAppModel: ObservableObject {
         )
         switch result {
         case .success:
-            if hasPendingHomeserverPasswordResetRequest {
-                guard await coordinator.completeHomeserverPasswordResetRequest() else {
-                    return .failed("The password changed, but Hypha could not close the homeserver reset request. The new password is now your current password. Reconnect and replace it once more to finish safely.")
-                }
-                hasPendingHomeserverPasswordResetRequest = false
-            }
             if requiresInitialPasswordReset {
                 completeInitialPasswordReset()
+            }
+            if hasPendingHomeserverPasswordResetRequest {
+                let closedServerRequest = await coordinator.completeHomeserverPasswordResetRequest()
+                hasPendingHomeserverPasswordResetRequest = false
+                if !closedServerRequest {
+                    roomSyncMessage = "Password changed. Hypha could not close the homeserver reset request yet and will retry after a future password sign-in."
+                    roomSyncMessageTone = .warning
+                }
             }
             var updatedApplePasswords = false
             if saveInApplePasswords {
@@ -1001,6 +1174,7 @@ final class MatrixAppModel: ObservableObject {
         trustState = .unknown
         verificationFlowState = .idle
         recoveryState = .unknown
+        recoveryKeySaveState = .idle
         firstDeviceTrustBootstrapState = .notBootstrapped
         peerVerificationEligibility = .unavailable
     }
@@ -1249,21 +1423,25 @@ private enum HyphaAuthRoute {
 }
 
 private struct MatrixCompanionShell: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @ObservedObject var model: MatrixAppModel
+    #if os(macOS)
     @StateObject private var updater = HyphaUpdateController()
     @StateObject private var githubConnection = HyphaGitHubConnectionModel()
+    #endif
     @StateObject private var chatPanel = HyphaChatPanelStore()
     @State private var showsRecovery = false
     @State private var showsRecoverySetup = false
     @State private var showsNewRoom = false
     @State private var showsRoomInvite = false
-#if os(macOS)
     @State private var repositoryRoom: MatrixRoomSummary?
+#if os(macOS)
     @State private var roomContentRefreshID = UUID()
 #endif
     @State private var newRoomKind: MatrixRoomKind = .room
     @State private var showsFirstDevicePassword = false
     @State private var showsSecurityCenter = false
+    @State private var qrGrantCheckCode = ""
     @State private var showsPasswordChange = false
     @State private var showsAdministration = false
     @State private var showsSettings = false
@@ -1275,11 +1453,25 @@ private struct MatrixCompanionShell: View {
     @State private var credentialPendingDeletion: HyphaMatrixCredentialDescriptor?
     @State private var authRoute: HyphaAuthRoute = .landing
     @State private var chatSearchText = ""
+    @State private var splitViewVisibility: NavigationSplitViewVisibility = .automatic
 
     var body: some View {
         Group {
             if isAuthenticated {
+                #if os(macOS)
                 authenticatedNavigationShell
+                #else
+                NavigationSplitView(columnVisibility: $splitViewVisibility) {
+                    sidebar
+                        .navigationTitle("Hypha")
+                        .navigationSplitViewColumnWidth(min: 230, ideal: 268, max: 340)
+                        .scrollContentBackground(.hidden)
+                        .background(ZenithDesign.Palette.baseSubtle)
+                } detail: {
+                    contentSurface
+                        .navigationTitle(detailTitle)
+                }
+                #endif
             } else {
                 contentSurface
             }
@@ -1354,7 +1546,8 @@ private struct MatrixCompanionShell: View {
                         }
                     }
             }
-            .frame(minWidth: 480, idealWidth: 520, minHeight: 360)
+            .hyphaFlexibleSheetFrame(minWidth: 480, idealWidth: 520, minHeight: 360)
+            .hyphaMobileSheetPresentation()
         }
         .sheet(isPresented: $showsSecurityCenter) {
             NavigationStack {
@@ -1366,7 +1559,8 @@ private struct MatrixCompanionShell: View {
                         }
                     }
             }
-            .frame(minWidth: 580, idealWidth: 640, minHeight: 320)
+            .hyphaFlexibleSheetFrame(minWidth: 580, idealWidth: 640, minHeight: 320)
+            .hyphaMobileSheetPresentation()
         }
         .confirmationDialog(
             "Delete this saved password?",
@@ -1383,7 +1577,7 @@ private struct MatrixCompanionShell: View {
             }
             Button("Cancel", role: .cancel) { credentialPendingDeletion = nil }
         } message: { credential in
-            Text("This removes the saved password for \(credential.username) from Hypha on this Mac. Any active encrypted session remains signed in.")
+            Text("This removes the saved password for \(credential.username) from Hypha on \(HyphaPlatform.localDevicePhrase). Any active encrypted session remains signed in.")
         }
     }
 
@@ -1463,6 +1657,7 @@ private struct MatrixCompanionShell: View {
 
     private var contentSurface: some View {
         VStack(spacing: 0) {
+            #if os(macOS)
             if let homeserver = model.connectedHomeserver {
                 HStack {
                     Label(
@@ -1476,7 +1671,7 @@ private struct MatrixCompanionShell: View {
                         authRoute = .landing
                         model.changeHomeserver()
                     }
-                    .buttonStyle(.link)
+                    .buttonStyle(.plain)
                     .disabled(model.isAuthenticationOperationInFlight)
                     .font(.caption)
                 }
@@ -1490,6 +1685,7 @@ private struct MatrixCompanionShell: View {
                         .frame(height: 1)
                 }
             }
+            #endif
             detail
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -1907,7 +2103,7 @@ private struct MatrixCompanionShell: View {
                                     Image(systemName: "checkmark.circle")
                                         .font(.system(size: 15, weight: .regular))
                                         .foregroundStyle(ZenithDesign.Palette.success)
-                                        .frame(width: 22, height: 22)
+                                        .frame(width: HyphaPlatform.minimumIconButtonHitSize, height: HyphaPlatform.minimumIconButtonHitSize)
                                 }
                                 .buttonStyle(.plain)
                                 .contentShape(Circle())
@@ -1921,7 +2117,7 @@ private struct MatrixCompanionShell: View {
                                     Image(systemName: "xmark.circle")
                                         .font(.system(size: 15, weight: .regular))
                                         .foregroundStyle(ZenithDesign.Palette.muted)
-                                        .frame(width: 22, height: 22)
+                                        .frame(width: HyphaPlatform.minimumIconButtonHitSize, height: HyphaPlatform.minimumIconButtonHitSize)
                                 }
                                 .buttonStyle(.plain)
                                 .contentShape(Circle())
@@ -2044,6 +2240,23 @@ private struct MatrixCompanionShell: View {
 
     private var settingsView: some View {
         Form {
+            #if os(macOS)
+            Section("Homeserver") {
+                if let homeserver = model.connectedHomeserver {
+                    LabeledContent("Connected to", value: homeserver.host ?? homeserver.absoluteString)
+                }
+                Button {
+                    showsSettings = false
+                    authRoute = .landing
+                    model.changeHomeserver()
+                } label: {
+                    Label("Change homeserver", systemImage: "network")
+                }
+                .disabled(model.isAuthenticationOperationInFlight)
+                .accessibilityIdentifier("matrix.homeserver.change.settings")
+            }
+            #endif
+
             Section("Account & Password") {
                 Button {
                     showsSettings = false
@@ -2094,6 +2307,7 @@ private struct MatrixCompanionShell: View {
                     .foregroundStyle(ZenithDesign.Palette.muted)
             }
 
+            #if os(macOS)
             Section("GitHub") {
                 if let account = githubConnection.accountLogin {
                     Label("Connected as \(account)", systemImage: "checkmark.circle.fill")
@@ -2129,6 +2343,24 @@ private struct MatrixCompanionShell: View {
                 }
             }
 
+            Section("Verify New Device") {
+                Text("Use this Mac to securely sign in and verify a new Hypha device. The QR code contains Matrix protocol setup data—not your password or access token.")
+                    .font(.callout)
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+
+                switch model.qrLoginAvailability {
+                case let .unavailable(reason):
+                    HyphaStatusMessage(message: reason, tone: .warning)
+                    Button("Check QR setup availability") {
+                        Task { await model.refreshQrLoginAvailability() }
+                    }
+                    .buttonStyle(HyphaButtonStyle(.secondary))
+                case .available:
+                    qrGrantProgress
+                }
+            }
+            .accessibilityIdentifier("matrix.settings.verify-new-device")
+
             Section("Application Updates") {
                 Text("Open Terminal to pull the canonical GitHub main branch, rebuild and verify Hypha outside the app sandbox, install it in place, and reopen it. Terminal shows the complete update log.")
                     .font(.callout)
@@ -2152,6 +2384,7 @@ private struct MatrixCompanionShell: View {
                         .foregroundStyle(updater.state == .failed ? ZenithDesign.Palette.error : ZenithDesign.Palette.muted)
                 }
             }
+            #endif
         }
         .formStyle(.grouped)
         .padding(ZenithDesign.Space.x3)
@@ -2262,15 +2495,7 @@ private struct MatrixCompanionShell: View {
     private func roomRow(_ room: MatrixRoomSummary) -> some View {
         HStack(spacing: ZenithDesign.Space.x2) {
             Button {
-#if os(macOS)
-                if room.isSpace {
-                    chatPanel.send(.clear)
-                } else {
-                    chatPanel.send(.activate(roomID: room.id))
-                    chatPanel.send(.showContent)
-                }
-#endif
-                Task { await model.open(room) }
+                openRoom(room)
             } label: {
                 HStack(spacing: ZenithDesign.Space.x2) {
                     Image(systemName: room.isSpace ? "square.grid.2x2.fill" : (room.isEncrypted ? "lock.fill" : "lock.open.fill"))
@@ -2292,6 +2517,7 @@ private struct MatrixCompanionShell: View {
                     }
                     Spacer(minLength: 0)
                 }
+                .frame(minHeight: horizontalSizeClass == .compact ? HyphaPlatform.minimumControlHeight : nil)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -2308,6 +2534,10 @@ private struct MatrixCompanionShell: View {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(ZenithDesign.Palette.muted)
+                        .frame(
+                            width: HyphaPlatform.minimumIconButtonHitSize,
+                            height: HyphaPlatform.minimumIconButtonHitSize
+                        )
                         .accessibilityLabel("Room actions for \(room.name)")
                 }
                 .menuStyle(.borderlessButton)
@@ -2343,6 +2573,23 @@ private struct MatrixCompanionShell: View {
         }
     }
 
+    private func openRoom(_ room: MatrixRoomSummary) {
+        #if os(macOS)
+        if room.isSpace {
+            chatPanel.send(.clear)
+        } else {
+            chatPanel.send(.activate(roomID: room.id))
+            chatPanel.send(.showContent)
+        }
+        #endif
+        Task {
+            await model.open(room)
+            if horizontalSizeClass == .compact {
+                splitViewVisibility = .detailOnly
+            }
+        }
+    }
+
     private func isSelected(_ room: MatrixRoomSummary) -> Bool {
         switch model.state {
         case let .thread(selectedRoom, _, _), let .trustBlocked(selectedRoom):
@@ -2355,7 +2602,11 @@ private struct MatrixCompanionShell: View {
     @ViewBuilder
     private var detail: some View {
         if model.connectedHomeserver == nil {
+            #if os(iOS)
+            mobileHomeserverStartup
+            #else
             homeserverSetup
+            #endif
         } else {
             VStack(spacing: 0) {
                 if isAuthenticated {
@@ -2502,6 +2753,7 @@ private struct MatrixCompanionShell: View {
             onSetUpDevice: beginFirstDeviceSetup,
             onContinueDeviceSetup: continueFirstDeviceSetup,
             onRequestVerification: beginPeerVerification,
+            onAcceptIncomingVerification: { Task { await model.acceptIncomingDeviceVerification() } },
             onApproveVerification: { Task { await model.approveDeviceVerification() } },
             onDeclineVerification: { Task { await model.declineDeviceVerification() } },
             onRefresh: { Task { await model.refreshDeviceVerification() } },
@@ -2514,6 +2766,10 @@ private struct MatrixCompanionShell: View {
         ScrollView {
             VStack(alignment: .leading, spacing: ZenithDesign.Space.x5) {
                 securityBanner
+
+                Divider()
+
+                qrDeviceSetupSection
 
                 Divider()
 
@@ -2544,6 +2800,157 @@ private struct MatrixCompanionShell: View {
         }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(ZenithDesign.Palette.base)
+    }
+
+    @ViewBuilder
+    private var qrDeviceSetupSection: some View {
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
+            Text("DEVICE SETUP")
+                .font(ZenithDesign.Typography.technical(.caption2, weight: .semibold))
+                .tracking(0.8)
+                .foregroundStyle(ZenithDesign.Palette.muted)
+            Text("Set Up Another Device")
+                .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
+            Text("Display a one-time Matrix QR code. Passwords and access tokens are never placed in it.")
+                .font(ZenithDesign.Typography.corporate(.callout))
+                .foregroundStyle(ZenithDesign.Palette.muted)
+
+            switch model.qrLoginAvailability {
+            case let .unavailable(reason):
+                HyphaStatusMessage(message: reason, tone: .warning)
+                Button("Check QR setup availability") {
+                    Task { await model.refreshQrLoginAvailability() }
+                }
+                .buttonStyle(HyphaButtonStyle(.secondary))
+            case .available:
+                qrGrantProgress
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, ZenithDesign.Space.x5)
+    }
+
+    @ViewBuilder
+    private var qrGrantProgress: some View {
+        switch model.qrLoginProgress {
+        case let .qrReady(payload):
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
+                HyphaQrCodeImage(payload: payload)
+                    .frame(maxWidth: .infinity)
+                Text("Scan this code on the new device. It expires with the Matrix login session.")
+                    .font(ZenithDesign.Typography.corporate(.callout))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+            }
+        case .checkCodeInputRequired:
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+                Text("Enter the two-digit code shown on the new device")
+                    .font(ZenithDesign.Typography.corporate(.callout, weight: .semibold))
+                TextField("00", text: $qrGrantCheckCode)
+                    .textFieldStyle(HyphaTextFieldStyle())
+                    .frame(maxWidth: 120)
+                    .accessibilityIdentifier("matrix.qr-grant.check-code")
+                Button("Confirm code") {
+                    let value = qrGrantCheckCode
+                    qrGrantCheckCode = ""
+                    Task { await model.submitQrLoginCheckCode(value) }
+                }
+                .buttonStyle(HyphaButtonStyle(.primary))
+                .disabled(qrGrantCheckCode.count != 2)
+            }
+        case let .waitingForAuthorization(url):
+            Link("Authorize secure device setup", destination: url)
+                .buttonStyle(HyphaButtonStyle(.primary))
+        case .starting, .syncingSecrets:
+            HStack(spacing: ZenithDesign.Space.x2) {
+                ProgressView()
+                Text(model.qrLoginProgress == .syncingSecrets ? "Sharing encryption secrets…" : "Preparing secure QR code…")
+            }
+        case .completed:
+            HyphaStatusMessage(message: "The new device is signed in and verified.", tone: .success)
+            Button("Show setup QR code") {
+                Task { await model.generateQrLoginCode() }
+            }
+            .buttonStyle(HyphaButtonStyle(.secondary))
+        case let .failed(message):
+            HyphaStatusMessage(message: message)
+            Button("Try Again") {
+                Task { await model.generateQrLoginCode() }
+            }
+            .buttonStyle(HyphaButtonStyle(.secondary))
+        default:
+            Button("Show setup QR code") {
+                Task { await model.generateQrLoginCode() }
+            }
+            .buttonStyle(HyphaButtonStyle(.primary))
+            .accessibilityIdentifier("matrix.qr-grant.start")
+        }
+    }
+
+    @ViewBuilder
+    private var securityToolbarMenu: some View {
+        if isAuthenticated {
+            Menu {
+                switch securityPresentation.primaryDeviceAction {
+                case .setUpThisDevice:
+                    Button("Set Up This Device", action: beginFirstDeviceSetup)
+                case .verifyWithAnotherHyphaDevice:
+                    Button("Verify with Another Hypha Device", action: beginPeerVerification)
+                case .continueDeviceSetupWithPassword:
+                    Button("Continue Device Setup…", action: continueFirstDeviceSetup)
+                case nil:
+                    EmptyView()
+                }
+
+                if case .deviceSetupFailed = securityPresentation.localOperation {
+                    Button("Try Device Setup Again", action: beginFirstDeviceSetup)
+                }
+
+                switch securityPresentation.recoveryAction {
+                case .setUpRecovery:
+                    Button("Set Up Recovery…", action: openRecoverySetup)
+                case .restoreEncryption:
+                    Button("Restore Encryption…", action: openRecoveryRestore)
+                case nil:
+                    EmptyView()
+                }
+
+                Divider()
+                Button("Change Password…", action: openPasswordChange)
+                if model.adminAccessState == .authorized {
+                    Button("Homeserver Administration…", action: openAdministration)
+                        .accessibilityIdentifier("matrix.admin.open")
+                }
+                Button("Refresh Security Status") {
+                    Task { await model.refreshDeviceVerification() }
+                }
+                Button("Security Center…") {
+                    showsSecurityCenter = true
+                }
+                .accessibilityIdentifier("matrix.security.center.open")
+            } label: {
+                Label {
+                    Text("Security")
+                } icon: {
+                    Image(systemName: securityToolbarSymbol)
+                        .font(.system(size: 12, weight: .medium))
+                }
+            }
+            .help("Device verification and encryption recovery")
+            .accessibilityIdentifier("matrix.security.menu")
+        }
+    }
+
+    private var securityToolbarSymbol: String {
+        switch securityPresentation.indicatorSeverity {
+        case .unknown:
+            return "questionmark.shield"
+        case .recommended:
+            return "exclamationmark.shield.fill"
+        case .secure:
+            return "checkmark.shield.fill"
+        case .critical:
+            return "xmark.shield.fill"
+        }
     }
 
     private var criticalSecurityStrip: some View {
@@ -2632,19 +3039,60 @@ private struct MatrixCompanionShell: View {
         }
     }
 
+    #if os(iOS)
+    private var mobileHomeserverStartup: some View {
+        VStack(spacing: ZenithDesign.Space.x5) {
+            HyphaPulsingAppIcon()
+            if case let .failed(message) = model.homeserverState {
+                Text("Hypha couldn't prepare secure sign in")
+                    .font(ZenithDesign.Typography.technical(.title2, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                HyphaStatusMessage(message: message)
+                HyphaButton(
+                    title: "Try again",
+                    systemImage: "arrow.clockwise",
+                    variant: .primary,
+                    action: { Task { await model.connectDefaultHomeserver() } }
+                )
+                .accessibilityIdentifier("matrix.homeserver.retry-default")
+            } else {
+                ProgressView()
+                    .controlSize(.regular)
+                Text("Preparing secure sign in…")
+                    .font(ZenithDesign.Typography.corporate(.headline, weight: .medium))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+            }
+        }
+        .padding(ZenithDesign.Space.x5)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(ZenithDesign.Palette.base)
+    }
+    #endif
+
     private var homeserverSetup: some View {
         VStack(spacing: 18) {
             Image(systemName: "network")
                 .font(.system(size: 54))
                 .foregroundStyle(.tint)
             Text("Connect your homeserver")
-                .font(ZenithDesign.Typography.technical(size: 32, weight: .semibold))
+                .font(ZenithDesign.Typography.technical(
+                    size: horizontalSizeClass == .compact ? 26 : 32,
+                    weight: .semibold
+                ))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             Text("Enter the Matrix homeserver you want Hypha to use. Hypha checks its client endpoint before asking for credentials.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(ZenithDesign.Palette.muted)
                 .frame(maxWidth: 480)
             TextField("https://matrix.example.org", text: $model.homeserverInput)
                 .textFieldStyle(ZenithInputStyle())
+                #if os(iOS)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                #endif
                 .accessibilityIdentifier("matrix.homeserver.url")
                 .onSubmit {
                     guard !model.isCheckingHomeserver else { return }
@@ -2661,12 +3109,15 @@ private struct MatrixCompanionShell: View {
             Button {
                 Task { await model.connectHomeserver() }
             } label: {
-                if model.isCheckingHomeserver {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Text("Check and connect")
+                Group {
+                    if model.isCheckingHomeserver {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Check and connect")
+                    }
                 }
+                .frame(maxWidth: horizontalSizeClass == .compact ? .infinity : nil)
             }
             .buttonStyle(ZenithPrimaryButtonStyle())
             .keyboardShortcut(.defaultAction)
@@ -2677,7 +3128,8 @@ private struct MatrixCompanionShell: View {
             .accessibilityIdentifier("matrix.homeserver.connect")
         }
         .frame(maxWidth: 520)
-        .padding(40)
+        .padding(.horizontal, horizontalSizeClass == .compact ? ZenithDesign.Space.x4 : 40)
+        .padding(.vertical, horizontalSizeClass == .compact ? ZenithDesign.Space.x5 : 40)
     }
 
     @ViewBuilder
@@ -2687,6 +3139,9 @@ private struct MatrixCompanionShell: View {
             credentials: model.savedCredentials
         )
 
+        #if os(iOS)
+        HyphaMobileLoginView(model: model, message: message)
+        #else
         switch authRoute {
         case .landing:
             HyphaAuthLandingView(
@@ -2733,24 +3188,34 @@ private struct MatrixCompanionShell: View {
                 back: { authRoute = .landing }
             )
         }
+        #endif
     }
 
+    @ViewBuilder
     private func thread(
         room: MatrixRoomSummary,
         events: [MatrixTimelineEvent],
         composerState: MatrixComposerState
     ) -> some View {
-        VStack(spacing: 0) {
-            HyphaChatTimeline(room: room, events: events)
+        let composer = ZenithMessageComposer(
+            text: $model.composer,
+            roomName: room.name,
+            isSending: model.messageDraft.isSending,
+            disabledReason: composerDisabledReason(composerState),
+            failureReason: model.messageDraft.failureReason,
+            send: { Task { await model.send() } }
+        )
 
-            ZenithMessageComposer(
-                text: $model.composer,
-                roomName: room.name,
-                isSending: model.messageDraft.isSending,
-                disabledReason: composerDisabledReason(composerState),
-                failureReason: model.messageDraft.failureReason,
-                send: { Task { await model.send() } }
-            )
+        if horizontalSizeClass == .compact {
+            HyphaChatTimeline(room: room, events: events)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    composer
+                }
+        } else {
+            VStack(spacing: 0) {
+                HyphaChatTimeline(room: room, events: events)
+                composer
+            }
         }
     }
 
@@ -2835,13 +3300,13 @@ private struct HyphaChatTimeline: View {
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     } else {
-                        ForEach(events.indices, id: \.self) { index in
+                        ForEach(Array(events.enumerated()), id: \.element.id) { index, event in
                             HyphaChatMessageRow(
-                                event: events[index],
+                                event: event,
                                 previousEvent: index > events.startIndex ? events[index - 1] : nil,
                                 nextEvent: index < events.index(before: events.endIndex) ? events[index + 1] : nil
                             )
-                            .id(events[index].id)
+                            .id(event.id)
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                         }
@@ -2854,6 +3319,7 @@ private struct HyphaChatTimeline: View {
                         .listRowSeparator(.hidden)
                 }
                 .scrollContentBackground(.hidden)
+                .scrollDismissesKeyboard(.interactively)
                 .background(ZenithDesign.Palette.base)
                 .accessibilityIdentifier("matrix.thread.timeline")
                 .onAppear { openRoom(at: proxy) }
@@ -2927,6 +3393,7 @@ private struct HyphaChatTimeline: View {
 }
 
 private struct ZenithMessageComposer: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Binding var text: String
     let roomName: String
     let isSending: Bool
@@ -2954,7 +3421,7 @@ private struct ZenithMessageComposer: View {
                 Button(action: submitIfReady) {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 15, weight: .bold))
-                        .frame(width: 40, height: 40)
+                        .frame(width: HyphaPlatform.minimumControlHeight, height: HyphaPlatform.minimumControlHeight)
                         .foregroundStyle(canSend ? ZenithDesign.Palette.base : ZenithDesign.Palette.muted)
                         .background(canSend ? ZenithDesign.Palette.brand : ZenithDesign.Palette.baseRaised)
                         .clipShape(Circle())
@@ -2983,8 +3450,8 @@ private struct ZenithMessageComposer: View {
                 )
         }
         .shadow(color: .black.opacity(0.3), radius: 10, y: 4)
-        .padding(.horizontal, ZenithDesign.Space.x6)
-        .padding(.vertical, ZenithDesign.Space.x4)
+        .padding(.horizontal, horizontalSizeClass == .compact ? ZenithDesign.Space.x3 : ZenithDesign.Space.x6)
+        .padding(.vertical, horizontalSizeClass == .compact ? ZenithDesign.Space.x2 : ZenithDesign.Space.x4)
         .background(ZenithDesign.Palette.base)
         .onChange(of: statusAnnouncement) { _, announcement in
             guard let announcement else { return }
@@ -3212,7 +3679,9 @@ private struct MatrixChangePasswordSheet: View {
             }
         }
         .padding(ZenithDesign.Space.x6)
-        .frame(width: 500)
+        .hyphaScrollableSheetContent()
+        .hyphaFixedSheetFrame(width: 500)
+        .hyphaMobileSheetPresentation()
         .interactiveDismissDisabled(requiresCompletion || isSubmitting)
         .onDisappear { clearSecrets() }
     }
@@ -3312,7 +3781,9 @@ private struct MatrixFirstDevicePasswordSheet: View {
             }
         }
         .padding(24)
-        .frame(width: 430)
+        .hyphaScrollableSheetContent()
+        .hyphaFixedSheetFrame(width: 430)
+        .hyphaMobileSheetPresentation()
         .onDisappear { firstDevicePassword = "" }
     }
 
@@ -3344,7 +3815,7 @@ private struct MatrixRecoverySetupSheet: View {
             if let generatedRecoveryKey {
                 Text("Save your recovery key")
                     .font(ZenithDesign.Typography.technical(size: 22, weight: .semibold))
-                Text("This key is shown once. Store it in a password manager before continuing. Hypha does not save it and cannot recover it for you.")
+                Text("Hypha automatically saves this key to Apple Passwords. It is also shown once so you can verify or separately back it up.")
                     .foregroundStyle(ZenithDesign.Palette.muted)
                 Text(generatedRecoveryKey)
                     .font(.body.monospaced())
@@ -3355,6 +3826,7 @@ private struct MatrixRecoverySetupSheet: View {
                     .background(.quaternary)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .accessibilityIdentifier("matrix.recovery.generated-key")
+                recoveryKeySaveStatus(generatedRecoveryKey)
                 HStack {
                     Spacer()
                     Button("I've saved this key") {
@@ -3394,9 +3866,36 @@ private struct MatrixRecoverySetupSheet: View {
             }
         }
         .padding(24)
-        .frame(width: 560)
+        .hyphaScrollableSheetContent()
+        .hyphaFixedSheetFrame(width: 560)
+        .hyphaMobileSheetPresentation()
         .interactiveDismissDisabled(generatedRecoveryKey != nil)
         .onDisappear { generatedRecoveryKey = nil }
+    }
+
+    @ViewBuilder
+    private func recoveryKeySaveStatus(_ recoveryKey: String) -> some View {
+        switch model.recoveryKeySaveState {
+        case .saved:
+            Label("Saved to Apple Passwords", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(ZenithDesign.Palette.success)
+        case .saving:
+            HStack(spacing: ZenithDesign.Space.x2) {
+                ProgressView().controlSize(.small)
+                Text("Saving to Apple Passwords…")
+            }
+        case let .failed(message):
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(ZenithDesign.Palette.warning)
+                Button("Try saving to Apple Passwords") {
+                    Task { await model.saveRecoveryKeyInApplePasswords(recoveryKey) }
+                }
+                .buttonStyle(HyphaButtonStyle(.secondary))
+            }
+        case .idle:
+            EmptyView()
+        }
     }
 
     private func setUpRecovery() {
@@ -3419,9 +3918,10 @@ private struct MatrixRecoverySheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Restore encryption")
                 .font(ZenithDesign.Typography.technical(size: 22, weight: .semibold))
-            Text("Enter the recovery key created by Matrix Secure Backup. It is used only for this recovery request and is not saved by Hypha.")
+            Text("Enter the recovery key created by Matrix Secure Backup. Entering a recovery key here also saves it to Apple Passwords after recovery succeeds.")
                 .foregroundStyle(ZenithDesign.Palette.muted)
             recoveryErrorPresentation
+            recoveryKeySaveError
             SecureField("Recovery key", text: $recoveryKey)
                 .textFieldStyle(ZenithInputStyle())
                 .accessibilityIdentifier("matrix.recovery.key")
@@ -3438,7 +3938,7 @@ private struct MatrixRecoverySheet: View {
                     if isSubmitting {
                         ProgressView().controlSize(.small)
                     } else {
-                        Text("Restore")
+                        Text(model.recoveryState == .ready ? "Save to Apple Passwords" : "Restore")
                     }
                 }
                 .buttonStyle(ZenithPrimaryButtonStyle())
@@ -3448,7 +3948,9 @@ private struct MatrixRecoverySheet: View {
             }
         }
         .padding(24)
-        .frame(width: 500)
+        .hyphaScrollableSheetContent()
+        .hyphaFixedSheetFrame(width: 500)
+        .hyphaMobileSheetPresentation()
         .onDisappear { recoveryKey = "" }
     }
 
@@ -3466,15 +3968,33 @@ private struct MatrixRecoverySheet: View {
         }
     }
 
+    @ViewBuilder
+    private var recoveryKeySaveError: some View {
+        if model.recoveryState == .ready,
+           case let .failed(message) = model.recoveryKeySaveState {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(ZenithDesign.Palette.warning)
+        }
+    }
+
     private func submit() {
         guard !isSubmitting else { return }
         let keyForRequest = recoveryKey
         recoveryKey = ""
         isSubmitting = true
         Task {
-            await model.restoreEncryption(recoveryKey: keyForRequest)
+            let saved: Bool
+            if model.recoveryState == .ready {
+                saved = await model.saveRecoveryKeyInApplePasswords(keyForRequest)
+            } else {
+                saved = await model.restoreEncryption(recoveryKey: keyForRequest)
+            }
             isSubmitting = false
-            if model.recoveryState == .ready { isPresented = false }
+            if model.recoveryState == .ready, saved {
+                isPresented = false
+            } else if model.recoveryState == .ready {
+                recoveryKey = keyForRequest
+            }
         }
     }
 }
@@ -3578,7 +4098,9 @@ private struct MatrixRoomInviteSheet: View {
             }
         }
         .padding(ZenithDesign.Space.x5)
-        .frame(width: 560)
+        .hyphaScrollableSheetContent()
+        .hyphaFixedSheetFrame(width: 560)
+        .hyphaMobileSheetPresentation()
         .background(ZenithDesign.Palette.base)
         .onAppear { selectFirstEligibleRoomIfNeeded() }
         .onChange(of: model.rooms) { _, _ in
@@ -3625,8 +4147,7 @@ private struct MatrixRoomInviteSheet: View {
                     .font(ZenithDesign.Typography.corporate(.caption))
                     .foregroundStyle(ZenithDesign.Palette.muted)
                 HyphaButton(title: "Copy invite link", systemImage: "doc.on.doc", variant: .secondary) {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(inviteLink, forType: .string)
+                    HyphaPlatform.copyText(inviteLink)
                     statusMessage = "Invite link copied."
                 }
                 .accessibilityHint("Copies the selected room's Matrix link")
@@ -3789,7 +4310,9 @@ private struct MatrixNewRoomSheet: View {
             }
         }
         .padding(ZenithDesign.Space.x5)
-        .frame(width: 560)
+        .hyphaScrollableSheetContent()
+        .hyphaFixedSheetFrame(width: 560)
+        .hyphaMobileSheetPresentation()
         .background(ZenithDesign.Palette.base)
     }
 

@@ -74,6 +74,44 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertFalse(String(appSource[registrationStart.lowerBound..<registrationEnd.lowerBound]).contains("credentialStore.savePassword"))
     }
 
+    func testRecoveryKeysAreAutomaticallySavedToApplePasswordsAfterCreationOrRestore() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
+            encoding: .utf8
+        )
+
+        for marker in [
+            "recoveryKeySaveState",
+            "saveRecoveryKeyInApplePasswords",
+            "saveRecoveryKey(",
+            "Saved to Apple Passwords",
+            "Entering a recovery key here also saves it to Apple Passwords",
+        ] {
+            XCTAssertTrue(source.contains(marker), "Missing recovery-key custody contract: \(marker)")
+        }
+
+        let restoreStart = try XCTUnwrap(source.range(of: "    func restoreEncryption(recoveryKey:"))
+        let restoreEnd = try XCTUnwrap(
+            source.range(of: "    func setupEncryptionRecovery()", range: restoreStart.upperBound..<source.endIndex)
+        )
+        XCTAssertTrue(
+            String(source[restoreStart.lowerBound..<restoreEnd.lowerBound])
+                .contains("saveRecoveryKeyInApplePasswords")
+        )
+
+        let setupEnd = try XCTUnwrap(
+            source.range(of: "    fileprivate func changePassword(", range: restoreEnd.upperBound..<source.endIndex)
+        )
+        XCTAssertTrue(
+            String(source[restoreEnd.lowerBound..<setupEnd.lowerBound])
+                .contains("saveRecoveryKeyInApplePasswords")
+        )
+    }
+
     func testAdministratorControlsAreAuthorityGatedAndPresentedAsASheet() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
@@ -321,6 +359,153 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(shellSource.contains("ZenithDesign.Palette"))
     }
 
+    func testAuthenticationAndHomeserverSurfacesAdaptForCompactAppleDevices() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let app = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
+            encoding: .utf8
+        )
+        let shell = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/DesignSystem/Organisms/HyphaAuthShell.swift"),
+            encoding: .utf8
+        )
+        let header = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/DesignSystem/Molecules/HyphaAuthHeader.swift"),
+            encoding: .utf8
+        )
+        let button = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/DesignSystem/Atoms/HyphaButton.swift"),
+            encoding: .utf8
+        )
+        let passwordField = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaRevealablePasswordField.swift"),
+            encoding: .utf8
+        )
+        let accountCard = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/DesignSystem/Molecules/HyphaAccountChoiceCard.swift"),
+            encoding: .utf8
+        )
+        let auth = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/Auth/HyphaAuthenticationViews.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(shell.contains("@Environment(\\.horizontalSizeClass)"))
+        XCTAssertTrue(shell.contains(".scrollDismissesKeyboard(.interactively)"))
+        XCTAssertTrue(shell.contains("horizontalSizeClass == .compact"))
+        XCTAssertTrue(header.contains("@Environment(\\.horizontalSizeClass)"))
+        XCTAssertTrue(header.contains("horizontalSizeClass == .compact"))
+        XCTAssertTrue(button.contains("HyphaPlatform.minimumControlHeight"))
+        XCTAssertTrue(button.contains("HyphaPlatform.minimumIconButtonHitSize"))
+        XCTAssertTrue(passwordField.contains("HyphaPlatform.minimumIconButtonHitSize"))
+        XCTAssertTrue(accountCard.contains("@Environment(\\.horizontalSizeClass)"))
+        XCTAssertTrue(accountCard.contains("if horizontalSizeClass == .compact"))
+        XCTAssertTrue(auth.contains(".hyphaIdentityInputTraits()"))
+        XCTAssertTrue(app.contains(".keyboardType(.URL)"))
+        XCTAssertTrue(app.contains(".textInputAutocapitalization(.never)"))
+        XCTAssertTrue(app.contains(".autocorrectionDisabled()"))
+        XCTAssertTrue(app.contains("HyphaPlatform.localDevicePhrase"))
+        XCTAssertTrue(app.contains("NavigationSplitView(columnVisibility: $splitViewVisibility)"))
+        XCTAssertTrue(app.contains("splitViewVisibility = .detailOnly"))
+        XCTAssertTrue(app.contains("#if os(macOS)\n            if let homeserver = model.connectedHomeserver"))
+        XCTAssertTrue(app.contains("Section(\"Homeserver\")"))
+        XCTAssertTrue(app.contains(".frame(width: HyphaPlatform.minimumControlHeight, height: HyphaPlatform.minimumControlHeight)"))
+        XCTAssertTrue(app.contains("HyphaPlatform.minimumIconButtonHitSize"))
+        XCTAssertTrue(app.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
+        XCTAssertTrue(app.contains(".scrollDismissesKeyboard(.interactively)"))
+        XCTAssertTrue(app.contains("id: \\.element.id"))
+        XCTAssertTrue(app.contains("horizontalSizeClass == .compact ? ZenithDesign.Space.x3 : ZenithDesign.Space.x6"))
+        XCTAssertTrue(app.contains(".hyphaFlexibleSheetFrame("))
+        XCTAssertTrue(app.contains(".hyphaFixedSheetFrame("))
+        XCTAssertTrue(app.contains(".hyphaMobileSheetPresentation()"))
+        XCTAssertTrue(app.contains(".hyphaScrollableSheetContent()"))
+        for desktopOnlyFrame in [
+            ".frame(width: 430)",
+            ".frame(width: 500)",
+            ".frame(width: 560)",
+            ".frame(minWidth: 480",
+            ".frame(minWidth: 580",
+        ] {
+            XCTAssertFalse(app.contains(desktopOnlyFrame), "Unconditional desktop sheet frame remains: \(desktopOnlyFrame)")
+        }
+    }
+
+    func testMobileLaunchUsesDefaultHomeserverAndInlineCredentialSignIn() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let app = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
+            encoding: .utf8
+        )
+        let auth = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/Auth/HyphaAuthenticationViews.swift"),
+            encoding: .utf8
+        )
+        let scanner = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/Auth/HyphaQrScannerView.swift"),
+            encoding: .utf8
+        )
+        let mobileInfo = try String(
+            contentsOf: root.appendingPathComponent("Resources/iOS/Info.plist"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(app.contains("await model.connectDefaultHomeserver()"))
+        XCTAssertTrue(app.contains("func connectDefaultHomeserver() async"))
+        XCTAssertTrue(app.contains("HyphaMobileLoginView("))
+        XCTAssertTrue(app.contains("mobileHomeserverStartup"))
+        XCTAssertTrue(app.contains("#if os(macOS)\n            if let homeserver = model.connectedHomeserver"))
+        XCTAssertTrue(auth.contains("struct HyphaMobileLoginView: View"))
+        XCTAssertTrue(auth.contains("TextField(\"Username\", text: $model.username)"))
+        XCTAssertTrue(auth.contains("HyphaRevealablePasswordField("))
+        XCTAssertTrue(auth.contains("Sign in"))
+        XCTAssertTrue(auth.contains("Set up from another Hypha device"))
+        XCTAssertTrue(auth.contains("struct HyphaPulsingAppIcon: View"))
+        XCTAssertTrue(auth.contains("accessibilityReduceMotion"))
+        XCTAssertTrue(auth.contains("repeatForever(autoreverses: true)"))
+        XCTAssertTrue(auth.contains("Hypha will never encode your password or access token in a QR code."))
+        XCTAssertTrue(auth.contains("await model.refreshQrLoginAvailability()"))
+        XCTAssertTrue(auth.contains("HyphaQrScannerView("))
+        XCTAssertFalse(auth.contains("Secure QR setup is not enabled on this homeserver yet."))
+        XCTAssertTrue(scanner.contains("AVCaptureMetadataOutput"))
+        XCTAssertTrue(scanner.contains("metadataObjectTypes = [.qr]"))
+        XCTAssertTrue(scanner.contains("AVCaptureDevice.requestAccess(for: .video)"))
+        XCTAssertTrue(mobileInfo.contains("NSCameraUsageDescription"))
+    }
+
+    func testAuthenticatedSecurityCenterCanGrantMsc4108QrLogin() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let shell = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
+            encoding: .utf8
+        )
+        let renderer = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaQrCodeImage.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(shell.contains("Set Up Another Device"))
+        XCTAssertTrue(shell.contains("Task { await model.generateQrLoginCode() }"))
+        XCTAssertTrue(shell.contains("HyphaQrCodeImage(payload:"))
+        XCTAssertTrue(shell.contains("await model.submitQrLoginCheckCode"))
+        XCTAssertTrue(shell.contains("Section(\"Verify New Device\")"))
+        XCTAssertTrue(shell.contains("Show setup QR code"))
+        XCTAssertTrue(shell.contains("matrix.settings.verify-new-device"))
+        XCTAssertTrue(renderer.contains("CIFilter.qrCodeGenerator()"))
+        XCTAssertTrue(renderer.contains("filter.message = payload"))
+    }
+
     func testSavedPasswordRouteFinalizesOnlyAuthenticatedCredentialMigration() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
@@ -443,7 +628,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(readme.contains("Hypha is Zenith Research's native macOS client for Zenith"))
+        XCTAssertTrue(readme.contains("Hypha is Zenith Research's native Apple-platform client for Zenith"))
         XCTAssertTrue(readme.contains("Matrix chat is the first implemented capability, not the product boundary"))
         XCTAssertTrue(appSource.contains("Text(\"A sovereign client for Zenith\")"))
         XCTAssertTrue(credentialSource.contains("label: \"Hypha Zenith — \\(normalizedUsername)\""))
@@ -624,7 +809,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(provenance.contains("238e8745a9103cf0ee071771d7e93e007939cd20"))
         XCTAssertTrue(provenance.contains("f53e2ac81"))
         XCTAssertTrue(provenance.contains("c73782cbb"))
-        XCTAssertTrue(provenance.contains("ca8796d0f065ade3787de2f18693afd940914ce2e35f807ccf479d2f14c5c565"))
+        XCTAssertTrue(provenance.contains("7b55c8972456b30f61e26a7cb8745b262288172c07be6aafd014a472940a3658"))
         XCTAssertTrue(provenance.contains("f2f814679"))
         XCTAssertTrue(provenance.contains("97fa91b0c756604ef0b03ab9479fc704d1362c55"))
         XCTAssertTrue(provenance.contains("f4889ec898e77d8b8c9013adadd77f3d0901fc2d"))
@@ -731,8 +916,13 @@ final class MatrixShellSourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("Sources/HyphaCore/MatrixRustSDKChatService.swift"),
             encoding: .utf8
         )
-        XCTAssertTrue(liveService.contains("ca.zenithresearch.macos.client.matrix"))
-        XCTAssertTrue(liveService.contains("ZenithMacOSClient/Matrix"))
+        let storageIdentity = try String(
+            contentsOf: root.appendingPathComponent("Sources/HyphaCore/MatrixPlatformStorageIdentity.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(liveService.contains("MatrixPlatformStorageIdentity"))
+        XCTAssertTrue(storageIdentity.contains("ca.zenithresearch.macos.client.matrix"))
+        XCTAssertTrue(storageIdentity.contains("ZenithMacOSClient/Matrix"))
     }
 
     func testNativeShellContainsRequiredSafeStatesAndAccessibilityIdentifiers() throws {
@@ -785,7 +975,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "recoveryKey = \"\"",
             "restoreSavedHomeserverIfAvailable",
             "await coordinator.restore()",
-            "UserDefaults.standard",
+            "defaults: UserDefaults = .standard",
             "matrix.rooms.sidebar",
             "matrix.rooms.sync",
             "matrix.session.switcher",
@@ -809,7 +999,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "Check and connect",
             "MatrixHomeserverHealthChecker(",
             "MatrixRustSDKChatService(",
-            "MatrixEncryptedSessionVault()",
+            "MatrixEncryptedSessionVault(identity: storageIdentity)",
             "MatrixRustLiveClientFactory(",
             ".navigationSplitViewColumnWidth(min: 230, ideal: 320, max: 560)",
             "private var detailTitle",
@@ -1070,7 +1260,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "sidebarSectionTitle(\"DMs\")",
             "User found",
             "Copy invite link",
-            "NSPasteboard.general",
+            "HyphaPlatform.copyText(inviteLink)",
             "Accept invite",
             "Accept this invitation?",
             "acceptInvitation(to:",
@@ -1137,7 +1327,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(client.contains("json: [\"erase\": true]"))
     }
 
-    func testFirstManualPasswordLoginForcesDurablePasswordResetBeforeChat() throws {
+    func testServerPendingPasswordResetForcesDurablePasswordResetBeforeChat() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let app = try String(
@@ -1146,8 +1336,11 @@ final class MatrixShellSourceContractTests: XCTestCase {
         )
 
         XCTAssertTrue(app.contains("requiresInitialPasswordReset"))
-        XCTAssertTrue(app.contains("pendingInitialPasswordResetAccountKeys"))
-        XCTAssertTrue(app.contains("authenticationMethod: .manualPassword"))
+        XCTAssertTrue(app.contains("storageIdentity.pendingPasswordResetDefaultsKey"))
+        XCTAssertTrue(app.contains("storageIdentity.completedInitialPasswordChangeDefaultsKey"))
+        XCTAssertTrue(app.contains("hasCompletedInitialPasswordChange: hasCompletedInitialPasswordChange"))
+        XCTAssertFalse(app.contains("Reconnect and replace it once more"))
+        XCTAssertTrue(app.contains("serverRequestPending: serverRequestPending"))
         XCTAssertTrue(app.contains("MatrixMandatoryPasswordResetSheet"))
         XCTAssertTrue(app.contains(".interactiveDismissDisabled(true)"))
         XCTAssertTrue(app.contains("logoutOtherDevices: requiresCompletion ? true : logoutOtherDevices"))
@@ -1323,5 +1516,26 @@ final class MatrixShellSourceContractTests: XCTestCase {
 
         XCTAssertTrue(app.contains(#"matrix.invitation.\(room.id)"#))
         XCTAssertTrue(app.contains(#"matrix.joined-room.\(room.id)"#))
+    }
+
+    func testQrScannerCommitsCaptureConfigurationBeforeStartingTheSession() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: repositoryRoot.appendingPathComponent("Sources/Hypha/Auth/HyphaQrScannerView.swift"),
+            encoding: .utf8
+        )
+        let configureStart = try XCTUnwrap(source.range(of: "    private func configureCapture()"))
+        let delegateStart = try XCTUnwrap(
+            source.range(of: "    func metadataOutput(", range: configureStart.upperBound..<source.endIndex)
+        )
+        let configureSource = String(source[configureStart.lowerBound..<delegateStart.lowerBound])
+        let commit = try XCTUnwrap(configureSource.range(of: "session.commitConfiguration()"))
+        let start = try XCTUnwrap(configureSource.range(of: "session.startRunning()"))
+
+        XCTAssertFalse(configureSource.contains("defer { session.commitConfiguration() }"))
+        XCTAssertLessThan(commit.lowerBound, start.lowerBound)
     }
 }

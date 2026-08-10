@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 import Combine
 import Foundation
@@ -59,3 +60,4 @@ final class HyphaUpdateController: ObservableObject {
         }
     }
 }
+#endif

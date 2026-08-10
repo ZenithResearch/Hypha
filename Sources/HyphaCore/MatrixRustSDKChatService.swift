@@ -13,6 +13,7 @@ public struct MatrixSDKSessionRecord: Codable, Equatable, Sendable {
     public let oauthData: String?
     public let slidingSyncVersion: String
     public let accountKey: String
+    public let storeNamespace: String?
 
     public init(
         accessToken: String,
@@ -22,7 +23,8 @@ public struct MatrixSDKSessionRecord: Codable, Equatable, Sendable {
         homeserverURL: String,
         oauthData: String? = nil,
         slidingSyncVersion: String,
-        accountKey: String
+        accountKey: String,
+        storeNamespace: String? = nil
     ) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
@@ -32,6 +34,7 @@ public struct MatrixSDKSessionRecord: Codable, Equatable, Sendable {
         self.oauthData = oauthData
         self.slidingSyncVersion = slidingSyncVersion
         self.accountKey = accountKey
+        self.storeNamespace = storeNamespace
     }
 }
 
@@ -114,13 +117,21 @@ public struct MatrixPasswordSessionReauthenticator: MatrixPasswordSessionReauthe
             homeserverURL: session.homeserverUrl,
             oauthData: session.oauthData,
             slidingSyncVersion: session.slidingSyncVersion == .native ? "native" : "none",
-            accountKey: existingSession.accountKey
+            accountKey: existingSession.accountKey,
+            storeNamespace: existingSession.storeNamespace
         )
     }
 }
 
 public protocol MatrixLiveClient: Sendable {
     func login(username: String, password: String) async throws
+    func signInWithQrCode(
+        _ qrCodeData: Data,
+        progress: @escaping MatrixQrLoginProgressHandler
+    ) async throws
+    func generateQrLoginCode(progress: @escaping MatrixQrLoginProgressHandler) async throws
+    func submitQrLoginCheckCode(_ code: UInt8) async throws
+    func cancelQrLogin() async
     func restore(session: MatrixSDKSessionRecord) async throws
     func changePassword(
         currentPassword: String,
@@ -153,8 +164,12 @@ public protocol MatrixLiveClient: Sendable {
     func bootstrapFirstDeviceTrust() async throws -> MatrixFirstDeviceTrustBootstrapState
     func continueFirstDeviceTrust(password: String) async throws -> MatrixFirstDeviceTrustBootstrapState
     func requestDeviceVerification() async throws -> MatrixVerificationChallenge
+    func acceptIncomingDeviceVerification() async throws
     func approveDeviceVerification() async throws
     func declineDeviceVerification() async
+    func setIncomingDeviceVerificationHandler(
+        _ handler: (@Sendable (MatrixVerificationFlowState) -> Void)?
+    ) async throws
     func logout() async throws
 }
 
@@ -167,6 +182,23 @@ public extension MatrixLiveClient {
     ) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Room repository attachments are unavailable")
     }
+
+    func signInWithQrCode(
+        _ qrCodeData: Data,
+        progress: @escaping MatrixQrLoginProgressHandler
+    ) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Secure QR login is unavailable")
+    }
+
+    func generateQrLoginCode(progress: @escaping MatrixQrLoginProgressHandler) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Secure QR login is unavailable")
+    }
+
+    func submitQrLoginCheckCode(_ code: UInt8) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Secure QR login is unavailable")
+    }
+
+    func cancelQrLogin() async {}
 
     func changePassword(
         currentPassword: String,
@@ -208,30 +240,56 @@ public extension MatrixLiveClient {
     func requestDeviceVerification() async throws -> MatrixVerificationChallenge {
         throw MatrixChatServiceError.unavailable(reason: "Device verification is unavailable")
     }
+    func acceptIncomingDeviceVerification() async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Device verification is unavailable")
+    }
     func approveDeviceVerification() async throws {
         throw MatrixChatServiceError.unavailable(reason: "Device verification is unavailable")
     }
     func declineDeviceVerification() async {}
+    func setIncomingDeviceVerificationHandler(
+        _ handler: (@Sendable (MatrixVerificationFlowState) -> Void)?
+    ) async throws {}
 }
 
 public protocol MatrixLiveClientFactory: Sendable {
     func make(accountKey: String, storeKey: Data) async throws -> any MatrixLiveClient
+    func makeForQrLogin(
+        qrCodeData: Data,
+        storeNamespace: String,
+        storeKey: Data
+    ) async throws -> any MatrixLiveClient
+    func qrLoginSupported() async throws -> Bool
     func resetStore(accountKey: String) async throws
 }
 
 public extension MatrixLiveClientFactory {
+    func makeForQrLogin(
+        qrCodeData: Data,
+        storeNamespace: String,
+        storeKey: Data
+    ) async throws -> any MatrixLiveClient {
+        throw MatrixChatServiceError.unavailable(reason: "Secure QR login is unavailable")
+    }
+
+    func qrLoginSupported() async throws -> Bool { false }
+
     func resetStore(accountKey: String) async throws {}
 }
 
 public actor MatrixRustSDKChatService: MatrixChatService {
     public typealias RandomStoreKey = @Sendable () throws -> Data
+    public typealias RandomStoreNamespace = @Sendable () throws -> String
 
     private let configuration: MatrixProductConfiguration
     private let vault: any MatrixSDKSessionVault
     private let clientFactory: any MatrixLiveClientFactory
     private let passwordSessionReauthenticator: any MatrixPasswordSessionReauthenticating
     private let randomStoreKey: RandomStoreKey
+    private let randomStoreNamespace: RandomStoreNamespace
     private var client: (any MatrixLiveClient)?
+    private var qrLoginClient: (any MatrixLiveClient)?
+    private var incomingVerificationHandler: (@Sendable (MatrixVerificationFlowState) -> Void)?
     private var activeSession: MatrixSDKSessionRecord?
     private var roomsByID: [String: MatrixRoomSummary] = [:]
     private var firstDeviceBootstrapInFlight = false
@@ -241,13 +299,15 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         vault: any MatrixSDKSessionVault,
         clientFactory: any MatrixLiveClientFactory,
         passwordSessionReauthenticator: any MatrixPasswordSessionReauthenticating = MatrixPasswordSessionReauthenticator(),
-        randomStoreKey: @escaping RandomStoreKey = { try MatrixRustSDKChatService.secureRandomStoreKey() }
+        randomStoreKey: @escaping RandomStoreKey = { try MatrixRustSDKChatService.secureRandomStoreKey() },
+        randomStoreNamespace: @escaping RandomStoreNamespace = { try MatrixRustSDKChatService.secureRandomStoreNamespace() }
     ) {
         self.configuration = configuration
         self.vault = vault
         self.clientFactory = clientFactory
         self.passwordSessionReauthenticator = passwordSessionReauthenticator
         self.randomStoreKey = randomStoreKey
+        self.randomStoreNamespace = randomStoreNamespace
     }
 
     public func restore() async throws -> [MatrixRoomSummary] {
@@ -264,7 +324,10 @@ public actor MatrixRustSDKChatService: MatrixChatService {
             throw MatrixChatServiceError.recoveryRequired
         }
 
-        let liveClient = try await clientFactory.make(accountKey: session.accountKey, storeKey: storeKey)
+        let liveClient = try await clientFactory.make(
+            accountKey: session.storeNamespace ?? session.accountKey,
+            storeKey: storeKey
+        )
         do {
             try await liveClient.restore(session: session)
         } catch {
@@ -272,7 +335,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
         let rooms = try await loadInitialRooms(with: liveClient)
         try vault.finalizeLegacyMigrationAfterRestore(accountKey: session.accountKey)
-        activate(liveClient, session: session, rooms: rooms)
+        try await activate(liveClient, session: session, rooms: rooms)
         return rooms
     }
 
@@ -307,7 +370,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
             let rooms = try await loadInitialRooms(with: liveClient)
             try vault.saveSession(refreshedSession)
             try vault.finalizeLegacyMigrationAfterRestore(accountKey: accountKey)
-            activate(liveClient, session: refreshedSession, rooms: rooms)
+            try await activate(liveClient, session: refreshedSession, rooms: rooms)
             return rooms
         }
 
@@ -346,8 +409,124 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
         let rooms = try await loadInitialRooms(with: liveClient)
         try vault.saveSession(record)
-        activate(liveClient, session: record, rooms: rooms)
+        try await activate(liveClient, session: record, rooms: rooms)
         return rooms
+    }
+
+    public func qrLoginAvailability() async -> MatrixQrLoginAvailability {
+        do {
+            return try await clientFactory.qrLoginSupported()
+                ? .available
+                : .unavailable(reason: "This homeserver does not support secure QR login")
+        } catch {
+            return .unavailable(reason: "Secure QR login availability could not be confirmed")
+        }
+    }
+
+    public func setIncomingDeviceVerificationHandler(
+        _ handler: (@Sendable (MatrixVerificationFlowState) -> Void)?
+    ) async {
+        incomingVerificationHandler = handler
+        try? await client?.setIncomingDeviceVerificationHandler(handler)
+    }
+
+    public func signInWithQrCode(
+        _ qrCodeData: Data,
+        progress: @escaping MatrixQrLoginProgressHandler
+    ) async throws -> [MatrixRoomSummary] {
+        guard case .available = await qrLoginAvailability() else {
+            throw MatrixChatServiceError.unavailable(reason: "This homeserver does not support secure QR login")
+        }
+        let storeKey = try randomStoreKey()
+        guard storeKey.count == 32 else {
+            throw MatrixChatServiceError.unavailable(reason: "Unable to create encrypted Matrix store")
+        }
+        let storeNamespace = try randomStoreNamespace()
+        guard Self.isValidStoreNamespace(storeNamespace) else {
+            throw MatrixChatServiceError.unavailable(reason: "Unable to create isolated Matrix store")
+        }
+        let liveClient = try await clientFactory.makeForQrLogin(
+            qrCodeData: qrCodeData,
+            storeNamespace: storeNamespace,
+            storeKey: storeKey
+        )
+        qrLoginClient = liveClient
+        var canonicalAccountKey: String?
+        var canonicalPersistenceStarted = false
+        do {
+            try await liveClient.signInWithQrCode(qrCodeData) { update in
+                if update != .completed { progress(update) }
+            }
+            let provisional = try await liveClient.sessionRecord(accountKey: storeNamespace)
+            guard MatrixRustLiveClientFactory.matchesConfiguredHomeserver(
+                provisional.homeserverURL,
+                configured: configuration.homeserver
+            ) else {
+                throw MatrixChatServiceError.unavailable(reason: "QR login belongs to another homeserver")
+            }
+            let accountKey = Self.accountKey(username: provisional.userId, homeserver: configuration.homeserver)
+            guard try vault.loadSession(accountKey: accountKey) == nil,
+                  try vault.loadStoreKey(accountKey: accountKey) == nil else {
+                throw MatrixChatServiceError.unavailable(
+                    reason: "A saved Hypha session already owns this account"
+                )
+            }
+            canonicalAccountKey = accountKey
+            let record = MatrixSDKSessionRecord(
+                accessToken: provisional.accessToken,
+                refreshToken: provisional.refreshToken,
+                userId: provisional.userId,
+                deviceId: provisional.deviceId,
+                homeserverURL: provisional.homeserverURL,
+                oauthData: provisional.oauthData,
+                slidingSyncVersion: provisional.slidingSyncVersion,
+                accountKey: accountKey,
+                storeNamespace: storeNamespace
+            )
+            let rooms = try await loadInitialRooms(with: liveClient)
+            canonicalPersistenceStarted = true
+            try vault.saveStoreKey(storeKey, accountKey: accountKey)
+            try vault.saveSession(record)
+            try await activate(liveClient, session: record, rooms: rooms)
+            qrLoginClient = nil
+            progress(.completed)
+            return rooms
+        } catch {
+            qrLoginClient = nil
+            await liveClient.cancelQrLogin()
+            try? await clientFactory.resetStore(accountKey: storeNamespace)
+            if canonicalPersistenceStarted, let canonicalAccountKey {
+                do {
+                    try vault.deleteSession(accountKey: canonicalAccountKey)
+                    try vault.deleteStoreKey(accountKey: canonicalAccountKey)
+                } catch {
+                    throw MatrixChatServiceError.recoveryRequired
+                }
+            }
+            throw mapRuntimeError(error, fallbackReason: "Secure QR login failed")
+        }
+    }
+
+    public func generateQrLoginCode(progress: @escaping MatrixQrLoginProgressHandler) async throws {
+        guard let client else { throw MatrixChatServiceError.sessionExpired }
+        guard case .available = await qrLoginAvailability() else {
+            throw MatrixChatServiceError.unavailable(reason: "This homeserver does not support secure QR login")
+        }
+        qrLoginClient = client
+        defer { qrLoginClient = nil }
+        try await client.generateQrLoginCode(progress: progress)
+    }
+
+    public func submitQrLoginCheckCode(_ code: UInt8) async throws {
+        guard let qrLoginClient else {
+            throw MatrixChatServiceError.unavailable(reason: "No secure QR login is awaiting a check code")
+        }
+        try await qrLoginClient.submitQrLoginCheckCode(code)
+    }
+
+    public func cancelQrLogin() async {
+        await qrLoginClient?.cancelQrLogin()
+        qrLoginClient = nil
     }
 
     public func refreshRooms() async throws -> [MatrixRoomSummary] {
@@ -669,6 +848,15 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
     }
 
+    public func acceptIncomingDeviceVerification() async throws {
+        guard let client else { throw MatrixChatServiceError.sessionExpired }
+        do {
+            try await client.acceptIncomingDeviceVerification()
+        } catch {
+            throw mapRuntimeError(error, fallbackReason: "Device verification acceptance failed")
+        }
+    }
+
     public func approveDeviceVerification() async throws {
         guard let client else { throw MatrixChatServiceError.sessionExpired }
         do {
@@ -719,9 +907,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
 
         do {
-            let rooms = try await client.joinedRooms()
-            await client.startContinuousSync()
-            return rooms
+            return try await client.joinedRooms()
         } catch {
             throw mapRuntimeError(error, fallbackReason: "Initial Matrix room load failed")
         }
@@ -731,10 +917,12 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         _ client: any MatrixLiveClient,
         session: MatrixSDKSessionRecord,
         rooms: [MatrixRoomSummary]
-    ) {
+    ) async throws {
         self.client = client
         activeSession = session
         remember(rooms)
+        try await client.setIncomingDeviceVerificationHandler(incomingVerificationHandler)
+        await client.startContinuousSync()
     }
 
     private func administratorClient() throws -> MatrixSynapseAdminClient {
@@ -818,6 +1006,14 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
         return Data(bytes)
     }
+
+    public static func secureRandomStoreNamespace() throws -> String {
+        try secureRandomStoreKey().map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func isValidStoreNamespace(_ value: String) -> Bool {
+        value.count == 64 && value.allSatisfy { $0.isHexDigit && !$0.isUppercase }
+    }
 }
 
 protocol MatrixKeychainDataStorage: Sendable {
@@ -899,8 +1095,8 @@ public final class MatrixEncryptedSessionVault: MatrixSDKSessionVault, HyphaMatr
         var credentialMigration: LegacyMigrationState?
     }
 
-    private let service = "ca.zenithresearch.macos.client.matrix"
-    private let legacyService = ["ca", "zenith-research", "mobile-macos", "matrix"].joined(separator: ".")
+    private let service: String
+    private let legacyService: String?
     private let rootKeyAccount = "matrix-vault-key-v1"
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
@@ -912,13 +1108,13 @@ public final class MatrixEncryptedSessionVault: MatrixSDKSessionVault, HyphaMatr
     private let lock = NSRecursiveLock()
     private var cachedRootKey: Data?
 
-    public convenience init() {
+    public convenience init(identity: MatrixPlatformStorageIdentity = .current) {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         self.init(
             storage: SecurityMatrixKeychainDataStorage(),
             vaultDirectory: base
-                .appendingPathComponent("ca.zenithresearch.macos.client", isDirectory: true)
-                .appendingPathComponent("MatrixSessionVault-v1", isDirectory: true),
+                .appendingPathComponent(identity.vaultRoot, isDirectory: true),
+            identity: identity,
             randomRootKey: { try Self.secureRandomRootKey() }
         )
     }
@@ -927,11 +1123,14 @@ public final class MatrixEncryptedSessionVault: MatrixSDKSessionVault, HyphaMatr
         storage: any MatrixKeychainDataStorage,
         vaultDirectory: URL,
         processIdentity: String = MatrixEncryptedSessionVault.currentProcessIdentity,
+        identity: MatrixPlatformStorageIdentity = .macOS,
         randomRootKey: @escaping RandomRootKey
     ) {
         self.storage = storage
         self.vaultDirectory = vaultDirectory
         self.processIdentity = processIdentity
+        self.service = identity.keychainService
+        self.legacyService = identity.legacyKeychainService
         self.randomRootKey = randomRootKey
     }
 
@@ -1313,7 +1512,7 @@ public final class MatrixEncryptedSessionVault: MatrixSDKSessionVault, HyphaMatr
             }
         }
 
-        for sourceService in [service, legacyService] {
+        for sourceService in legacySourceServices {
             guard let data = try storage.read(service: sourceService, account: "current-session") else { continue }
             let session = try decodeLegacySession(data, expectedAccountKey: nil)
             let accountKey = session.accountKey
@@ -1357,7 +1556,7 @@ public final class MatrixEncryptedSessionVault: MatrixSDKSessionVault, HyphaMatr
     }
 
     private func cleanupLegacyRecords(accountKey: String) throws {
-        for sourceService in [service, legacyService] {
+        for sourceService in legacySourceServices {
             if let data = try storage.read(service: sourceService, account: "current-session") {
                 let session = try decodeLegacySession(data, expectedAccountKey: nil)
                 if session.accountKey == accountKey {
@@ -1403,13 +1602,17 @@ public final class MatrixEncryptedSessionVault: MatrixSDKSessionVault, HyphaMatr
     }
 
     private func readLegacyStoreKey(accountKey: String) throws -> Data? {
-        for sourceService in [service, legacyService] {
+        for sourceService in legacySourceServices {
             if let data = try storage.read(service: sourceService, account: "store-key:\(accountKey)") {
                 guard data.count == 32 else { throw MatrixChatServiceError.recoveryRequired }
                 return data
             }
         }
         return nil
+    }
+
+    private var legacySourceServices: [String] {
+        [service] + (legacyService.map { [$0] } ?? [])
     }
 
     private func loadManifest(key: Data) throws -> Manifest {
@@ -1576,7 +1779,11 @@ public struct MatrixRustLiveClientFactory: MatrixLiveClientFactory {
     private let rootDirectory: URL
     private let legacyRootDirectory: URL?
 
-    public init(configuration: MatrixProductConfiguration, rootDirectory: URL? = nil) {
+    public init(
+        configuration: MatrixProductConfiguration,
+        rootDirectory: URL? = nil,
+        identity: MatrixPlatformStorageIdentity = .current
+    ) {
         self.configuration = configuration
         if let rootDirectory {
             self.rootDirectory = rootDirectory
@@ -1587,12 +1794,10 @@ public struct MatrixRustLiveClientFactory: MatrixLiveClientFactory {
                 in: .userDomainMask
             )[0]
             self.rootDirectory = applicationSupport
-                .appendingPathComponent("ZenithMacOSClient/Matrix", isDirectory: true)
-            self.legacyRootDirectory = applicationSupport
-                .appendingPathComponent(
-                    ["Zenith", "Mobile", "MacOS"].joined() + "/Matrix",
-                    isDirectory: true
-                )
+                .appendingPathComponent(identity.cryptoRoot, isDirectory: true)
+            self.legacyRootDirectory = identity.legacyCryptoRoot.map {
+                applicationSupport.appendingPathComponent($0, isDirectory: true)
+            }
         }
     }
 
@@ -1613,6 +1818,90 @@ public struct MatrixRustLiveClientFactory: MatrixLiveClientFactory {
             .build()
         guard Self.matchesConfiguredHomeserver(client.homeserver(), configured: configuration.homeserver) else {
             throw MatrixChatServiceError.unavailable(reason: "Matrix SDK changed the configured homeserver")
+        }
+        return MatrixRustLiveClient(client: client)
+    }
+
+    public func qrLoginSupported() async throws -> Bool {
+        let versionsURL = configuration.homeserver
+            .appendingPathComponent("_matrix/client/versions")
+        let authMetadataURL = configuration.homeserver
+            .appendingPathComponent("_matrix/client/v1/auth_metadata")
+        async let versionsResponse = URLSession.shared.data(from: versionsURL)
+        async let authMetadataResponse = URLSession.shared.data(from: authMetadataURL)
+        let (versionsData, versionsURLResponse) = try await versionsResponse
+        let (authMetadataData, authMetadataURLResponse) = try await authMetadataResponse
+        guard let versionsHTTPResponse = versionsURLResponse as? HTTPURLResponse,
+              versionsHTTPResponse.statusCode == 200,
+              let authMetadataHTTPResponse = authMetadataURLResponse as? HTTPURLResponse,
+              authMetadataHTTPResponse.statusCode == 200 else {
+            return false
+        }
+        return try Self.supportsQrLogin(
+            versionsData: versionsData,
+            authMetadataData: authMetadataData
+        )
+    }
+
+    static func supportsQrLogin(versionsData: Data, authMetadataData: Data) throws -> Bool {
+        guard let versions = try JSONSerialization.jsonObject(with: versionsData) as? [String: Any],
+              let unstableFeatures = versions["unstable_features"] as? [String: Any],
+              unstableFeatures["org.matrix.msc4108"] as? Bool == true,
+              let metadata = try JSONSerialization.jsonObject(with: authMetadataData) as? [String: Any],
+              let issuerValue = metadata["issuer"] as? String,
+              let issuer = URL(string: issuerValue),
+              issuer.scheme?.lowercased() == "https",
+              let issuerHost = issuer.host?.lowercased(),
+              let grantTypes = metadata["grant_types_supported"] as? [String],
+              grantTypes.contains("urn:ietf:params:oauth:grant-type:device_code"),
+              let challengeMethods = metadata["code_challenge_methods_supported"] as? [String],
+              challengeMethods.contains("S256") else {
+            return false
+        }
+
+        for key in [
+            "authorization_endpoint",
+            "token_endpoint",
+            "registration_endpoint",
+            "device_authorization_endpoint",
+        ] {
+            guard let endpointValue = metadata[key] as? String,
+                  let endpoint = URL(string: endpointValue),
+                  endpoint.scheme?.lowercased() == "https",
+                  endpoint.host?.lowercased() == issuerHost,
+                  endpoint.port == issuer.port else {
+                return false
+            }
+        }
+        return true
+    }
+
+    public func makeForQrLogin(
+        qrCodeData: Data,
+        storeNamespace: String,
+        storeKey: Data
+    ) async throws -> any MatrixLiveClient {
+        let decoded = try QrCodeData.fromBytes(bytes: qrCodeData)
+        guard let serverName = decoded.serverName(),
+              serverName.lowercased() == configuration.homeserver.host?.lowercased() else {
+            throw MatrixChatServiceError.unavailable(reason: "QR code belongs to another homeserver")
+        }
+        if let legacyRootDirectory {
+            try Self.migrateLegacyRootIfNeeded(from: legacyRootDirectory, to: rootDirectory)
+        }
+        let storeDirectory = rootDirectory
+            .appendingPathComponent("passphrase-v1", isDirectory: true)
+            .appendingPathComponent(storeNamespace, isDirectory: true)
+        try FileManager.default.createDirectory(at: storeDirectory, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: storeDirectory.path)
+        let store = SqliteStoreBuilder(dataPath: storeDirectory.path, cachePath: storeDirectory.path)
+            .passphrase(passphrase: storeKey.base64EncodedString())
+        let client = try await ClientBuilder()
+            .serverName(serverName: serverName)
+            .sqliteStore(config: store)
+            .build()
+        guard Self.matchesConfiguredHomeserver(client.homeserver(), configured: configuration.homeserver) else {
+            throw MatrixChatServiceError.unavailable(reason: "QR login resolved to another homeserver")
         }
         return MatrixRustLiveClient(client: client)
     }
@@ -1687,6 +1976,8 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
     private var syncListener: MatrixSyncListener?
     private var verificationSession: MatrixSASVerificationSession?
     private var crossSigningBootstrapHandle: CrossSigningBootstrapHandle?
+    private var qrLoginTask: Task<Void, Error>?
+    private var qrGrantListener: MatrixGrantGeneratedQrLoginListener?
     private var firstDeviceBootstrapInFlight = false
 
     public init(client: Client) { self.client = client }
@@ -1698,6 +1989,55 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
     public func login(username: String, password: String) async throws {
         try await client.login(username: username, password: password, initialDeviceName: "Hypha", deviceId: nil)
     }
+
+    public func signInWithQrCode(
+        _ qrCodeData: Data,
+        progress: @escaping MatrixQrLoginProgressHandler
+    ) async throws {
+        let decoded = try QrCodeData.fromBytes(bytes: qrCodeData)
+        let listener = MatrixQrLoginListener(progress: progress)
+        let handler = client.newLoginWithQrCodeHandler(oauthConfiguration: Self.oauthConfiguration)
+        let task = Task { try await handler.scan(qrCodeData: decoded, progressListener: listener) }
+        qrLoginTask = task
+        defer { qrLoginTask = nil }
+        try await task.value
+    }
+
+    public func generateQrLoginCode(progress: @escaping MatrixQrLoginProgressHandler) async throws {
+        let listener = MatrixGrantGeneratedQrLoginListener(progress: progress)
+        qrGrantListener = listener
+        let handler = client.newGrantLoginWithQrCodeHandler()
+        let task = Task { try await handler.generate(progressListener: listener) }
+        qrLoginTask = task
+        defer {
+            qrLoginTask = nil
+            qrGrantListener = nil
+        }
+        try await task.value
+    }
+
+    public func submitQrLoginCheckCode(_ code: UInt8) async throws {
+        guard let sender = qrGrantListener?.checkCodeSender() else {
+            throw MatrixChatServiceError.unavailable(reason: "No QR login is awaiting a check code")
+        }
+        try await sender.send(code: code)
+    }
+
+    public func cancelQrLogin() async {
+        qrLoginTask?.cancel()
+        qrLoginTask = nil
+        qrGrantListener = nil
+    }
+
+    private static let oauthConfiguration = OAuthConfiguration(
+        clientName: "Hypha",
+        redirectUri: "ca.zenithresearch.hypha:/oauth",
+        clientUri: "https://zenith-research.ca/hypha",
+        logoUri: nil,
+        tosUri: nil,
+        policyUri: nil,
+        staticRegistrations: [:]
+    )
 
     public func restore(session: MatrixSDKSessionRecord) async throws {
         let version: SlidingSyncVersion = session.slidingSyncVersion == "native" ? .native : .none
@@ -2252,15 +2592,39 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
 
 
     public func requestDeviceVerification() async throws -> MatrixVerificationChallenge {
-        let controller = try await client.getSessionVerificationController()
-        let session = MatrixSASVerificationSession(controller: controller)
-        verificationSession = session
+        let session: MatrixSASVerificationSession
+        if let existing = verificationSession {
+            session = existing
+        } else {
+            let controller = try await client.getSessionVerificationController()
+            let created = MatrixSASVerificationSession(controller: controller)
+            verificationSession = created
+            session = created
+        }
         do {
             return try await session.requestChallenge()
         } catch {
             if verificationSession === session { verificationSession = nil }
             throw error
         }
+    }
+
+    public func setIncomingDeviceVerificationHandler(
+        _ handler: (@Sendable (MatrixVerificationFlowState) -> Void)?
+    ) async throws {
+        guard let handler, verificationSession == nil else { return }
+        let controller = try await client.getSessionVerificationController()
+        verificationSession = MatrixSASVerificationSession(
+            controller: controller,
+            incomingStateObserver: handler
+        )
+    }
+
+    public func acceptIncomingDeviceVerification() async throws {
+        guard let session = verificationSession else {
+            throw MatrixChatServiceError.unavailable(reason: "No incoming device verification")
+        }
+        try await session.acceptIncomingRequest()
     }
 
     public func approveDeviceVerification() async throws {
@@ -2289,7 +2653,7 @@ private final class MatrixEnableRecoveryProgressListener: EnableRecoveryProgress
 
 private final class MatrixSyncListener: SyncListenerV2, @unchecked Sendable {
     private static let logger = Logger(
-        subsystem: "ca.zenithresearch.macos.client",
+        subsystem: MatrixPlatformStorageIdentity.current.loggerSubsystem,
         category: "MatrixSync"
     )
 
@@ -2326,19 +2690,22 @@ enum MatrixVerificationFlowError: Error {
     case failed
     case cancelled
     case alreadyActive
+    case noIncomingRequest
 }
 
 final class MatrixSASVerificationSession: SessionVerificationControllerDelegate, @unchecked Sendable {
     private static let logger = Logger(
-        subsystem: "ca.zenithresearch.macos.client",
+        subsystem: MatrixPlatformStorageIdentity.current.loggerSubsystem,
         category: "MatrixVerification"
     )
 
     private let controller: SessionVerificationController
+    private let incomingStateObserver: @Sendable (MatrixVerificationFlowState) -> Void
     private let stageObserver: @Sendable (MatrixVerificationDiagnosticStage) -> Void
     private let lock = NSLock()
     private var challengeContinuation: CheckedContinuation<MatrixVerificationChallenge, Error>?
     private var finishContinuation: CheckedContinuation<Void, Error>?
+    private var pendingIncomingRequest: SessionVerificationRequestDetails?
     private var challengePresented = false
     private var sasStartSubmitted = false
     private var sasProtocolStarted = false
@@ -2346,9 +2713,11 @@ final class MatrixSASVerificationSession: SessionVerificationControllerDelegate,
 
     init(
         controller: SessionVerificationController,
+        incomingStateObserver: @escaping @Sendable (MatrixVerificationFlowState) -> Void = { _ in },
         stageObserver: @escaping @Sendable (MatrixVerificationDiagnosticStage) -> Void = { _ in }
     ) {
         self.controller = controller
+        self.incomingStateObserver = incomingStateObserver
         self.stageObserver = stageObserver
         controller.setDelegate(delegate: self)
         record(.controllerInstalled)
@@ -2409,6 +2778,23 @@ final class MatrixSASVerificationSession: SessionVerificationControllerDelegate,
         }
     }
 
+    func acceptIncomingRequest() async throws {
+        guard let details = lock.withLock({ pendingIncomingRequest }) else {
+            throw MatrixVerificationFlowError.noIncomingRequest
+        }
+        do {
+            try await controller.acknowledgeVerificationRequest(
+                senderId: details.senderProfile.userId,
+                flowId: details.flowId
+            )
+            try await controller.acceptVerificationRequest()
+            lock.withLock { pendingIncomingRequest = nil }
+        } catch {
+            fail(error)
+            throw error
+        }
+    }
+
     func declineOrCancel() async {
         record(.cancelling)
         let shouldDecline = lock.withLock { challengePresented }
@@ -2425,7 +2811,18 @@ final class MatrixSASVerificationSession: SessionVerificationControllerDelegate,
         cancel()
     }
 
-    func didReceiveVerificationRequest(details: SessionVerificationRequestDetails) {}
+    func didReceiveVerificationRequest(details: SessionVerificationRequestDetails) {
+        let shouldPresent = lock.withLock {
+            guard !terminal,
+                  challengeContinuation == nil,
+                  pendingIncomingRequest == nil,
+                  !sasStartSubmitted else { return false }
+            pendingIncomingRequest = details
+            return true
+        }
+        guard shouldPresent else { return }
+        incomingStateObserver(.incomingRequest)
+    }
 
     func didAcceptVerificationRequest() {
         let shouldStart = lock.withLock {
@@ -2479,6 +2876,9 @@ final class MatrixSASVerificationSession: SessionVerificationControllerDelegate,
             return pending
         }
         continuation?.resume(returning: challenge)
+        if continuation == nil {
+            incomingStateObserver(.challenge(challenge))
+        }
     }
 
     func didFail() { fail(MatrixVerificationFlowError.failed) }
@@ -2492,6 +2892,7 @@ final class MatrixSASVerificationSession: SessionVerificationControllerDelegate,
             let pending = finishContinuation
             finishContinuation = nil
             challengeContinuation = nil
+            pendingIncomingRequest = nil
             return pending
         }
         continuation?.resume(returning: ())
@@ -2518,10 +2919,68 @@ final class MatrixSASVerificationSession: SessionVerificationControllerDelegate,
             let finish = finishContinuation
             challengeContinuation = nil
             finishContinuation = nil
+            pendingIncomingRequest = nil
             return (challenge, finish)
         }
         continuations.0?.resume(throwing: error)
         continuations.1?.resume(throwing: error)
+    }
+}
+
+private final class MatrixQrLoginListener: QrLoginProgressListener, @unchecked Sendable {
+    private let progress: MatrixQrLoginProgressHandler
+
+    init(progress: @escaping MatrixQrLoginProgressHandler) {
+        self.progress = progress
+    }
+
+    func onUpdate(state: QrLoginProgress) {
+        switch state {
+        case .starting:
+            progress(.starting)
+        case let .establishingSecureChannel(_, checkCodeString):
+            progress(.checkCodeDisplay(checkCodeString))
+        case let .waitingForToken(userCode):
+            progress(.waitingForToken(userCode))
+        case .syncingSecrets:
+            progress(.syncingSecrets)
+        case .done:
+            progress(.completed)
+        }
+    }
+}
+
+private final class MatrixGrantGeneratedQrLoginListener: GrantGeneratedQrLoginProgressListener, @unchecked Sendable {
+    private let lock = NSLock()
+    private let progress: MatrixQrLoginProgressHandler
+    private var sender: CheckCodeSender?
+
+    init(progress: @escaping MatrixQrLoginProgressHandler) {
+        self.progress = progress
+    }
+
+    func onUpdate(state: GrantGeneratedQrLoginProgress) {
+        switch state {
+        case .starting:
+            progress(.starting)
+        case let .qrReady(qrCode):
+            progress(.qrReady(qrCode.toBytes()))
+        case let .qrScanned(checkCodeSender):
+            lock.withLock { sender = checkCodeSender }
+            progress(.checkCodeInputRequired)
+        case let .waitingForAuth(verificationUri):
+            if let url = URL(string: verificationUri) {
+                progress(.waitingForAuthorization(url))
+            }
+        case .syncingSecrets:
+            progress(.syncingSecrets)
+        case .done:
+            progress(.completed)
+        }
+    }
+
+    func checkCodeSender() -> CheckCodeSender? {
+        lock.withLock { sender }
     }
 }
 

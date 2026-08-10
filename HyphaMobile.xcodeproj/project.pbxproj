@@ -1,0 +1,528 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		062863584BBAEEBA271BDBB9 /* HyphaChatEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AA53DAC16D46DF38662D03B /* HyphaChatEmptyState.swift */; };
+		098BB722AE46A08309B566C5 /* HyphaAuthHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 880B64FD5F47D3837E4E2CDB /* HyphaAuthHeader.swift */; };
+		17D9B52F5F2B8367BF496011 /* HyphaTextFieldStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8878C65F7FFEB28CEA4895EF /* HyphaTextFieldStyle.swift */; };
+		1A7E902A53CB774E9C28E781 /* HyphaChatPanelStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 203C9283601BEFB1A929C16A /* HyphaChatPanelStore.swift */; };
+		2D44AE2DD34FB27AF7839C55 /* HyphaQrScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05FB10B4AA0DB388FBFBA698 /* HyphaQrScannerView.swift */; };
+		32EE6BAE312BE047841B5642 /* HyphaSpaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EBC5DDDD43911CAB62B6859 /* HyphaSpaceView.swift */; };
+		35647DA448F9DA9F3866DE2F /* HyphaPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A7FDE4D2FC090FDD1433B75 /* HyphaPlatform.swift */; };
+		3DA1A1A3C9ABC8B0D631B725 /* HyphaQrCodeImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA1CB6D9111B77CC551B8F4 /* HyphaQrCodeImage.swift */; };
+		3EE111BA19D283FAA96D883F /* HyphaCore in Frameworks */ = {isa = PBXBuildFile; productRef = A81A74DCD42A78739DEA566D /* HyphaCore */; };
+		3FB54C3C31BB83C5E4783880 /* HyphaArtifactViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BF0E1847965E31294AFD03F /* HyphaArtifactViewerView.swift */; };
+		54485815B715DA122392EB7D /* HyphaChatMessageRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CD1B61D9D594C5DDF213D4 /* HyphaChatMessageRow.swift */; };
+		5499136180866E8FD6D74C26 /* HyphaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C0415F26135BD1E5CCF86AE /* HyphaApp.swift */; };
+		57A80EA88E9A9DB8C90C53A5 /* HyphaUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E57AC89370A2D4D78C193FD3 /* HyphaUpdateController.swift */; };
+		59E521644B40A9771F281132 /* MatrixAdminSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A5C07EC70B4328D48F5989 /* MatrixAdminSheet.swift */; };
+		6622D59998760C62AA269677 /* HyphaAccountChoiceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AC7121E6B8A9BE2D08B3D8C /* HyphaAccountChoiceCard.swift */; };
+		77784A8D6D716E2EC638B9C0 /* HyphaGitHubConnectionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BC405DAE73A4EA9A2D71AFE /* HyphaGitHubConnectionModel.swift */; };
+		81BA3D943D5DEC99330BCADA /* HyphaAuthShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAFBDB3767BB7DB240944DA8 /* HyphaAuthShell.swift */; };
+		88D8FD3095D56B8BE60F46F7 /* ZenithDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C786DFE4959575DE3B0EA1 /* ZenithDesignSystem.swift */; };
+		8D4504FFF60329DB9ABF5427 /* HyphaSecurityBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24E3787E755C14DE51508C70 /* HyphaSecurityBanner.swift */; };
+		99A9DA0B46A25C087DD9C05B /* HyphaRoomRepositorySheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E7EEB80444E5D8016064BB /* HyphaRoomRepositorySheet.swift */; };
+		9AC7C857426A212A9C14C4C9 /* HyphaAuthenticationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B702FE046D122E6D1CF34811 /* HyphaAuthenticationViews.swift */; };
+		ADF55CA95B2281CAB3B36FF4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CEC9FA68D8BF6E4C4F165AF2 /* Assets.xcassets */; };
+		B6A1D03D2C5C14E07FC0F83E /* HyphaRoomContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD69A729EF077DE0580DBC21 /* HyphaRoomContentView.swift */; };
+		D637566CF5146F599F6ACF20 /* HyphaButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18B423C51FB1731FA01198F4 /* HyphaButton.swift */; };
+		EF7B81265E4A279CDB26DC2D /* HyphaRevealablePasswordField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FFB2CAE35297BE7B85FF48C /* HyphaRevealablePasswordField.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		05FB10B4AA0DB388FBFBA698 /* HyphaQrScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaQrScannerView.swift; sourceTree = "<group>"; };
+		18B423C51FB1731FA01198F4 /* HyphaButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaButton.swift; sourceTree = "<group>"; };
+		203C9283601BEFB1A929C16A /* HyphaChatPanelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaChatPanelStore.swift; sourceTree = "<group>"; };
+		24E3787E755C14DE51508C70 /* HyphaSecurityBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaSecurityBanner.swift; sourceTree = "<group>"; };
+		33CD1B61D9D594C5DDF213D4 /* HyphaChatMessageRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaChatMessageRow.swift; sourceTree = "<group>"; };
+		3AC7121E6B8A9BE2D08B3D8C /* HyphaAccountChoiceCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaAccountChoiceCard.swift; sourceTree = "<group>"; };
+		59E7EEB80444E5D8016064BB /* HyphaRoomRepositorySheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaRoomRepositorySheet.swift; sourceTree = "<group>"; };
+		5BC405DAE73A4EA9A2D71AFE /* HyphaGitHubConnectionModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaGitHubConnectionModel.swift; sourceTree = "<group>"; };
+		635AE8A4C5DF2DA6BAF79473 /* Hypha */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Hypha; path = .; sourceTree = SOURCE_ROOT; };
+		6AA53DAC16D46DF38662D03B /* HyphaChatEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaChatEmptyState.swift; sourceTree = "<group>"; };
+		7A7FDE4D2FC090FDD1433B75 /* HyphaPlatform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaPlatform.swift; sourceTree = "<group>"; };
+		7C0415F26135BD1E5CCF86AE /* HyphaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaApp.swift; sourceTree = "<group>"; };
+		880B64FD5F47D3837E4E2CDB /* HyphaAuthHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaAuthHeader.swift; sourceTree = "<group>"; };
+		8878C65F7FFEB28CEA4895EF /* HyphaTextFieldStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaTextFieldStyle.swift; sourceTree = "<group>"; };
+		8EBC5DDDD43911CAB62B6859 /* HyphaSpaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaSpaceView.swift; sourceTree = "<group>"; };
+		9BF0E1847965E31294AFD03F /* HyphaArtifactViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaArtifactViewerView.swift; sourceTree = "<group>"; };
+		9FFB2CAE35297BE7B85FF48C /* HyphaRevealablePasswordField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaRevealablePasswordField.swift; sourceTree = "<group>"; };
+		B702FE046D122E6D1CF34811 /* HyphaAuthenticationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaAuthenticationViews.swift; sourceTree = "<group>"; };
+		CC521103C4D56538CE7C02DF /* HyphaMobile.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HyphaMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CD69A729EF077DE0580DBC21 /* HyphaRoomContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaRoomContentView.swift; sourceTree = "<group>"; };
+		CEC9FA68D8BF6E4C4F165AF2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E1C786DFE4959575DE3B0EA1 /* ZenithDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZenithDesignSystem.swift; sourceTree = "<group>"; };
+		E57AC89370A2D4D78C193FD3 /* HyphaUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaUpdateController.swift; sourceTree = "<group>"; };
+		E8A5C07EC70B4328D48F5989 /* MatrixAdminSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatrixAdminSheet.swift; sourceTree = "<group>"; };
+		EAA1CB6D9111B77CC551B8F4 /* HyphaQrCodeImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaQrCodeImage.swift; sourceTree = "<group>"; };
+		EAFBDB3767BB7DB240944DA8 /* HyphaAuthShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyphaAuthShell.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		92A2E559A4C18E02D85AF983 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3EE111BA19D283FAA96D883F /* HyphaCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		186A8A3CCA71127E5F95FBF2 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				DC4115C181A70D0ACC8749FD /* Hypha */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		2ABD4F8702F1E42651E8B271 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				635AE8A4C5DF2DA6BAF79473 /* Hypha */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		58437A1822E4C33C3D39A598 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				CEC9FA68D8BF6E4C4F165AF2 /* Assets.xcassets */,
+			);
+			path = iOS;
+			sourceTree = "<group>";
+		};
+		5B89CB59388778D0B789DA26 /* Molecules */ = {
+			isa = PBXGroup;
+			children = (
+				3AC7121E6B8A9BE2D08B3D8C /* HyphaAccountChoiceCard.swift */,
+				880B64FD5F47D3837E4E2CDB /* HyphaAuthHeader.swift */,
+			);
+			path = Molecules;
+			sourceTree = "<group>";
+		};
+		5EC756FA40B13CAD1D68144B /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				8305C36D6802F57B5DCB5821 /* Atoms */,
+				5B89CB59388778D0B789DA26 /* Molecules */,
+				7F26602EA80A5670F41C4407 /* Organisms */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		78FF9EDEED74EFCF3426E1BF = {
+			isa = PBXGroup;
+			children = (
+				2ABD4F8702F1E42651E8B271 /* Packages */,
+				DB280C088BBE3B4DA337287E /* Resources */,
+				186A8A3CCA71127E5F95FBF2 /* Sources */,
+				BE4FC8D34D02E786D8E8BEA0 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		7F26602EA80A5670F41C4407 /* Organisms */ = {
+			isa = PBXGroup;
+			children = (
+				EAFBDB3767BB7DB240944DA8 /* HyphaAuthShell.swift */,
+			);
+			path = Organisms;
+			sourceTree = "<group>";
+		};
+		8305C36D6802F57B5DCB5821 /* Atoms */ = {
+			isa = PBXGroup;
+			children = (
+				18B423C51FB1731FA01198F4 /* HyphaButton.swift */,
+				8878C65F7FFEB28CEA4895EF /* HyphaTextFieldStyle.swift */,
+			);
+			path = Atoms;
+			sourceTree = "<group>";
+		};
+		BE4FC8D34D02E786D8E8BEA0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CC521103C4D56538CE7C02DF /* HyphaMobile.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CFF5701010C505B9705930CC /* Spaces */ = {
+			isa = PBXGroup;
+			children = (
+				8EBC5DDDD43911CAB62B6859 /* HyphaSpaceView.swift */,
+			);
+			path = Spaces;
+			sourceTree = "<group>";
+		};
+		DB280C088BBE3B4DA337287E /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				58437A1822E4C33C3D39A598 /* iOS */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		DC4115C181A70D0ACC8749FD /* Hypha */ = {
+			isa = PBXGroup;
+			children = (
+				7C0415F26135BD1E5CCF86AE /* HyphaApp.swift */,
+				9BF0E1847965E31294AFD03F /* HyphaArtifactViewerView.swift */,
+				203C9283601BEFB1A929C16A /* HyphaChatPanelStore.swift */,
+				5BC405DAE73A4EA9A2D71AFE /* HyphaGitHubConnectionModel.swift */,
+				7A7FDE4D2FC090FDD1433B75 /* HyphaPlatform.swift */,
+				EAA1CB6D9111B77CC551B8F4 /* HyphaQrCodeImage.swift */,
+				9FFB2CAE35297BE7B85FF48C /* HyphaRevealablePasswordField.swift */,
+				CD69A729EF077DE0580DBC21 /* HyphaRoomContentView.swift */,
+				59E7EEB80444E5D8016064BB /* HyphaRoomRepositorySheet.swift */,
+				24E3787E755C14DE51508C70 /* HyphaSecurityBanner.swift */,
+				E57AC89370A2D4D78C193FD3 /* HyphaUpdateController.swift */,
+				E8A5C07EC70B4328D48F5989 /* MatrixAdminSheet.swift */,
+				E1C786DFE4959575DE3B0EA1 /* ZenithDesignSystem.swift */,
+				DC93D20FD287835C83514FA0 /* Auth */,
+				E9E3F6C56ACBF230F0A9651E /* Chat */,
+				5EC756FA40B13CAD1D68144B /* DesignSystem */,
+				CFF5701010C505B9705930CC /* Spaces */,
+			);
+			path = Hypha;
+			sourceTree = "<group>";
+		};
+		DC93D20FD287835C83514FA0 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				B702FE046D122E6D1CF34811 /* HyphaAuthenticationViews.swift */,
+				05FB10B4AA0DB388FBFBA698 /* HyphaQrScannerView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		E9E3F6C56ACBF230F0A9651E /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				6AA53DAC16D46DF38662D03B /* HyphaChatEmptyState.swift */,
+				33CD1B61D9D594C5DDF213D4 /* HyphaChatMessageRow.swift */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B44F82E1CB7175B377FEAEA2 /* HyphaMobile */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A3B44875AF81D615E4B509A /* Build configuration list for PBXNativeTarget "HyphaMobile" */;
+			buildPhases = (
+				2C2FE2499104EF7D75192147 /* Sources */,
+				5C49EA476C3C57B077B95EA9 /* Resources */,
+				92A2E559A4C18E02D85AF983 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HyphaMobile;
+			packageProductDependencies = (
+				A81A74DCD42A78739DEA566D /* HyphaCore */,
+			);
+			productName = HyphaMobile;
+			productReference = CC521103C4D56538CE7C02DF /* HyphaMobile.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		89429F2EEAD5672CCE028F95 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					B44F82E1CB7175B377FEAEA2 = {
+						DevelopmentTeam = KR4YTNKK3Y;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 144A39C22270AEB69860B2A7 /* Build configuration list for PBXProject "HyphaMobile" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 78FF9EDEED74EFCF3426E1BF;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				49C5D0997A289BE67080E662 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = BE4FC8D34D02E786D8E8BEA0 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B44F82E1CB7175B377FEAEA2 /* HyphaMobile */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5C49EA476C3C57B077B95EA9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ADF55CA95B2281CAB3B36FF4 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2C2FE2499104EF7D75192147 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6622D59998760C62AA269677 /* HyphaAccountChoiceCard.swift in Sources */,
+				5499136180866E8FD6D74C26 /* HyphaApp.swift in Sources */,
+				3FB54C3C31BB83C5E4783880 /* HyphaArtifactViewerView.swift in Sources */,
+				098BB722AE46A08309B566C5 /* HyphaAuthHeader.swift in Sources */,
+				81BA3D943D5DEC99330BCADA /* HyphaAuthShell.swift in Sources */,
+				9AC7C857426A212A9C14C4C9 /* HyphaAuthenticationViews.swift in Sources */,
+				D637566CF5146F599F6ACF20 /* HyphaButton.swift in Sources */,
+				062863584BBAEEBA271BDBB9 /* HyphaChatEmptyState.swift in Sources */,
+				54485815B715DA122392EB7D /* HyphaChatMessageRow.swift in Sources */,
+				1A7E902A53CB774E9C28E781 /* HyphaChatPanelStore.swift in Sources */,
+				77784A8D6D716E2EC638B9C0 /* HyphaGitHubConnectionModel.swift in Sources */,
+				35647DA448F9DA9F3866DE2F /* HyphaPlatform.swift in Sources */,
+				3DA1A1A3C9ABC8B0D631B725 /* HyphaQrCodeImage.swift in Sources */,
+				2D44AE2DD34FB27AF7839C55 /* HyphaQrScannerView.swift in Sources */,
+				EF7B81265E4A279CDB26DC2D /* HyphaRevealablePasswordField.swift in Sources */,
+				B6A1D03D2C5C14E07FC0F83E /* HyphaRoomContentView.swift in Sources */,
+				99A9DA0B46A25C087DD9C05B /* HyphaRoomRepositorySheet.swift in Sources */,
+				8D4504FFF60329DB9ABF5427 /* HyphaSecurityBanner.swift in Sources */,
+				32EE6BAE312BE047841B5642 /* HyphaSpaceView.swift in Sources */,
+				17D9B52F5F2B8367BF496011 /* HyphaTextFieldStyle.swift in Sources */,
+				57A80EA88E9A9DB8C90C53A5 /* HyphaUpdateController.swift in Sources */,
+				59E521644B40A9771F281132 /* MatrixAdminSheet.swift in Sources */,
+				88D8FD3095D56B8BE60F46F7 /* ZenithDesignSystem.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		36182977B6BA57FD96E2C6EC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KR4YTNKK3Y;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/iOS/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.zenithresearch.ios.client;
+				PRODUCT_NAME = Hypha;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.10;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		4FA4741DAEBD2E138BF45730 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		AD44A84E1E8101D7F446A6F0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		FEE48D4DF1697C9C91BB02D5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = KR4YTNKK3Y;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/iOS/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.zenithresearch.ios.client;
+				PRODUCT_NAME = Hypha;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.10;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0A3B44875AF81D615E4B509A /* Build configuration list for PBXNativeTarget "HyphaMobile" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FEE48D4DF1697C9C91BB02D5 /* Debug */,
+				36182977B6BA57FD96E2C6EC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		144A39C22270AEB69860B2A7 /* Build configuration list for PBXProject "HyphaMobile" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AD44A84E1E8101D7F446A6F0 /* Debug */,
+				4FA4741DAEBD2E138BF45730 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		49C5D0997A289BE67080E662 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A81A74DCD42A78739DEA566D /* HyphaCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HyphaCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 89429F2EEAD5672CCE028F95 /* Project object */;
+}

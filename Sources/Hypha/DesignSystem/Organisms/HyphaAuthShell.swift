@@ -2,6 +2,8 @@ import SwiftUI
 
 /// Authentication organism that owns spacing, glass surface, navigation, and responsive scrolling.
 struct HyphaAuthShell<Content: View>: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     let title: String
     let message: String
     let symbol: String
@@ -39,7 +41,7 @@ struct HyphaAuthShell<Content: View>: View {
             .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: ZenithDesign.Space.x6) {
+                VStack(spacing: horizontalSizeClass == .compact ? ZenithDesign.Space.x4 : ZenithDesign.Space.x6) {
                     if let back {
                         HStack {
                             HyphaButton(
@@ -57,10 +59,12 @@ struct HyphaAuthShell<Content: View>: View {
                     HyphaAuthHeader(title: title, message: message, symbol: symbol)
                     content()
                 }
-                .padding(ZenithDesign.Space.x8)
+                .padding(.horizontal, horizontalSizeClass == .compact ? ZenithDesign.Space.x4 : ZenithDesign.Space.x8)
+                .padding(.vertical, horizontalSizeClass == .compact ? ZenithDesign.Space.x5 : ZenithDesign.Space.x8)
                 .frame(maxWidth: 620)
                 .frame(maxWidth: .infinity)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
     }
 }

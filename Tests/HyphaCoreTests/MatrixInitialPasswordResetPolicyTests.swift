@@ -2,32 +2,29 @@ import XCTest
 @testable import HyphaCore
 
 final class MatrixInitialPasswordResetPolicyTests: XCTestCase {
-    func testFirstManualPasswordLoginRequiresImmediateReset() {
+    func testPendingServerResetRequestRequiresImmediateReset() {
         XCTAssertTrue(
             MatrixInitialPasswordResetPolicy.requiresReset(
-                authenticationMethod: .manualPassword,
-                hadExistingSession: false
+                serverRequestPending: true,
+                hasCompletedInitialPasswordChange: false
             )
         )
     }
 
-    func testExistingSessionAndPermanentRegistrationPasswordsDoNotRequireReset() {
+    func testCompletedInitialPasswordChangeSuppressesAStaleServerResetRequest() {
         XCTAssertFalse(
             MatrixInitialPasswordResetPolicy.requiresReset(
-                authenticationMethod: .manualPassword,
-                hadExistingSession: true
+                serverRequestPending: true,
+                hasCompletedInitialPasswordChange: true
             )
         )
+    }
+
+    func testFirstLoginWithoutServerResetRequestDoesNotInferTemporaryPassword() {
         XCTAssertFalse(
             MatrixInitialPasswordResetPolicy.requiresReset(
-                authenticationMethod: .inviteTokenRegistration,
-                hadExistingSession: false
-            )
-        )
-        XCTAssertFalse(
-            MatrixInitialPasswordResetPolicy.requiresReset(
-                authenticationMethod: .savedCredential,
-                hadExistingSession: false
+                serverRequestPending: false,
+                hasCompletedInitialPasswordChange: false
             )
         )
     }
