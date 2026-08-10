@@ -736,8 +736,8 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         try await administratorClient().requestPasswordReset()
     }
 
-    public func hasPendingHomeserverPasswordResetRequest() async throws -> Bool {
-        try await administratorClient().currentPasswordResetRequest() != nil
+    public func currentHomeserverPasswordResetRequest() async throws -> MatrixPasswordResetRequest? {
+        try await administratorClient().currentPasswordResetRequest()
     }
 
     public func completeHomeserverPasswordResetRequest() async throws {

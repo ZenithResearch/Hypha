@@ -12,10 +12,12 @@ public struct MatrixPlatformStorageIdentity: Equatable, Sendable {
     public let legacyKeychainService: String?
     public let legacyCryptoRoot: String?
     public let legacyHomeserverDefaultsKey: String?
+    public let legacyPendingPasswordResetDefaultsKey: String?
     public let legacyDefaultsSuite: String?
 
     public var legacyMigrationEnabled: Bool {
         legacyKeychainService != nil || legacyCryptoRoot != nil || legacyHomeserverDefaultsKey != nil
+            || legacyPendingPasswordResetDefaultsKey != nil
     }
 
     public var namespaces: [String] {
@@ -23,7 +25,8 @@ public struct MatrixPlatformStorageIdentity: Equatable, Sendable {
     }
 
     public var legacyNamespaces: [String] {
-        [legacyKeychainService, legacyCryptoRoot, legacyHomeserverDefaultsKey, legacyDefaultsSuite].compactMap { $0 }
+        [legacyKeychainService, legacyCryptoRoot, legacyHomeserverDefaultsKey,
+         legacyPendingPasswordResetDefaultsKey, legacyDefaultsSuite].compactMap { $0 }
     }
 
     public static let macOS = MatrixPlatformStorageIdentity(
@@ -38,6 +41,7 @@ public struct MatrixPlatformStorageIdentity: Equatable, Sendable {
         legacyKeychainService: ["ca", "zenith-research", "mobile-macos", "matrix"].joined(separator: "."),
         legacyCryptoRoot: ["Zenith", "Mobile", "MacOS"].joined() + "/Matrix",
         legacyHomeserverDefaultsKey: ["ca", "zenith-research", "mobile-macos", "matrix", "homeserver"].joined(separator: "."),
+        legacyPendingPasswordResetDefaultsKey: "ca.zenithresearch.hypha.pending-initial-password-reset-account-keys",
         legacyDefaultsSuite: ["ca", "zenithresearch", "mobile", "macos"].joined(separator: ".")
     )
 
@@ -53,6 +57,7 @@ public struct MatrixPlatformStorageIdentity: Equatable, Sendable {
         legacyKeychainService: nil,
         legacyCryptoRoot: nil,
         legacyHomeserverDefaultsKey: nil,
+        legacyPendingPasswordResetDefaultsKey: nil,
         legacyDefaultsSuite: nil
     )
 
