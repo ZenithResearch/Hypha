@@ -1137,6 +1137,21 @@ final class MatrixAppModel: ObservableObject {
         }
     }
 
+    func repositoryAttachment(
+        for room: MatrixRoomSummary
+    ) async throws -> MatrixRoomRepositoryAttachment? {
+        guard let coordinator else { throw MatrixChatServiceError.sessionExpired }
+        return try await coordinator.repositoryAttachment(for: room)
+    }
+
+    func attachRepository(
+        _ attachment: MatrixRoomRepositoryAttachment,
+        to room: MatrixRoomSummary
+    ) async throws {
+        guard let coordinator else { throw MatrixChatServiceError.sessionExpired }
+        try await coordinator.attachRepository(attachment, to: room)
+    }
+
     func open(_ room: MatrixRoomSummary) async {
         guard let coordinator else { return }
         timelineRefreshTask?.cancel()
@@ -1236,10 +1251,16 @@ private enum HyphaAuthRoute {
 private struct MatrixCompanionShell: View {
     @ObservedObject var model: MatrixAppModel
     @StateObject private var updater = HyphaUpdateController()
+    @StateObject private var githubConnection = HyphaGitHubConnectionModel()
+    @StateObject private var chatPanel = HyphaChatPanelStore()
     @State private var showsRecovery = false
     @State private var showsRecoverySetup = false
     @State private var showsNewRoom = false
     @State private var showsRoomInvite = false
+#if os(macOS)
+    @State private var repositoryRoom: MatrixRoomSummary?
+    @State private var roomContentRefreshID = UUID()
+#endif
     @State private var newRoomKind: MatrixRoomKind = .room
     @State private var showsFirstDevicePassword = false
     @State private var showsSecurityCenter = false
@@ -1253,22 +1274,24 @@ private struct MatrixCompanionShell: View {
     @State private var invitationAcceptanceInFlightID: String?
     @State private var credentialPendingDeletion: HyphaMatrixCredentialDescriptor?
     @State private var authRoute: HyphaAuthRoute = .landing
+    @State private var chatSearchText = ""
 
     var body: some View {
         Group {
             if isAuthenticated {
-                NavigationSplitView {
-                    sidebar
-                        .navigationTitle("Hypha")
-                        .navigationSplitViewColumnWidth(min: 230, ideal: 268, max: 340)
-                        .scrollContentBackground(.hidden)
-                        .background(ZenithDesign.Palette.baseSubtle)
-                } detail: {
-                    contentSurface
-                        .navigationTitle(detailTitle)
-                }
+                authenticatedNavigationShell
             } else {
                 contentSurface
+            }
+        }
+        .onChange(of: isAuthenticated) { _, authenticated in
+            if !authenticated {
+                chatPanel.send(.clear)
+            }
+        }
+        .onChange(of: model.rooms.map(\.id)) { _, roomIDs in
+            if let activeRoomID = chatPanel.activeRoomID, !roomIDs.contains(activeRoomID) {
+                chatPanel.send(.clear)
             }
         }
         .sheet(isPresented: $showsRecovery) {
@@ -1287,6 +1310,21 @@ private struct MatrixCompanionShell: View {
         .sheet(isPresented: $showsRoomInvite) {
             MatrixRoomInviteSheet(model: model, isPresented: $showsRoomInvite)
         }
+#if os(macOS)
+        .sheet(item: $repositoryRoom, onDismiss: {
+            roomContentRefreshID = UUID()
+        }) { room in
+            HyphaRoomRepositorySheet(
+                model: model,
+                githubConnection: githubConnection,
+                room: room,
+                isPresented: Binding(
+                    get: { repositoryRoom != nil },
+                    set: { if !$0 { repositoryRoom = nil } }
+                )
+            )
+        }
+#endif
         .sheet(isPresented: $showsFirstDevicePassword) {
             MatrixFirstDevicePasswordSheet(model: model, isPresented: $showsFirstDevicePassword)
         }
@@ -1349,6 +1387,80 @@ private struct MatrixCompanionShell: View {
         }
     }
 
+    private var authenticatedNavigationShell: some View {
+        NavigationSplitView {
+            globalSidebar
+                .navigationTitle("Hypha")
+                .navigationSplitViewColumnWidth(min: 230, ideal: 320, max: 560)
+                .scrollContentBackground(.hidden)
+                .background(ZenithDesign.Palette.baseSubtle)
+        } detail: {
+            contentSurface
+                .navigationTitle(detailTitle)
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .navigation) {
+                compactToolbarButton(
+                    systemName: "message",
+                    label: workspaceChatControlLabel,
+                    identifier: "matrix.toolbar.chat",
+                    isDisabled: !canPresentChat
+                ) {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        chatPanel.send(
+                            .openContextualChat(selectedRoomID: activeRepositoryRoom?.id)
+                        )
+                    }
+                }
+                compactToolbarButton(
+                    systemName: "shippingbox",
+                    label: "Repository settings",
+                    identifier: "matrix.toolbar.repository",
+                    isDisabled: activeRepositoryRoom == nil
+                ) {
+                    if let room = activeRepositoryRoom {
+                        repositoryRoom = room
+                    }
+                }
+                compactToolbarButton(
+                    systemName: "shield",
+                    label: "Security",
+                    identifier: "matrix.toolbar.security"
+                ) {
+                    showsSecurityCenter = true
+                }
+                compactToolbarButton(
+                    systemName: "slider.horizontal.3",
+                    label: "Settings",
+                    identifier: "matrix.toolbar.settings"
+                ) {
+                    showsSettings = true
+                }
+            }
+        }
+    }
+
+    private func compactToolbarButton(
+        systemName: String,
+        label: String,
+        identifier: String,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(ZenithDesign.Palette.muted)
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(label)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+        .disabled(isDisabled)
+    }
+
     private var contentSurface: some View {
         VStack(spacing: 0) {
             if let homeserver = model.connectedHomeserver {
@@ -1382,16 +1494,309 @@ private struct MatrixCompanionShell: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(ZenithDesign.Palette.base)
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    showsSettings = true
-                } label: {
-                    Label("Settings", systemImage: "gearshape")
-                }
-                .accessibilityIdentifier("hypha.settings")
-                securityToolbarMenu
+    }
+
+    private var globalSidebar: some View {
+        ZStack {
+            switch chatPanel.sidebarSheet {
+            case .navigation:
+                navigationSheet
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            case .chatDirectory:
+                chatNavigationSheet
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            case .roomChat:
+                roomChatSheet
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
             }
+        }
+        .background(ZenithDesign.Palette.baseSubtle)
+        .clipped()
+        .animation(.easeInOut(duration: 0.18), value: chatPanel.sidebarSheet)
+    }
+
+    private var navigationSheet: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Workspace")
+                    .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, ZenithDesign.Space.x3)
+            .padding(.vertical, ZenithDesign.Space.x2)
+            Divider()
+            sidebar
+        }
+    }
+
+    private var chatNavigationSheet: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Chats")
+                    .font(ZenithDesign.Typography.corporate(.title2, weight: .bold))
+                Spacer(minLength: 0)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        chatPanel.send(.showNavigationSheet)
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(.plain)
+                .help("Show workspace navigation")
+                .accessibilityIdentifier("matrix.global.navigation-sheet.open")
+            }
+            .padding(.horizontal, ZenithDesign.Space.x3)
+            .padding(.vertical, ZenithDesign.Space.x2)
+
+            HStack(spacing: ZenithDesign.Space.x2) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                TextField("Search", text: $chatSearchText)
+                    .textFieldStyle(.plain)
+            }
+            .padding(.horizontal, ZenithDesign.Space.x3)
+            .frame(height: 42)
+            .background(
+                RoundedRectangle(cornerRadius: 21, style: .continuous)
+                    .fill(ZenithDesign.Palette.base)
+            )
+            .padding(.horizontal, ZenithDesign.Space.x3)
+            .padding(.bottom, ZenithDesign.Space.x3)
+            .accessibilityIdentifier("matrix.global.chat-search")
+
+            if !recentChatRooms.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: ZenithDesign.Space.x2) {
+                        ForEach(recentChatRooms.prefix(5)) { room in
+                            recentChatCard(room)
+                        }
+                    }
+                    .padding(.horizontal, ZenithDesign.Space.x3)
+                }
+                .padding(.bottom, ZenithDesign.Space.x2)
+                .accessibilityIdentifier("matrix.global.chat-recents")
+            }
+
+            Divider()
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(filteredChatRooms) { room in
+                        chatConversationRow(room)
+                        Divider()
+                            .padding(.leading, 74)
+                    }
+                }
+            }
+            .accessibilityIdentifier("matrix.global.chat-conversations")
+        }
+        .background(ZenithDesign.Palette.baseSubtle)
+        .accessibilityIdentifier("matrix.global.chat-sheet")
+    }
+
+    private var roomChatSheet: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: ZenithDesign.Space.x2) {
+                Image(systemName: activeChatRoom?.isEncrypted == false ? "lock.open.fill" : "lock.fill")
+                    .font(.caption)
+                    .foregroundStyle(
+                        activeChatRoom?.isEncrypted == false
+                            ? ZenithDesign.Palette.warning
+                            : ZenithDesign.Palette.brand
+                    )
+                Text(activeChatRoom?.name ?? activeRepositoryRoom?.name ?? "Room Chat")
+                    .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        chatPanel.send(.showNavigationSheet)
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(.plain)
+                .help("Show workspace navigation")
+                .accessibilityLabel("Show workspace navigation")
+                .accessibilityIdentifier("matrix.room.chat-sheet.close")
+            }
+            .padding(.horizontal, ZenithDesign.Space.x3)
+            .padding(.vertical, ZenithDesign.Space.x2)
+
+            Divider()
+            roomChatDetail
+        }
+        .background(ZenithDesign.Palette.baseSubtle)
+        .accessibilityIdentifier("matrix.room.chat-sheet")
+    }
+
+    @ViewBuilder
+    private var roomChatDetail: some View {
+        switch model.state {
+        case let .thread(room, events, composer)
+            where room.id == chatPanel.activeRoomID && !room.isSpace:
+            thread(room: room, events: events, composerState: composer)
+        case let .trustBlocked(room)
+            where room.id == chatPanel.activeRoomID && !room.isSpace:
+            chatDetail
+        default:
+            ProgressView("Opening encrypted chat…")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(ZenithDesign.Space.x4)
+        }
+    }
+
+    private var workspaceChatControlLabel: String {
+        guard let room = activeRepositoryRoom else { return "Browse chats" }
+        return "Open \(room.name) chat"
+    }
+
+    private var chatRooms: [MatrixRoomSummary] {
+        model.rooms.filter { !$0.hasInvite && !$0.isSpace }
+    }
+
+    private var filteredChatRooms: [MatrixRoomSummary] {
+        let query = chatSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return chatRooms }
+        return chatRooms.filter {
+            $0.name.localizedCaseInsensitiveContains(query)
+                || ($0.topic?.localizedCaseInsensitiveContains(query) ?? false)
+        }
+    }
+
+    private var recentChatRooms: [MatrixRoomSummary] {
+        let direct = chatRooms.filter(\.isDirect)
+        return direct.isEmpty ? Array(chatRooms.prefix(5)) : Array(direct.prefix(5))
+    }
+
+    private var canPresentChat: Bool {
+        !chatRooms.isEmpty || activeRepositoryRoom != nil
+    }
+
+    private func recentChatCard(_ room: MatrixRoomSummary) -> some View {
+        let isActive = chatPanel.activeRoomID == room.id
+        return Button { openChatConversation(room) } label: {
+            VStack(spacing: ZenithDesign.Space.x1) {
+                chatAvatar(for: room, size: 58)
+                Text(room.name)
+                    .font(ZenithDesign.Typography.corporate(.caption, weight: .semibold))
+                    .lineLimit(1)
+                    .frame(width: 68)
+            }
+            .padding(ZenithDesign.Space.x2)
+            .foregroundStyle(isActive ? Color.white : ZenithDesign.Palette.content)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isActive ? Color.accentColor : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func chatConversationRow(_ room: MatrixRoomSummary) -> some View {
+        Button { openChatConversation(room) } label: {
+            HStack(spacing: ZenithDesign.Space.x3) {
+                chatAvatar(for: room, size: 46)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(room.name)
+                        .font(ZenithDesign.Typography.corporate(.body, weight: .semibold))
+                        .foregroundStyle(ZenithDesign.Palette.content)
+                        .lineLimit(1)
+                    Text(chatRoomSubtitle(room))
+                        .font(ZenithDesign.Typography.corporate(.caption, weight: .regular))
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: ZenithDesign.Space.x2)
+                chatConversationStatus(room)
+            }
+            .padding(.horizontal, ZenithDesign.Space.x3)
+            .padding(.vertical, ZenithDesign.Space.x2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func chatConversationStatus(_ room: MatrixRoomSummary) -> some View {
+        if chatPanel.activeRoomID == room.id {
+            Circle()
+                .fill(Color.accentColor)
+                .frame(width: 8, height: 8)
+        } else if room.isEncrypted {
+            Image(systemName: "lock.fill")
+                .font(.caption2)
+                .foregroundStyle(ZenithDesign.Palette.muted)
+        }
+    }
+
+    private func chatAvatar(for room: MatrixRoomSummary, size: CGFloat) -> some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.accentColor.opacity(0.42), Color.accentColor.opacity(0.82)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            Text(chatInitials(room.name))
+                .font(.system(size: size * 0.36, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+        }
+        .frame(width: size, height: size)
+    }
+
+    private func chatInitials(_ name: String) -> String {
+        let initials = name
+            .split(whereSeparator: \.isWhitespace)
+            .prefix(2)
+            .compactMap(\.first)
+            .map(String.init)
+            .joined()
+            .uppercased()
+        return initials.isEmpty ? "#" : initials
+    }
+
+    private func chatRoomSubtitle(_ room: MatrixRoomSummary) -> String {
+        if let topic = room.topic?.trimmingCharacters(in: .whitespacesAndNewlines), !topic.isEmpty {
+            return topic
+        }
+        return room.isDirect ? "Encrypted direct chat" : "Encrypted room"
+    }
+
+    private var activeChatRoom: MatrixRoomSummary? {
+        guard let activeRoomID = chatPanel.activeRoomID else { return nil }
+        return model.rooms.first { $0.id == activeRoomID }
+    }
+
+    private func openChatConversation(_ room: MatrixRoomSummary) {
+        chatPanel.send(.activate(roomID: room.id))
+        chatPanel.send(.showContent)
+        Task {
+            await model.open(room)
+            guard chatPanel.activeRoomID == room.id,
+                  activeRepositoryRoom?.id == room.id else { return }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                chatPanel.send(.showRoomChat)
+            }
+        }
+    }
+
+    private var activeRepositoryRoom: MatrixRoomSummary? {
+        switch model.state {
+        case let .thread(room, _, _) where !room.isSpace && !room.hasInvite,
+             let .trustBlocked(room) where !room.isSpace && !room.hasInvite:
+            return room
+        default:
+            return nil
         }
     }
 
@@ -1671,6 +2076,59 @@ private struct MatrixCompanionShell: View {
                 }
             }
 
+            Section("Devices") {
+                Button("Verify new device") {
+                    showsSettings = false
+                    Task {
+                        await Task.yield()
+                        beginPeerVerification()
+                    }
+                }
+                .disabled(
+                    securityPresentation.primaryDeviceAction != .verifyWithAnotherHyphaDevice
+                )
+                .accessibilityIdentifier("matrix.verification.request.settings")
+
+                Text("Use another signed-in Hypha device to confirm this device's encrypted identity.")
+                    .font(.caption)
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+            }
+
+            Section("GitHub") {
+                if let account = githubConnection.accountLogin {
+                    Label("Connected as \(account)", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(ZenithDesign.Palette.success)
+                    Button("Disconnect GitHub", role: .destructive) {
+                        githubConnection.disconnect()
+                    }
+                    .accessibilityIdentifier("hypha.github.disconnect")
+                } else {
+                    SecureField("GitHub API token", text: $githubConnection.tokenInput)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier("hypha.github.token")
+                    Button(githubConnection.isConnecting ? "Connecting…" : "Connect GitHub") {
+                        githubConnection.connect()
+                    }
+                    .disabled(githubConnection.isConnecting || githubConnection.tokenInput.isEmpty)
+                    .accessibilityIdentifier("hypha.github.connect")
+                }
+
+                Text("GitHub is a global Hypha connection. The temporary token fallback is kept only in memory for this app session, never stored or sent to Matrix. Repository-specific access is checked from each room's Repository control.")
+                    .font(.caption)
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+
+                if let message = githubConnection.statusMessage {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(
+                            githubConnection.statusIsError
+                                ? ZenithDesign.Palette.error
+                                : ZenithDesign.Palette.muted
+                        )
+                        .accessibilityIdentifier("hypha.github.status")
+                }
+            }
+
             Section("Application Updates") {
                 Text("Open Terminal to pull the canonical GitHub main branch, rebuild and verify Hypha outside the app sandbox, install it in place, and reopen it. Terminal shows the complete update log.")
                     .font(.callout)
@@ -1804,6 +2262,14 @@ private struct MatrixCompanionShell: View {
     private func roomRow(_ room: MatrixRoomSummary) -> some View {
         HStack(spacing: ZenithDesign.Space.x2) {
             Button {
+#if os(macOS)
+                if room.isSpace {
+                    chatPanel.send(.clear)
+                } else {
+                    chatPanel.send(.activate(roomID: room.id))
+                    chatPanel.send(.showContent)
+                }
+#endif
                 Task { await model.open(room) }
             } label: {
                 HStack(spacing: ZenithDesign.Space.x2) {
@@ -1915,9 +2381,43 @@ private struct MatrixCompanionShell: View {
                         criticalSecurityStrip
                     }
                 }
-                chatDetail
+                primaryDetail
             }
         }
+    }
+
+    @ViewBuilder
+    private var primaryDetail: some View {
+#if os(macOS)
+        if case let .thread(room, events, composer) = model.state, !room.isSpace {
+            if chatPanel.mainPresentation == .chat, chatPanel.activeRoomID == room.id {
+                thread(room: room, events: events, composerState: composer)
+                    .accessibilityIdentifier("matrix.global.chat-main")
+            } else {
+                HyphaRoomContentView(
+                    model: model,
+                    room: room,
+                    openRepositorySettings: { repositoryRoom = room }
+                )
+                .id("\(room.id)-\(roomContentRefreshID.uuidString)")
+            }
+        } else if case let .trustBlocked(room) = model.state, !room.isSpace {
+            if chatPanel.mainPresentation == .chat, chatPanel.activeRoomID == room.id {
+                chatDetail
+            } else {
+                HyphaRoomContentView(
+                    model: model,
+                    room: room,
+                    openRepositorySettings: { repositoryRoom = room }
+                )
+                .id("\(room.id)-\(roomContentRefreshID.uuidString)")
+            }
+        } else {
+            chatDetail
+        }
+#else
+        chatDetail
+#endif
     }
 
     private var isAuthenticated: Bool {
@@ -2044,73 +2544,6 @@ private struct MatrixCompanionShell: View {
         }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(ZenithDesign.Palette.base)
-    }
-
-    @ViewBuilder
-    private var securityToolbarMenu: some View {
-        if isAuthenticated {
-            Menu {
-                switch securityPresentation.primaryDeviceAction {
-                case .setUpThisDevice:
-                    Button("Set Up This Device", action: beginFirstDeviceSetup)
-                case .verifyWithAnotherHyphaDevice:
-                    Button("Verify with Another Hypha Device", action: beginPeerVerification)
-                case .continueDeviceSetupWithPassword:
-                    Button("Continue Device Setup…", action: continueFirstDeviceSetup)
-                case nil:
-                    EmptyView()
-                }
-
-                if case .deviceSetupFailed = securityPresentation.localOperation {
-                    Button("Try Device Setup Again", action: beginFirstDeviceSetup)
-                }
-
-                switch securityPresentation.recoveryAction {
-                case .setUpRecovery:
-                    Button("Set Up Recovery…", action: openRecoverySetup)
-                case .restoreEncryption:
-                    Button("Restore Encryption…", action: openRecoveryRestore)
-                case nil:
-                    EmptyView()
-                }
-
-                Divider()
-                Button("Change Password…", action: openPasswordChange)
-                if model.adminAccessState == .authorized {
-                    Button("Homeserver Administration…", action: openAdministration)
-                        .accessibilityIdentifier("matrix.admin.open")
-                }
-                Button("Refresh Security Status") {
-                    Task { await model.refreshDeviceVerification() }
-                }
-                Button("Security Center…") {
-                    showsSecurityCenter = true
-                }
-                .accessibilityIdentifier("matrix.security.center.open")
-            } label: {
-                Label {
-                    Text("Security")
-                } icon: {
-                    Image(systemName: securityToolbarSymbol)
-                        .font(.system(size: 12, weight: .medium))
-                }
-            }
-            .help("Device verification and encryption recovery")
-            .accessibilityIdentifier("matrix.security.menu")
-        }
-    }
-
-    private var securityToolbarSymbol: String {
-        switch securityPresentation.indicatorSeverity {
-        case .unknown:
-            return "questionmark.shield"
-        case .recommended:
-            return "exclamationmark.shield.fill"
-        case .secure:
-            return "checkmark.shield.fill"
-        case .critical:
-            return "xmark.shield.fill"
-        }
     }
 
     private var criticalSecurityStrip: some View {

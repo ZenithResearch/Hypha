@@ -133,10 +133,10 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(source.contains("ZenithDesign.Typography.technical(.caption2, weight: .semibold)"))
         XCTAssertTrue(source.contains(".accessibilityLabel(\"Open \\(room.isSpace"))
         XCTAssertTrue(source.contains(".menuIndicator(.hidden)"))
-        XCTAssertTrue(source.contains("Image(systemName: securityToolbarSymbol)"))
+        XCTAssertTrue(source.contains("ToolbarItemGroup(placement: .navigation)"))
     }
 
-    func testSecurityActionsLiveInToolbarAndOnlyCriticalTrustOccupiesChatSurface() throws {
+    func testSecurityActionsUseCompactShellToolbarAndOnlyCriticalTrustOccupiesChatSurface() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
             .deletingLastPathComponent()
@@ -147,12 +147,34 @@ final class MatrixShellSourceContractTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(source.contains("private var securityToolbarMenu"))
+        XCTAssertTrue(source.contains("matrix.toolbar.security"))
+        XCTAssertTrue(source.contains("font(.system(size: 11, weight: .regular))"))
+        XCTAssertTrue(source.contains("foregroundStyle(ZenithDesign.Palette.muted)"))
         XCTAssertTrue(source.contains(".sheet(isPresented: $showsSecurityCenter)"))
-        XCTAssertTrue(source.contains("Security Center…"))
+        XCTAssertTrue(source.contains("label: \"Security\""))
         XCTAssertTrue(source.contains("if securityPresentation.requiresPersistentCriticalBanner"))
         XCTAssertTrue(source.contains("maxHeight: .infinity, alignment: .top"))
         XCTAssertFalse(source.contains("                    securityBanner\n"))
+    }
+
+    func testToolbarActionsDoNotDependOnFocusedMenuValues() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("matrix.toolbar.settings"))
+        XCTAssertTrue(source.contains("matrix.toolbar.repository"))
+        XCTAssertTrue(source.contains("matrix.toolbar.chat"))
+        XCTAssertTrue(source.contains("matrix.toolbar.security"))
+        XCTAssertFalse(source.contains("struct HyphaCommands: Commands"))
+        XCTAssertFalse(source.contains("@FocusedValue(\\.hyphaCommandActions)"))
+        XCTAssertFalse(source.contains(".focusedSceneValue(\\.hyphaCommandActions"))
     }
 
     func testSidebarUsesExplicitVisibleRoomRowsInsteadOfImplicitListStyling() throws {
@@ -193,6 +215,11 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(appSource.contains("peerVerificationEligibility: model.peerVerificationEligibility"))
         XCTAssertTrue(appSource.contains("HyphaSecurityBanner("))
         XCTAssertTrue(bannerSource.contains("case .verifyWithAnotherHyphaDevice"))
+        XCTAssertTrue(appSource.contains("Section(\"Devices\")"))
+        XCTAssertTrue(appSource.contains("Button(\"Verify new device\")"))
+        XCTAssertTrue(appSource.contains("matrix.verification.request.settings"))
+        XCTAssertFalse(bannerSource.contains("Button(\"Verify new device\""))
+        XCTAssertFalse(bannerSource.contains("Verify with another Hypha device"))
         XCTAssertTrue(bannerSource.contains("matrix.security.banner"))
         XCTAssertTrue(bannerSource.contains("@Environment(\\.accessibilityReduceMotion)"))
         XCTAssertTrue(bannerSource.contains("AccessibilityNotification.Announcement"))
@@ -784,7 +811,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "MatrixRustSDKChatService(",
             "MatrixEncryptedSessionVault()",
             "MatrixRustLiveClientFactory(",
-            ".navigationSplitViewColumnWidth(min: 230, ideal: 268, max: 340)",
+            ".navigationSplitViewColumnWidth(min: 230, ideal: 320, max: 560)",
             "private var detailTitle",
             ".keyboardShortcut(.defaultAction)"
         ]
@@ -867,7 +894,8 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(source.contains("firstDevicePassword = \"\""))
         XCTAssertTrue(source.contains("await model.continueFirstDeviceTrust(password: passwordForRequest)"))
         XCTAssertTrue(source.contains("guard firstDeviceTrustBootstrapState != .bootstrapping else { return }"))
-        XCTAssertTrue(source.contains("Verify with another Hypha device"))
+        XCTAssertTrue(source.contains("Button(\"Verify new device\")"))
+        XCTAssertTrue(source.contains("matrix.verification.request.settings"))
         XCTAssertTrue(source.contains("matrix.timeline.authenticity"))
         XCTAssertTrue(source.contains("authenticityPresentation"))
         XCTAssertTrue(source.contains("private func clearSecrets() {\n        username = \"\""))
@@ -1158,7 +1186,8 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "Update from GitHub main",
             "navigationTitle(\"Settings\")",
             "Section(\"Application Updates\")",
-            "hypha.settings",
+            "identifier: \"matrix.toolbar.settings\"",
+            "showsSettings = true",
         ] {
             XCTAssertTrue(app.contains(marker), "Missing updater UI contract: \(marker)")
         }

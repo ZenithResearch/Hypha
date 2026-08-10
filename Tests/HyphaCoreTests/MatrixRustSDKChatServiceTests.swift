@@ -508,6 +508,35 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(observedRoomCreationRequests, [request])
     }
 
+    func testServiceStoresAndReadsRepositoryAttachmentForJoinedRoom() async throws {
+        let room = MatrixRoomSummary(
+            id: "!repo:example.org",
+            name: "Repository room",
+            isEncrypted: true,
+            hasInvite: false
+        )
+        let attachment = MatrixRoomRepositoryAttachment(
+            repository: "git@github.com:ZenithResearch/Hypha.git",
+            name: "Hypha"
+        )
+        let client = FakeLiveClient()
+        await client.setRooms([room])
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: client),
+            randomStoreKey: { Data(repeating: 2, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "secret")
+
+        try await service.setRoomRepositoryAttachment(attachment, roomID: room.id)
+
+        let storedAttachment = try await service.roomRepositoryAttachment(roomID: room.id)
+        let writes = await client.observedRepositoryAttachmentWrites()
+        XCTAssertEqual(storedAttachment, attachment)
+        XCTAssertEqual(writes, [attachment])
+    }
+
     func testServiceForwardsInviteOnlyForCachedEligibleRoom() async throws {
         let room = MatrixRoomSummary(
             id: "!eligible:example.org",
@@ -900,6 +929,8 @@ private actor FakeLiveClient: MatrixLiveClient {
     private var userLookupRequests: [String] = []
     private var roomRemovalRequests: [String] = []
     private var sends: [String] = []
+    private var repositoryAttachment: MatrixRoomRepositoryAttachment?
+    private var repositoryAttachmentWrites: [MatrixRoomRepositoryAttachment] = []
     private let trustState: MatrixDeviceTrustState
     private let peerVerificationEligibility: MatrixPeerVerificationEligibility
     private let peerVerificationEligibilityError: Error?
@@ -976,6 +1007,16 @@ private actor FakeLiveClient: MatrixLiveClient {
     }
     func timeline(roomID: String) async throws -> [MatrixTimelineEvent] { [] }
     func sendText(_ body: String, roomID: String) async throws { sends.append(body) }
+    func roomRepositoryAttachment(roomID: String) async throws -> MatrixRoomRepositoryAttachment? {
+        repositoryAttachment
+    }
+    func setRoomRepositoryAttachment(
+        _ attachment: MatrixRoomRepositoryAttachment,
+        roomID: String
+    ) async throws {
+        repositoryAttachment = attachment
+        repositoryAttachmentWrites.append(attachment)
+    }
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary {
         roomCreationRequests.append(request)
         guard let createdRoom else {
@@ -1064,6 +1105,9 @@ private actor FakeLiveClient: MatrixLiveClient {
     func observedUserLookupRequests() -> [String] { userLookupRequests }
     func observedRoomRemovalRequests() -> [String] { roomRemovalRequests }
     func sentBodies() -> [String] { sends }
+    func observedRepositoryAttachmentWrites() -> [MatrixRoomRepositoryAttachment] {
+        repositoryAttachmentWrites
+    }
 }
 
 private actor FakeLiveClientFactory: MatrixLiveClientFactory {

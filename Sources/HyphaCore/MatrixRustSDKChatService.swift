@@ -134,6 +134,11 @@ public protocol MatrixLiveClient: Sendable {
     func joinedRooms() async throws -> [MatrixRoomSummary]
     func timeline(roomID: String) async throws -> [MatrixTimelineEvent]
     func sendText(_ body: String, roomID: String) async throws
+    func roomRepositoryAttachment(roomID: String) async throws -> MatrixRoomRepositoryAttachment?
+    func setRoomRepositoryAttachment(
+        _ attachment: MatrixRoomRepositoryAttachment,
+        roomID: String
+    ) async throws
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary
     func lookupInviteUser(userID: String, roomID: String) async throws -> MatrixUserLookupResult
     func inviteUsers(_ request: MatrixRoomInviteRequest) async throws
@@ -154,6 +159,15 @@ public protocol MatrixLiveClient: Sendable {
 }
 
 public extension MatrixLiveClient {
+    func roomRepositoryAttachment(roomID: String) async throws -> MatrixRoomRepositoryAttachment? { nil }
+
+    func setRoomRepositoryAttachment(
+        _ attachment: MatrixRoomRepositoryAttachment,
+        roomID: String
+    ) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Room repository attachments are unavailable")
+    }
+
     func changePassword(
         currentPassword: String,
         newPassword: String,
@@ -365,6 +379,41 @@ public actor MatrixRustSDKChatService: MatrixChatService {
             try await client.sendText(body, roomID: roomID)
         } catch {
             throw mapRuntimeError(error)
+        }
+    }
+
+    public func roomRepositoryAttachment(roomID: String) async throws -> MatrixRoomRepositoryAttachment? {
+        guard let client,
+              let room = roomsByID[roomID],
+              !room.hasInvite,
+              !room.isSpace else {
+            throw MatrixChatServiceError.unavailable(reason: "Room repository attachment is unavailable")
+        }
+        do {
+            return try await client.roomRepositoryAttachment(roomID: roomID)
+        } catch let error as MatrixChatServiceError {
+            throw error
+        } catch {
+            throw mapRuntimeError(error, fallbackReason: "Room repository attachment could not be read")
+        }
+    }
+
+    public func setRoomRepositoryAttachment(
+        _ attachment: MatrixRoomRepositoryAttachment,
+        roomID: String
+    ) async throws {
+        guard let client,
+              let room = roomsByID[roomID],
+              !room.hasInvite,
+              !room.isSpace else {
+            throw MatrixChatServiceError.unavailable(reason: "Room repository attachment is unavailable")
+        }
+        do {
+            try await client.setRoomRepositoryAttachment(attachment, roomID: roomID)
+        } catch let error as MatrixChatServiceError {
+            throw error
+        } catch {
+            throw mapRuntimeError(error, fallbackReason: "Room repository attachment could not be saved")
         }
     }
 
@@ -1939,6 +1988,42 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
         }
         throw MatrixChatServiceError.unavailable(
             reason: "The homeserver did not confirm the encrypted message"
+        )
+    }
+
+    public func roomRepositoryAttachment(roomID: String) async throws -> MatrixRoomRepositoryAttachment? {
+        guard let room = roomByID[roomID], room.membership() == .joined else {
+            throw MatrixChatServiceError.unavailable(reason: "Room is not available")
+        }
+        guard let raw = try await room.getStateEventRaw(
+            eventType: MatrixRoomRepositoryAttachment.eventType,
+            stateKey: MatrixRoomRepositoryAttachment.stateKey
+        ) else { return nil }
+        guard let data = raw.data(using: .utf8) else {
+            throw MatrixChatServiceError.unavailable(reason: "Room repository attachment is invalid")
+        }
+        do {
+            return try MatrixRoomRepositoryAttachment.decodeStateEvent(data)
+        } catch {
+            throw MatrixChatServiceError.unavailable(reason: "Room repository attachment is invalid")
+        }
+    }
+
+    public func setRoomRepositoryAttachment(
+        _ attachment: MatrixRoomRepositoryAttachment,
+        roomID: String
+    ) async throws {
+        guard let room = roomByID[roomID], room.membership() == .joined else {
+            throw MatrixChatServiceError.unavailable(reason: "Room is not available")
+        }
+        let content = try attachment.encodedContent()
+        guard let json = String(data: content, encoding: .utf8) else {
+            throw MatrixChatServiceError.unavailable(reason: "Room repository attachment could not be encoded")
+        }
+        _ = try await room.sendStateEventRaw(
+            eventType: MatrixRoomRepositoryAttachment.eventType,
+            stateKey: MatrixRoomRepositoryAttachment.stateKey,
+            content: json
         )
     }
 
