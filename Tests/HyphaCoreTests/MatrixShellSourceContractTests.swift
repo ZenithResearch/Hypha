@@ -1345,8 +1345,10 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(app.contains("currentHomeserverPasswordResetRequest()"))
         XCTAssertGreaterThanOrEqual(
             app.components(separatedBy: "await refreshPasswordResetAuthority(using: coordinator)").count - 1,
-            4
+            5
         )
+        XCTAssertTrue(app.contains("preflightMandatoryPasswordReset(using: coordinator)"))
+        XCTAssertTrue(app.contains("case .resetNoLongerRequired"))
         XCTAssertTrue(app.contains("MatrixMandatoryPasswordResetSheet"))
         XCTAssertTrue(app.contains(".interactiveDismissDisabled(true)"))
         XCTAssertTrue(app.contains("logoutOtherDevices: requiresCompletion ? true : logoutOtherDevices"))

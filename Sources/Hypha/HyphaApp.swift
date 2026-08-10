@@ -68,6 +68,7 @@ fileprivate enum MatrixAppPasswordChangeOutcome: Equatable {
     case successWithApplePasswordsUpdate
     case successWithCredentialUpdates
     case successWithCredentialWarning
+    case resetNoLongerRequired
     case invalidCurrentPassword
     case failed(String)
 }
@@ -494,6 +495,7 @@ final class MatrixAppModel: ObservableObject {
             await refreshAdministratorAccess()
             refreshSavedSessions(configuration: configuration)
             if case .rooms = state {
+                await refreshPasswordResetAuthority(using: coordinator)
                 do {
                     try credentialStore.finalizeAuthenticatedMigration(credential)
                 } catch {
@@ -664,6 +666,7 @@ final class MatrixAppModel: ObservableObject {
             request = nil
             authorityQuerySucceeded = false
         }
+        guard coordinator === self.coordinator else { return }
         pendingHomeserverPasswordResetRequest = request
 
         let completedRequestID = completedPasswordResetRequestID(accountKey: accountKey)
@@ -687,6 +690,60 @@ final class MatrixAppModel: ObservableObject {
         } else {
             clearInitialPasswordResetRequirement(accountKey: accountKey)
         }
+    }
+
+    private func preflightMandatoryPasswordReset(
+        using coordinator: MatrixChatCoordinator
+    ) async -> MatrixAppPasswordChangeOutcome? {
+        guard requiresInitialPasswordReset else { return nil }
+        guard let accountKey = activeSessionAccountKey else {
+            return .failed("Hypha could not identify the account that requires a password replacement.")
+        }
+
+        let request: MatrixPasswordResetRequest
+        do {
+            guard let currentRequest = try await coordinator.currentHomeserverPasswordResetRequest() else {
+                guard coordinator === self.coordinator else {
+                    return .failed("The active Matrix session changed. Reopen the password replacement screen and try again.")
+                }
+                pendingHomeserverPasswordResetRequest = nil
+                hasPendingHomeserverPasswordResetRequest = false
+                clearInitialPasswordResetRequirement(accountKey: accountKey)
+                roomSyncMessage = "The homeserver no longer requires a password replacement."
+                roomSyncMessageTone = .success
+                return .resetNoLongerRequired
+            }
+            request = currentRequest
+        } catch {
+            return .failed(
+                "Hypha could not verify the current homeserver password-reset request. Reconnect and try again before changing the password."
+            )
+        }
+        guard coordinator === self.coordinator else {
+            return .failed("The active Matrix session changed. Reopen the password replacement screen and try again.")
+        }
+
+        let completedRequestID = completedPasswordResetRequestID(accountKey: accountKey)
+        guard MatrixInitialPasswordResetPolicy.requiresReset(
+            serverRequestID: request.requestID,
+            completedRequestID: completedRequestID,
+            authorityQuerySucceeded: true
+        ) else {
+            pendingHomeserverPasswordResetRequest = request
+            hasPendingHomeserverPasswordResetRequest = false
+            clearInitialPasswordResetRequirement(accountKey: accountKey)
+            let closedServerRequest = await coordinator.completeHomeserverPasswordResetRequest()
+            if !closedServerRequest {
+                roomSyncMessage = "Your password is already replaced, but Hypha could not close the stale homeserver reset request yet."
+                roomSyncMessageTone = .warning
+            }
+            return .resetNoLongerRequired
+        }
+
+        pendingHomeserverPasswordResetRequest = request
+        hasPendingHomeserverPasswordResetRequest = true
+        markInitialPasswordResetRequired(accountKey: accountKey)
+        return nil
     }
 
     @discardableResult
@@ -902,6 +959,9 @@ final class MatrixAppModel: ObservableObject {
     ) async -> MatrixAppPasswordChangeOutcome {
         guard let coordinator else {
             return .failed("No active Matrix session is available.")
+        }
+        if let preflightOutcome = await preflightMandatoryPasswordReset(using: coordinator) {
+            return preflightOutcome
         }
         let result = await coordinator.changePassword(
             currentPassword: currentPassword,
@@ -3754,6 +3814,9 @@ private struct MatrixChangePasswordSheet: View {
                 submissionState = .succeeded(.allUpdated)
             case .successWithCredentialWarning:
                 submissionState = .succeeded(.updateFailed)
+            case .resetNoLongerRequired:
+                clearSecrets()
+                isPresented = false
             case .invalidCurrentPassword:
                 submissionState = .failed("The current password was not accepted. Re-enter all password fields and try again.")
             case let .failed(message):
