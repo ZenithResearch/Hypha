@@ -43,6 +43,10 @@ final class PlatformStorageIdentityContractTests: XCTestCase {
         XCTAssertEqual(MatrixPlatformStorageIdentity.macOS.vaultRoot, Self.macOS.vaultRoot)
         XCTAssertEqual(MatrixPlatformStorageIdentity.macOS.cryptoRoot, Self.macOS.cryptoRoot)
         XCTAssertEqual(MatrixPlatformStorageIdentity.macOS.homeserverDefaultsKey, Self.macOS.defaultsKey)
+        XCTAssertEqual(
+            MatrixPlatformStorageIdentity.macOS.completedInitialPasswordChangeDefaultsKey,
+            "ca.zenithresearch.macos.client.completed-initial-password-change-account-keys"
+        )
         XCTAssertEqual(MatrixPlatformStorageIdentity.macOS.loggerSubsystem, Self.macOS.loggerSubsystem)
         XCTAssertTrue(MatrixPlatformStorageIdentity.macOS.legacyMigrationEnabled)
 
@@ -51,6 +55,10 @@ final class PlatformStorageIdentityContractTests: XCTestCase {
         XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.vaultRoot, Self.iOS.vaultRoot)
         XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.cryptoRoot, Self.iOS.cryptoRoot)
         XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.homeserverDefaultsKey, Self.iOS.defaultsKey)
+        XCTAssertEqual(
+            MatrixPlatformStorageIdentity.iOS.completedInitialPasswordChangeDefaultsKey,
+            "ca.zenithresearch.ios.client.completed-initial-password-change-account-keys"
+        )
         XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.loggerSubsystem, Self.iOS.loggerSubsystem)
         XCTAssertFalse(MatrixPlatformStorageIdentity.iOS.legacyMigrationEnabled)
 

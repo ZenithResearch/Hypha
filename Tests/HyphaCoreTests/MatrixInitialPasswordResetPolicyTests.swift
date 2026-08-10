@@ -4,13 +4,28 @@ import XCTest
 final class MatrixInitialPasswordResetPolicyTests: XCTestCase {
     func testPendingServerResetRequestRequiresImmediateReset() {
         XCTAssertTrue(
-            MatrixInitialPasswordResetPolicy.requiresReset(serverRequestPending: true)
+            MatrixInitialPasswordResetPolicy.requiresReset(
+                serverRequestPending: true,
+                hasCompletedInitialPasswordChange: false
+            )
+        )
+    }
+
+    func testCompletedInitialPasswordChangeSuppressesAStaleServerResetRequest() {
+        XCTAssertFalse(
+            MatrixInitialPasswordResetPolicy.requiresReset(
+                serverRequestPending: true,
+                hasCompletedInitialPasswordChange: true
+            )
         )
     }
 
     func testFirstLoginWithoutServerResetRequestDoesNotInferTemporaryPassword() {
         XCTAssertFalse(
-            MatrixInitialPasswordResetPolicy.requiresReset(serverRequestPending: false)
+            MatrixInitialPasswordResetPolicy.requiresReset(
+                serverRequestPending: false,
+                hasCompletedInitialPasswordChange: false
+            )
         )
     }
 

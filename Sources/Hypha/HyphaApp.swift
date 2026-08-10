@@ -404,11 +404,17 @@ final class MatrixAppModel: ObservableObject {
                 } catch {
                     serverRequestPending = true
                 }
-                hasPendingHomeserverPasswordResetRequest = serverRequestPending
+                let hasCompletedInitialPasswordChange = hasCompletedInitialPasswordChange(
+                    accountKey: candidateAccountKey
+                )
+                hasPendingHomeserverPasswordResetRequest = serverRequestPending && !hasCompletedInitialPasswordChange
                 if MatrixInitialPasswordResetPolicy.requiresReset(
-                    serverRequestPending: serverRequestPending
+                    serverRequestPending: serverRequestPending,
+                    hasCompletedInitialPasswordChange: hasCompletedInitialPasswordChange
                 ) {
                     markInitialPasswordResetRequired(accountKey: candidateAccountKey)
+                } else {
+                    clearInitialPasswordResetRequirement(accountKey: candidateAccountKey)
                 }
             }
             if case .rooms = state, shouldSaveInApplePasswords {
@@ -587,6 +593,10 @@ final class MatrixAppModel: ObservableObject {
     }
 
     private func markInitialPasswordResetRequired(accountKey: String) {
+        guard !hasCompletedInitialPasswordChange(accountKey: accountKey) else {
+            requiresInitialPasswordReset = false
+            return
+        }
         var pending = Set(defaults.stringArray(forKey: storageIdentity.pendingPasswordResetDefaultsKey) ?? [])
         pending.insert(accountKey)
         defaults.set(Array(pending).sorted(), forKey: storageIdentity.pendingPasswordResetDefaultsKey)
@@ -595,10 +605,31 @@ final class MatrixAppModel: ObservableObject {
 
     func completeInitialPasswordReset() {
         guard let accountKey = activeSessionAccountKey else { return }
+        var completed = Set(
+            defaults.stringArray(forKey: storageIdentity.completedInitialPasswordChangeDefaultsKey) ?? []
+        )
+        completed.insert(accountKey)
+        defaults.set(
+            Array(completed).sorted(),
+            forKey: storageIdentity.completedInitialPasswordChangeDefaultsKey
+        )
+        clearInitialPasswordResetRequirement(accountKey: accountKey)
+    }
+
+    private func hasCompletedInitialPasswordChange(accountKey: String) -> Bool {
+        let completed = Set(
+            defaults.stringArray(forKey: storageIdentity.completedInitialPasswordChangeDefaultsKey) ?? []
+        )
+        return completed.contains(accountKey)
+    }
+
+    private func clearInitialPasswordResetRequirement(accountKey: String) {
         var pending = Set(defaults.stringArray(forKey: storageIdentity.pendingPasswordResetDefaultsKey) ?? [])
         pending.remove(accountKey)
         defaults.set(Array(pending).sorted(), forKey: storageIdentity.pendingPasswordResetDefaultsKey)
-        requiresInitialPasswordReset = false
+        if activeSessionAccountKey == accountKey {
+            requiresInitialPasswordReset = false
+        }
     }
 
     private func refreshInitialPasswordResetRequirement() {
@@ -608,6 +639,7 @@ final class MatrixAppModel: ObservableObject {
         }
         let pending = Set(defaults.stringArray(forKey: storageIdentity.pendingPasswordResetDefaultsKey) ?? [])
         requiresInitialPasswordReset = pending.contains(accountKey)
+            && !hasCompletedInitialPasswordChange(accountKey: accountKey)
     }
 
     @discardableResult
@@ -831,14 +863,14 @@ final class MatrixAppModel: ObservableObject {
         )
         switch result {
         case .success:
+            if requiresInitialPasswordReset {
+                completeInitialPasswordReset()
+            }
             if hasPendingHomeserverPasswordResetRequest {
                 guard await coordinator.completeHomeserverPasswordResetRequest() else {
                     return .failed("The password changed, but Hypha could not close the homeserver reset request. The new password is now your current password. Reconnect and replace it once more to finish safely.")
                 }
                 hasPendingHomeserverPasswordResetRequest = false
-            }
-            if requiresInitialPasswordReset {
-                completeInitialPasswordReset()
             }
             var updatedApplePasswords = false
             if saveInApplePasswords {

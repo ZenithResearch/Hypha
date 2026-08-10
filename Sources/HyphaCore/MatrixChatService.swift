@@ -223,8 +223,11 @@ public enum MatrixPasswordLoginPolicy {
 }
 
 public enum MatrixInitialPasswordResetPolicy {
-    public static func requiresReset(serverRequestPending: Bool) -> Bool {
-        serverRequestPending
+    public static func requiresReset(
+        serverRequestPending: Bool,
+        hasCompletedInitialPasswordChange: Bool
+    ) -> Bool {
+        serverRequestPending && !hasCompletedInitialPasswordChange
     }
 }
 

@@ -7,6 +7,7 @@ public struct MatrixPlatformStorageIdentity: Equatable, Sendable {
     public let cryptoRoot: String
     public let homeserverDefaultsKey: String
     public let pendingPasswordResetDefaultsKey: String
+    public let completedInitialPasswordChangeDefaultsKey: String
     public let loggerSubsystem: String
     public let legacyKeychainService: String?
     public let legacyCryptoRoot: String?
@@ -32,6 +33,7 @@ public struct MatrixPlatformStorageIdentity: Equatable, Sendable {
         cryptoRoot: "ZenithMacOSClient/Matrix",
         homeserverDefaultsKey: "ca.zenithresearch.macos.client.matrix.homeserver",
         pendingPasswordResetDefaultsKey: "ca.zenithresearch.macos.client.pending-initial-password-reset-account-keys",
+        completedInitialPasswordChangeDefaultsKey: "ca.zenithresearch.macos.client.completed-initial-password-change-account-keys",
         loggerSubsystem: "ca.zenithresearch.macos.client",
         legacyKeychainService: ["ca", "zenith-research", "mobile-macos", "matrix"].joined(separator: "."),
         legacyCryptoRoot: ["Zenith", "Mobile", "MacOS"].joined() + "/Matrix",
@@ -46,6 +48,7 @@ public struct MatrixPlatformStorageIdentity: Equatable, Sendable {
         cryptoRoot: "ZenithIOSClient/Matrix",
         homeserverDefaultsKey: "ca.zenithresearch.ios.client.matrix.homeserver",
         pendingPasswordResetDefaultsKey: "ca.zenithresearch.ios.client.pending-initial-password-reset-account-keys",
+        completedInitialPasswordChangeDefaultsKey: "ca.zenithresearch.ios.client.completed-initial-password-change-account-keys",
         loggerSubsystem: "ca.zenithresearch.ios.client",
         legacyKeychainService: nil,
         legacyCryptoRoot: nil,
