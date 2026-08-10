@@ -563,6 +563,15 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         XCTAssertEqual((example["artifacts"] as? [[String: Any]])?.count, 4)
     }
 
+    func testRepositoryOutputSchemaConformanceSuite() throws {
+        let root = repositoryRoot()
+        try runNPM(
+            ["--prefix", "docs", "ci", "--ignore-scripts", "--no-audit", "--no-fund"],
+            at: root
+        )
+        try runNPM(["--prefix", "docs", "test"], at: root)
+    }
+
     func testRepositoryOutputDocumentationRecordsCompatibilityAndRemoteExecutionBoundaries() throws {
         let root = repositoryRoot()
         let documentation = try String(
@@ -653,6 +662,33 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         try Data(contentsOf: repositoryRoot().appendingPathComponent("docs/examples/out.v2.json"))
             .write(to: output.appendingPathComponent("out.json"))
         return output
+    }
+
+    private func runNPM(
+        _ arguments: [String],
+        at root: URL,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["npm"] + arguments
+        process.currentDirectoryURL = root
+        process.standardOutput = output
+        process.standardError = output
+        try process.run()
+        process.waitUntilExit()
+
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        let text = String(decoding: data, as: UTF8.self)
+        XCTAssertEqual(
+            process.terminationStatus,
+            0,
+            "npm \(arguments.joined(separator: " ")) failed:\n\(text)",
+            file: file,
+            line: line
+        )
     }
 
     private func repositoryRoot() -> URL {

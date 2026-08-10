@@ -46,8 +46,6 @@ jobs:
           python3 scripts/test_public_release_verifier.py
           python3 scripts/test_release_metadata.py
           python3 scripts/test_update_launcher.py
-          npm --prefix docs ci --ignore-scripts --no-audit --no-fund
-          npm --prefix docs test
           swift test
       - name: Build and package explicitly non-notarized release
         env:
