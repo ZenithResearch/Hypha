@@ -49,6 +49,10 @@ final class PlatformStorageIdentityContractTests: XCTestCase {
         )
         XCTAssertEqual(MatrixPlatformStorageIdentity.macOS.loggerSubsystem, Self.macOS.loggerSubsystem)
         XCTAssertTrue(MatrixPlatformStorageIdentity.macOS.legacyMigrationEnabled)
+        XCTAssertEqual(
+            MatrixPlatformStorageIdentity.macOS.legacyPendingPasswordResetDefaultsKey,
+            "ca.zenithresearch.hypha.pending-initial-password-reset-account-keys"
+        )
 
         XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.bundleIdentifier, Self.iOS.bundle)
         XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.keychainService, Self.iOS.keychainService)
@@ -61,6 +65,7 @@ final class PlatformStorageIdentityContractTests: XCTestCase {
         )
         XCTAssertEqual(MatrixPlatformStorageIdentity.iOS.loggerSubsystem, Self.iOS.loggerSubsystem)
         XCTAssertFalse(MatrixPlatformStorageIdentity.iOS.legacyMigrationEnabled)
+        XCTAssertNil(MatrixPlatformStorageIdentity.iOS.legacyPendingPasswordResetDefaultsKey)
 
         #if os(iOS)
         XCTAssertEqual(MatrixPlatformStorageIdentity.current, .iOS)

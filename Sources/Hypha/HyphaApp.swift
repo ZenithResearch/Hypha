@@ -68,6 +68,7 @@ fileprivate enum MatrixAppPasswordChangeOutcome: Equatable {
     case successWithApplePasswordsUpdate
     case successWithCredentialUpdates
     case successWithCredentialWarning
+    case resetNoLongerRequired
     case invalidCurrentPassword
     case failed(String)
 }
@@ -145,6 +146,7 @@ final class MatrixAppModel: ObservableObject {
     private let serviceFactory: ServiceFactory
     private var activeConfiguration: MatrixProductConfiguration?
     private var coordinator: MatrixChatCoordinator?
+    private var pendingHomeserverPasswordResetRequest: MatrixPasswordResetRequest?
     private var registrationClient: MatrixInviteRegistrationClient?
     private var timelineRefreshTask: Task<Void, Never>?
     private var authenticationOperationGate = HyphaAuthenticationOperationGate()
@@ -166,6 +168,7 @@ final class MatrixAppModel: ObservableObject {
         self.credentialStore = credentialStore
         self.sharedPasswordStore = sharedPasswordStore
         self.serviceFactory = serviceFactory
+        migrateLegacyPendingPasswordResetStateIfNeeded()
     }
 
     private func makeCoordinator(configuration: MatrixProductConfiguration) -> MatrixChatCoordinator {
@@ -218,6 +221,9 @@ final class MatrixAppModel: ObservableObject {
             }
             applyState(from: coordinator)
             applySecurityState(from: coordinator)
+            if case .rooms = state {
+                await refreshPasswordResetAuthority(using: coordinator)
+            }
             await refreshAdministratorAccess()
             let registrationClient = MatrixInviteRegistrationClient(homeserver: configuration.homeserver)
             self.registrationClient = registrationClient
@@ -397,32 +403,8 @@ final class MatrixAppModel: ObservableObject {
         await refreshAdministratorAccess()
         if let configuration = activeConfiguration {
             refreshSavedSessions(configuration: configuration)
-            if case .rooms = state, let candidateAccountKey {
-                let serverRequestPending: Bool
-                do {
-                    serverRequestPending = try await coordinator.hasPendingHomeserverPasswordResetRequest()
-                } catch {
-                    serverRequestPending = true
-                }
-                let hasCompletedInitialPasswordChange = hasCompletedInitialPasswordChange(
-                    accountKey: candidateAccountKey
-                )
-                hasPendingHomeserverPasswordResetRequest = serverRequestPending && !hasCompletedInitialPasswordChange
-                if serverRequestPending && hasCompletedInitialPasswordChange {
-                    let closedServerRequest = await coordinator.completeHomeserverPasswordResetRequest()
-                    if !closedServerRequest {
-                        roomSyncMessage = "Your password is already replaced, but Hypha could not close the stale homeserver reset request yet."
-                        roomSyncMessageTone = .warning
-                    }
-                }
-                if MatrixInitialPasswordResetPolicy.requiresReset(
-                    serverRequestPending: serverRequestPending,
-                    hasCompletedInitialPasswordChange: hasCompletedInitialPasswordChange
-                ) {
-                    markInitialPasswordResetRequired(accountKey: candidateAccountKey)
-                } else {
-                    clearInitialPasswordResetRequirement(accountKey: candidateAccountKey)
-                }
+            if case .rooms = state, candidateAccountKey != nil {
+                await refreshPasswordResetAuthority(using: coordinator)
             }
             if case .rooms = state, shouldSaveInApplePasswords {
                 await saveInApplePasswords(
@@ -456,6 +438,9 @@ final class MatrixAppModel: ObservableObject {
         await refreshAdministratorAccess()
         if let configuration = activeConfiguration {
             refreshSavedSessions(configuration: configuration)
+            if case .rooms = state {
+                await refreshPasswordResetAuthority(using: coordinator)
+            }
         }
     }
 
@@ -510,6 +495,7 @@ final class MatrixAppModel: ObservableObject {
             await refreshAdministratorAccess()
             refreshSavedSessions(configuration: configuration)
             if case .rooms = state {
+                await refreshPasswordResetAuthority(using: coordinator)
                 do {
                     try credentialStore.finalizeAuthenticatedMigration(credential)
                 } catch {
@@ -543,6 +529,9 @@ final class MatrixAppModel: ObservableObject {
             applySecurityState(from: coordinator)
             await refreshAdministratorAccess()
             refreshSavedSessions(configuration: configuration)
+            if case .rooms = state {
+                await refreshPasswordResetAuthority(using: coordinator)
+            }
         } catch {
             state = .unavailable(reason: "Saved Matrix session could not be opened")
         }
@@ -600,10 +589,6 @@ final class MatrixAppModel: ObservableObject {
     }
 
     private func markInitialPasswordResetRequired(accountKey: String) {
-        guard !hasCompletedInitialPasswordChange(accountKey: accountKey) else {
-            requiresInitialPasswordReset = false
-            return
-        }
         var pending = Set(defaults.stringArray(forKey: storageIdentity.pendingPasswordResetDefaultsKey) ?? [])
         pending.insert(accountKey)
         defaults.set(Array(pending).sorted(), forKey: storageIdentity.pendingPasswordResetDefaultsKey)
@@ -612,22 +597,27 @@ final class MatrixAppModel: ObservableObject {
 
     func completeInitialPasswordReset() {
         guard let accountKey = activeSessionAccountKey else { return }
-        var completed = Set(
-            defaults.stringArray(forKey: storageIdentity.completedInitialPasswordChangeDefaultsKey) ?? []
-        )
-        completed.insert(accountKey)
-        defaults.set(
-            Array(completed).sorted(),
-            forKey: storageIdentity.completedInitialPasswordChangeDefaultsKey
-        )
+        if let requestID = pendingHomeserverPasswordResetRequest?.requestID {
+            let completed = defaults.dictionary(
+                forKey: storageIdentity.completedInitialPasswordChangeDefaultsKey
+            ) as? [String: String] ?? [:]
+            defaults.set(
+                MatrixPasswordResetPersistencePolicy.recordingCompletion(
+                    accountKey: accountKey,
+                    requestID: requestID,
+                    in: completed
+                ),
+                forKey: storageIdentity.completedInitialPasswordChangeDefaultsKey
+            )
+        }
         clearInitialPasswordResetRequirement(accountKey: accountKey)
     }
 
-    private func hasCompletedInitialPasswordChange(accountKey: String) -> Bool {
-        let completed = Set(
-            defaults.stringArray(forKey: storageIdentity.completedInitialPasswordChangeDefaultsKey) ?? []
-        )
-        return completed.contains(accountKey)
+    private func completedPasswordResetRequestID(accountKey: String) -> String? {
+        let completed = defaults.dictionary(
+            forKey: storageIdentity.completedInitialPasswordChangeDefaultsKey
+        ) as? [String: String]
+        return completed?[accountKey]
     }
 
     private func clearInitialPasswordResetRequirement(accountKey: String) {
@@ -646,7 +636,114 @@ final class MatrixAppModel: ObservableObject {
         }
         let pending = Set(defaults.stringArray(forKey: storageIdentity.pendingPasswordResetDefaultsKey) ?? [])
         requiresInitialPasswordReset = pending.contains(accountKey)
-            && !hasCompletedInitialPasswordChange(accountKey: accountKey)
+    }
+
+    private func migrateLegacyPendingPasswordResetStateIfNeeded() {
+        guard let legacyKey = storageIdentity.legacyPendingPasswordResetDefaultsKey,
+              let legacyPending = defaults.stringArray(forKey: legacyKey) else { return }
+        let pending = MatrixPasswordResetPersistencePolicy.mergedPendingAccountKeys(
+            current: defaults.stringArray(forKey: storageIdentity.pendingPasswordResetDefaultsKey) ?? [],
+            legacy: legacyPending
+        )
+        defaults.set(pending, forKey: storageIdentity.pendingPasswordResetDefaultsKey)
+        defaults.removeObject(forKey: legacyKey)
+    }
+
+    private func refreshPasswordResetAuthority(using coordinator: MatrixChatCoordinator) async {
+        guard let accountKey = activeSessionAccountKey else {
+            pendingHomeserverPasswordResetRequest = nil
+            hasPendingHomeserverPasswordResetRequest = false
+            requiresInitialPasswordReset = false
+            return
+        }
+
+        let request: MatrixPasswordResetRequest?
+        let authorityQuerySucceeded: Bool
+        do {
+            request = try await coordinator.currentHomeserverPasswordResetRequest()
+            authorityQuerySucceeded = true
+        } catch {
+            request = nil
+            authorityQuerySucceeded = false
+        }
+        guard coordinator === self.coordinator else { return }
+        pendingHomeserverPasswordResetRequest = request
+
+        let completedRequestID = completedPasswordResetRequestID(accountKey: accountKey)
+        let requiresReset = MatrixInitialPasswordResetPolicy.requiresReset(
+            serverRequestID: request?.requestID,
+            completedRequestID: completedRequestID,
+            authorityQuerySucceeded: authorityQuerySucceeded
+        )
+        hasPendingHomeserverPasswordResetRequest = requiresReset
+
+        if let request, request.requestID == completedRequestID {
+            let closedServerRequest = await coordinator.completeHomeserverPasswordResetRequest()
+            if !closedServerRequest {
+                roomSyncMessage = "Your password is already replaced, but Hypha could not close the stale homeserver reset request yet."
+                roomSyncMessageTone = .warning
+            }
+        }
+
+        if requiresReset {
+            markInitialPasswordResetRequired(accountKey: accountKey)
+        } else {
+            clearInitialPasswordResetRequirement(accountKey: accountKey)
+        }
+    }
+
+    private func preflightMandatoryPasswordReset(
+        using coordinator: MatrixChatCoordinator
+    ) async -> MatrixAppPasswordChangeOutcome? {
+        guard requiresInitialPasswordReset else { return nil }
+        guard let accountKey = activeSessionAccountKey else {
+            return .failed("Hypha could not identify the account that requires a password replacement.")
+        }
+
+        let request: MatrixPasswordResetRequest
+        do {
+            guard let currentRequest = try await coordinator.currentHomeserverPasswordResetRequest() else {
+                guard coordinator === self.coordinator else {
+                    return .failed("The active Matrix session changed. Reopen the password replacement screen and try again.")
+                }
+                pendingHomeserverPasswordResetRequest = nil
+                hasPendingHomeserverPasswordResetRequest = false
+                clearInitialPasswordResetRequirement(accountKey: accountKey)
+                roomSyncMessage = "The homeserver no longer requires a password replacement."
+                roomSyncMessageTone = .success
+                return .resetNoLongerRequired
+            }
+            request = currentRequest
+        } catch {
+            return .failed(
+                "Hypha could not verify the current homeserver password-reset request. Reconnect and try again before changing the password."
+            )
+        }
+        guard coordinator === self.coordinator else {
+            return .failed("The active Matrix session changed. Reopen the password replacement screen and try again.")
+        }
+
+        let completedRequestID = completedPasswordResetRequestID(accountKey: accountKey)
+        guard MatrixInitialPasswordResetPolicy.requiresReset(
+            serverRequestID: request.requestID,
+            completedRequestID: completedRequestID,
+            authorityQuerySucceeded: true
+        ) else {
+            pendingHomeserverPasswordResetRequest = request
+            hasPendingHomeserverPasswordResetRequest = false
+            clearInitialPasswordResetRequirement(accountKey: accountKey)
+            let closedServerRequest = await coordinator.completeHomeserverPasswordResetRequest()
+            if !closedServerRequest {
+                roomSyncMessage = "Your password is already replaced, but Hypha could not close the stale homeserver reset request yet."
+                roomSyncMessageTone = .warning
+            }
+            return .resetNoLongerRequired
+        }
+
+        pendingHomeserverPasswordResetRequest = request
+        hasPendingHomeserverPasswordResetRequest = true
+        markInitialPasswordResetRequired(accountKey: accountKey)
+        return nil
     }
 
     @discardableResult
@@ -862,6 +959,9 @@ final class MatrixAppModel: ObservableObject {
     ) async -> MatrixAppPasswordChangeOutcome {
         guard let coordinator else {
             return .failed("No active Matrix session is available.")
+        }
+        if let preflightOutcome = await preflightMandatoryPasswordReset(using: coordinator) {
+            return preflightOutcome
         }
         let result = await coordinator.changePassword(
             currentPassword: currentPassword,
@@ -3714,6 +3814,9 @@ private struct MatrixChangePasswordSheet: View {
                 submissionState = .succeeded(.allUpdated)
             case .successWithCredentialWarning:
                 submissionState = .succeeded(.updateFailed)
+            case .resetNoLongerRequired:
+                clearSecrets()
+                isPresented = false
             case .invalidCurrentPassword:
                 submissionState = .failed("The current password was not accepted. Re-enter all password fields and try again.")
             case let .failed(message):

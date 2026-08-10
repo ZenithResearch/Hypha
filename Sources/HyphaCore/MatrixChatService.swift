@@ -224,10 +224,29 @@ public enum MatrixPasswordLoginPolicy {
 
 public enum MatrixInitialPasswordResetPolicy {
     public static func requiresReset(
-        serverRequestPending: Bool,
-        hasCompletedInitialPasswordChange: Bool
+        serverRequestID: String?,
+        completedRequestID: String?,
+        authorityQuerySucceeded: Bool
     ) -> Bool {
-        serverRequestPending && !hasCompletedInitialPasswordChange
+        guard authorityQuerySucceeded else { return true }
+        guard let serverRequestID else { return false }
+        return serverRequestID != completedRequestID
+    }
+}
+
+public enum MatrixPasswordResetPersistencePolicy {
+    public static func mergedPendingAccountKeys(current: [String], legacy: [String]) -> [String] {
+        Array(Set(current).union(legacy)).sorted()
+    }
+
+    public static func recordingCompletion(
+        accountKey: String,
+        requestID: String,
+        in completed: [String: String]
+    ) -> [String: String] {
+        var updated = completed
+        updated[accountKey] = requestID
+        return updated
     }
 }
 
@@ -465,7 +484,7 @@ public protocol MatrixChatService: Sendable {
         logoutOtherDevices: Bool
     ) async throws
     func requestHomeserverPasswordReset() async throws -> MatrixPasswordResetRequest
-    func hasPendingHomeserverPasswordResetRequest() async throws -> Bool
+    func currentHomeserverPasswordResetRequest() async throws -> MatrixPasswordResetRequest?
     func completeHomeserverPasswordResetRequest() async throws
     func isHomeserverAdministrator() async throws -> Bool
     func administratorSnapshot() async throws -> MatrixAdminSnapshot
@@ -563,7 +582,7 @@ public extension MatrixChatService {
         throw MatrixChatServiceError.unavailable(reason: "Homeserver password reset requests are unavailable")
     }
 
-    func hasPendingHomeserverPasswordResetRequest() async throws -> Bool { false }
+    func currentHomeserverPasswordResetRequest() async throws -> MatrixPasswordResetRequest? { nil }
 
     func completeHomeserverPasswordResetRequest() async throws {}
 
@@ -883,8 +902,8 @@ public final class MatrixChatCoordinator {
         }
     }
 
-    public func hasPendingHomeserverPasswordResetRequest() async throws -> Bool {
-        try await service.hasPendingHomeserverPasswordResetRequest()
+    public func currentHomeserverPasswordResetRequest() async throws -> MatrixPasswordResetRequest? {
+        try await service.currentHomeserverPasswordResetRequest()
     }
 
     public func completeHomeserverPasswordResetRequest() async -> Bool {

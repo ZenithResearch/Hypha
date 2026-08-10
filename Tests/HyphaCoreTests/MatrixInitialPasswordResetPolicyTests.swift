@@ -5,27 +5,68 @@ final class MatrixInitialPasswordResetPolicyTests: XCTestCase {
     func testPendingServerResetRequestRequiresImmediateReset() {
         XCTAssertTrue(
             MatrixInitialPasswordResetPolicy.requiresReset(
-                serverRequestPending: true,
-                hasCompletedInitialPasswordChange: false
+                serverRequestID: "request-2",
+                completedRequestID: nil,
+                authorityQuerySucceeded: true
             )
         )
     }
 
-    func testCompletedInitialPasswordChangeSuppressesAStaleServerResetRequest() {
+    func testCompletionSuppressesOnlyTheExactServerResetRequest() {
         XCTAssertFalse(
             MatrixInitialPasswordResetPolicy.requiresReset(
-                serverRequestPending: true,
-                hasCompletedInitialPasswordChange: true
+                serverRequestID: "request-1",
+                completedRequestID: "request-1",
+                authorityQuerySucceeded: true
+            )
+        )
+        XCTAssertTrue(
+            MatrixInitialPasswordResetPolicy.requiresReset(
+                serverRequestID: "request-2",
+                completedRequestID: "request-1",
+                authorityQuerySucceeded: true
             )
         )
     }
 
-    func testFirstLoginWithoutServerResetRequestDoesNotInferTemporaryPassword() {
+    func testNoServerResetRequestDoesNotInferTemporaryPassword() {
         XCTAssertFalse(
             MatrixInitialPasswordResetPolicy.requiresReset(
-                serverRequestPending: false,
-                hasCompletedInitialPasswordChange: false
+                serverRequestID: nil,
+                completedRequestID: nil,
+                authorityQuerySucceeded: true
             )
+        )
+    }
+
+    func testUnavailableResetAuthorityFailsClosed() {
+        XCTAssertTrue(
+            MatrixInitialPasswordResetPolicy.requiresReset(
+                serverRequestID: nil,
+                completedRequestID: nil,
+                authorityQuerySucceeded: false
+            )
+        )
+    }
+
+    func testPendingResetMigrationUnionsLegacyAndCurrentAccounts() {
+        XCTAssertEqual(
+            MatrixPasswordResetPersistencePolicy.mergedPendingAccountKeys(
+                current: ["current", "shared"],
+                legacy: ["legacy", "shared"]
+            ),
+            ["current", "legacy", "shared"]
+        )
+    }
+
+    func testCompletionPersistenceIsScopedToAccountAndRequest() {
+        XCTAssertEqual(
+            MatrixPasswordResetPersistencePolicy.recordingCompletion(
+                accountKey: "alice",
+                requestID: "request-2",
+                in: ["alice": "request-1", "bob": "request-9"]
+            ),
+            ["alice": "request-2", "bob": "request-9"]
         )
     }
 

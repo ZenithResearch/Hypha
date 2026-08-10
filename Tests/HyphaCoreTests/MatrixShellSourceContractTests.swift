@@ -1338,9 +1338,17 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(app.contains("requiresInitialPasswordReset"))
         XCTAssertTrue(app.contains("storageIdentity.pendingPasswordResetDefaultsKey"))
         XCTAssertTrue(app.contains("storageIdentity.completedInitialPasswordChangeDefaultsKey"))
-        XCTAssertTrue(app.contains("hasCompletedInitialPasswordChange: hasCompletedInitialPasswordChange"))
-        XCTAssertFalse(app.contains("Reconnect and replace it once more"))
-        XCTAssertTrue(app.contains("serverRequestPending: serverRequestPending"))
+        XCTAssertTrue(app.contains("completedPasswordResetRequestID(accountKey: accountKey)"))
+        XCTAssertTrue(app.contains("serverRequestID: request?.requestID"))
+        XCTAssertTrue(app.contains("migrateLegacyPendingPasswordResetStateIfNeeded()"))
+        XCTAssertTrue(app.contains("MatrixPasswordResetPersistencePolicy.mergedPendingAccountKeys"))
+        XCTAssertTrue(app.contains("currentHomeserverPasswordResetRequest()"))
+        XCTAssertGreaterThanOrEqual(
+            app.components(separatedBy: "await refreshPasswordResetAuthority(using: coordinator)").count - 1,
+            5
+        )
+        XCTAssertTrue(app.contains("preflightMandatoryPasswordReset(using: coordinator)"))
+        XCTAssertTrue(app.contains("case .resetNoLongerRequired"))
         XCTAssertTrue(app.contains("MatrixMandatoryPasswordResetSheet"))
         XCTAssertTrue(app.contains(".interactiveDismissDisabled(true)"))
         XCTAssertTrue(app.contains("logoutOtherDevices: requiresCompletion ? true : logoutOtherDevices"))
