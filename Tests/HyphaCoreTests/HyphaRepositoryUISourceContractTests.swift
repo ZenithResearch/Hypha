@@ -140,25 +140,36 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             "Open output",
             "matrix.room.content.open-output",
             "@State private var artifacts: [HyphaArtifactSelection]",
+            "@State private var selectedArtifactID: String?",
             "Picker(\"Output asset\"",
             "matrix.room.content.output-asset",
             "result.artifacts",
+            "ForEach(artifacts)",
+            "Text(selection.title)",
         ] {
             XCTAssertTrue(roomContent.contains(marker), "Missing room-content output contract: \(marker)")
         }
         for marker in [
+            "import PDFKit",
             "import QuickLookUI",
+            "PDFView",
             "QLPreviewView",
             "case .quickLook",
+            "case .pdf",
             "case .web",
             "case .image",
             "case .markdown",
             "case .text",
+            "case .slideshow",
+            "HyphaSlideshowCompatibilityView",
             "HyphaMarkdownArtifactView",
             "HyphaMarkdownParser.blocks",
             "case let .heading",
             "case let .codeBlock",
             "AttributedString(markdown:",
+            "selection.bundleRoot",
+            "WKContentRuleListStore",
+            "ca.zenithresearch.hypha.offline-artifact-v1",
         ] {
             XCTAssertTrue(viewer.contains(marker), "Missing artifact-viewer contract: \(marker)")
         }

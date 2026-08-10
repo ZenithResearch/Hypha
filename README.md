@@ -59,18 +59,30 @@ open Hypha.app
 
 An attached room shares the remote repository URL and fixed `out/` contract through Matrix room state. Each Mac separately chooses its local checkout. The local build command is optional: with no command, Hypha loads every supported file from `<repo>/out`. If the manifest selects a primary output, that output opens first while the remaining supported assets stay available in the room-content picker.
 
-`out/out.json` can select an output and may provide the local command that creates it:
+`out/out.json` can select one legacy output or declare a versioned, ordered artifact set with stable IDs, titles, MIME hints, constrained renderers, and a bounded HTML bundle root. The normative contract and compatibility rules are in [`docs/repository-output-contract.md`](docs/repository-output-contract.md); the machine-readable writer contract is [`docs/out.schema.json`](docs/out.schema.json), with a canonical [`docs/examples/out.v2.json`](docs/examples/out.v2.json) example.
+
+A version-2 PowerPoint artifact uses the slideshow route while mirroring its primary through the old-reader fields:
 
 ```json
 {
-  "build": "npm run export",
+  "version": 2,
+  "primary": "deck",
+  "artifacts": [
+    {
+      "id": "deck",
+      "title": "Quarterly deck",
+      "path": "slides/deck.pptx",
+      "format": "pptx",
+      "viewer": "slideshow"
+    }
+  ],
   "viewer": "quickLook",
-  "path": "deck.pptx",
+  "path": "slides/deck.pptx",
   "format": "pptx"
 }
 ```
 
-Any command from the UI or local manifest requires explicit confirmation before execution. Local paths and commands are never published to Matrix.
+Version-1 manifests with only `build`, `viewer`, `path`, and `format` remain readable. Any command from the UI or a user-selected local manifest requires explicit confirmation before local execution. Remote, cached, or Matrix-loaded content ignores `build`; local paths and commands are never published to Matrix.
 
 Repository settings only bind the local checkout, remote identity, optional command, and output contract. Builds and output viewers run from the room's content dashboard. A global chat store independently owns the active room reference, the current leading sheet, and main-view presentation. The application shell—not room content—gives the native draggable `NavigationSplitView` sidebar three explicit states: workspace navigation, a Messages-inspired global directory, and the selected room’s timeline/composer. The contextual chat control opens the selected room’s chat in that leading sheet while keeping the room dashboard in the main surface; only a roomless workspace opens the global directory. There are no sidebar tabs and no simultaneous trailing chat column. Compact, accessible chat, repository, security, and Settings controls sit beside the native drawer icon instead of depending on focus-sensitive custom application-menu commands. Markdown uses a dedicated bounded renderer rather than the raw monospaced text viewer.
 

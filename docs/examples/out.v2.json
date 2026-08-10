@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "primary": "deck",
+  "artifacts": [
+    {
+      "id": "deck",
+      "title": "Quarterly deck",
+      "path": "slides/deck.pptx",
+      "format": "pptx",
+      "media_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      "viewer": "slideshow"
+    },
+    {
+      "id": "launch-brief",
+      "title": "Launch brief",
+      "path": "launch.pdf",
+      "format": "pdf",
+      "media_type": "application/pdf",
+      "viewer": "pdf"
+    },
+    {
+      "id": "product-map",
+      "title": "Interactive product map",
+      "path": "site/index.html",
+      "format": "html",
+      "media_type": "text/html",
+      "viewer": "web",
+      "bundle_root": "site"
+    },
+    {
+      "id": "speaker-notes",
+      "title": "Speaker notes",
+      "path": "notes.md",
+      "format": "md",
+      "media_type": "text/markdown",
+      "viewer": "markdown"
+    }
+  ],
+  "path": "slides/deck.pptx",
+  "format": "pptx",
+  "viewer": "quickLook"
+}

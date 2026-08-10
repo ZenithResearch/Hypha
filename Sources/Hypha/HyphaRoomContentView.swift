@@ -12,7 +12,7 @@ struct HyphaRoomContentView: View {
     @State private var buildCommand = ""
     @State private var pendingBuildCommand = ""
     @State private var artifacts: [HyphaArtifactSelection] = []
-    @State private var selectedArtifactURL: URL?
+    @State private var selectedArtifactID: String?
     @State private var buildLog = ""
     @State private var statusMessage: String?
     @State private var statusIsError = false
@@ -27,8 +27,8 @@ struct HyphaRoomContentView: View {
     private let resolver = HyphaArtifactOutputResolver()
 
     private var artifact: HyphaArtifactSelection? {
-        guard let selectedArtifactURL else { return artifacts.first }
-        return artifacts.first { $0.url == selectedArtifactURL } ?? artifacts.first
+        guard let selectedArtifactID else { return artifacts.first }
+        return artifacts.first { $0.id == selectedArtifactID } ?? artifacts.first
     }
 
     private var outputActionLabel: String {
@@ -58,17 +58,17 @@ struct HyphaRoomContentView: View {
                 if let artifact {
                     VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
                         if artifacts.count > 1 {
-                            Picker("Output asset", selection: $selectedArtifactURL) {
-                                ForEach(artifacts, id: \.url) { selection in
-                                    Text(selection.url.lastPathComponent)
-                                        .tag(Optional(selection.url))
+                            Picker("Output asset", selection: $selectedArtifactID) {
+                                ForEach(artifacts) { selection in
+                                    Text(selection.title)
+                                        .tag(Optional(selection.id))
                                 }
                             }
                             .pickerStyle(.menu)
                             .accessibilityIdentifier("matrix.room.content.output-asset")
                         }
                         HStack {
-                            Text(artifact.url.lastPathComponent)
+                            Text(artifact.title)
                                 .font(.headline)
                             Spacer()
                             Text(artifact.format.uppercased())
@@ -189,7 +189,7 @@ struct HyphaRoomContentView: View {
     private func load() async {
         isLoading = true
         artifacts = []
-        selectedArtifactURL = nil
+        selectedArtifactID = nil
         statusMessage = nil
         endSecurityScope()
         defer { isLoading = false }
@@ -244,7 +244,7 @@ struct HyphaRoomContentView: View {
         guard let repositoryRoot else { return }
         isOpeningOutput = true
         artifacts = []
-        selectedArtifactURL = nil
+        selectedArtifactID = nil
         buildLog = ""
         statusMessage = nil
         Task {
@@ -262,7 +262,7 @@ struct HyphaRoomContentView: View {
                     return
                 }
                 artifacts = result.artifacts
-                selectedArtifactURL = selection.url
+                selectedArtifactID = selection.id
                 let suffix = result.artifacts.count == 1
                     ? ""
                     : " and found \(result.artifacts.count - 1) additional output assets"
@@ -312,6 +312,14 @@ struct HyphaRoomContentView: View {
         case let .unsupportedFormat(format): "format \(format) is not supported."
         case .viewerFormatMismatch: "viewer does not match the supported-type map."
         case .ambiguousManifestSelection: "more than one file matches; add path."
+        case let .unsupportedManifestVersion(version): "manifest version \(version) is not supported."
+        case let .viewerValueNotAllowed(viewer): "viewer \(viewer.rawValue) is not allowed in this manifest position."
+        case .invalidArtifactDefinition: "a declared artifact has invalid id, path, title, format, media type, or viewer metadata."
+        case let .duplicateArtifactID(id): "artifact id \(id) is declared more than once."
+        case .primaryArtifactUnavailable: "primary must identify one declared artifact."
+        case .legacyPrimaryMismatch: "the legacy path, format, and viewer must mirror the declared primary artifact."
+        case .bundleRootUnavailable: "bundle_root must name an existing directory inside out/."
+        case .bundleRootDoesNotContainArtifact: "bundle_root must contain the HTML entry point."
         }
     }
 }

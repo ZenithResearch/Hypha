@@ -3,9 +3,12 @@ import XCTest
 @testable import HyphaCore
 
 final class HyphaRepositoryOutputTests: XCTestCase {
-    func testViewerRegistryMapsPowerPointToQuickLook() {
-        XCTAssertEqual(HyphaArtifactViewerRegistry.viewer(forFormat: "pptx"), .quickLook)
-        XCTAssertEqual(HyphaArtifactViewerRegistry.viewer(forFormat: ".PPTX"), .quickLook)
+    func testViewerRegistryNormalizesPowerPointOOXMLToSlideshowAndKeepsLegacyPPTFallback() {
+        XCTAssertEqual(HyphaArtifactViewerRegistry.viewer(forFormat: "pptx"), .slideshow)
+        XCTAssertEqual(HyphaArtifactViewerRegistry.viewer(forFormat: ".PPTX"), .slideshow)
+        XCTAssertEqual(HyphaArtifactViewerRegistry.viewer(forFormat: "ppsx"), .slideshow)
+        XCTAssertEqual(HyphaArtifactViewerRegistry.viewer(forFormat: "ppt"), .quickLook)
+        XCTAssertEqual(HyphaArtifactViewerRegistry.oldClientSafeMirror(forFormat: "pptx"), .quickLook)
     }
 
     func testViewerRegistryMapsMarkdownToRenderedMarkdown() {
@@ -52,7 +55,7 @@ final class HyphaRepositoryOutputTests: XCTestCase {
 
         XCTAssertEqual(selection.url.standardizedFileURL, deck.standardizedFileURL)
         XCTAssertEqual(selection.format, "pptx")
-        XCTAssertEqual(selection.viewer, .quickLook)
+        XCTAssertEqual(selection.viewer, .slideshow)
         XCTAssertEqual(selection.source, .manifest)
     }
 
@@ -65,8 +68,296 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         let selection = try XCTUnwrap(HyphaArtifactOutputResolver().resolve(outDirectory: output))
 
         XCTAssertEqual(selection.url.lastPathComponent, "deck.pptx")
-        XCTAssertEqual(selection.viewer, .quickLook)
+        XCTAssertEqual(selection.viewer, .slideshow)
         XCTAssertEqual(selection.source, .manifest)
+    }
+
+    func testExplicitVersionOnePowerPointQuickLookNormalizesToSlideshow() throws {
+        let output = try temporaryDirectory()
+        try Data("presentation".utf8).write(to: output.appendingPathComponent("deck.PPTX"))
+        try Data(#"{"version":1,"viewer":"quickLook","path":"deck.PPTX","format":"PPTX"}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        let selection = try XCTUnwrap(HyphaArtifactOutputResolver().resolve(outDirectory: output))
+
+        XCTAssertEqual(selection.format, "pptx")
+        XCTAssertEqual(selection.viewer, .slideshow)
+    }
+
+    func testVersionTwoCanonicalManifestResolvesDeclaredArtifactsAndMetadata() throws {
+        let output = try canonicalVersionTwoOutput()
+        try Data("undeclared".utf8).write(to: output.appendingPathComponent("README.md"))
+
+        let selections = try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)
+
+        XCTAssertEqual(selections.map(\.id), ["deck", "launch-brief", "product-map", "speaker-notes"])
+        XCTAssertEqual(selections.map(\.viewer), [.slideshow, .pdf, .web, .markdown])
+        XCTAssertEqual(selections.map(\.title), [
+            "Quarterly deck",
+            "Launch brief",
+            "Interactive product map",
+            "Speaker notes",
+        ])
+        XCTAssertEqual(
+            selections.first?.mediaType,
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        )
+        XCTAssertEqual(selections[2].bundleRoot?.lastPathComponent, "site")
+        XCTAssertTrue(selections.allSatisfy { $0.source == .manifest })
+        XCTAssertFalse(selections.contains { $0.url.lastPathComponent == "README.md" })
+    }
+
+    func testVersionTwoRetainsRelativeOrderAfterMovingPrimaryFirst() throws {
+        let output = try temporaryDirectory()
+        for name in ["one.txt", "two.txt", "three.txt"] {
+            try Data(name.utf8).write(to: output.appendingPathComponent(name))
+        }
+        try Data(#"""
+        {
+          "version": 2,
+          "primary": "two",
+          "path": "two.txt",
+          "format": "txt",
+          "viewer": "text",
+          "artifacts": [
+            {"id":"one","path":"one.txt"},
+            {"id":"two","path":"two.txt"},
+            {"id":"three","path":"three.txt"}
+          ]
+        }
+        """#.utf8).write(to: output.appendingPathComponent("out.json"))
+
+        let selections = try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)
+
+        XCTAssertEqual(selections.map(\.id), ["two", "one", "three"])
+    }
+
+    func testVersionTwoPDFUsesPDFKitRouteAndQuickLookCompatibilityMirror() throws {
+        let output = try temporaryDirectory()
+        try Data("pdf".utf8).write(to: output.appendingPathComponent("brief.pdf"))
+        try Data(#"{"version":2,"primary":"brief","path":"brief.pdf","format":"pdf","viewer":"quickLook","artifacts":[{"id":"brief","path":"brief.pdf","viewer":"pdf"}]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        let selection = try XCTUnwrap(HyphaArtifactOutputResolver().resolve(outDirectory: output))
+
+        XCTAssertEqual(selection.viewer, .pdf)
+    }
+
+    func testVersionTwoMarkdownUsesTextCompatibilityMirror() throws {
+        let output = try temporaryDirectory()
+        try Data("# Notes".utf8).write(to: output.appendingPathComponent("notes.md"))
+        try Data(#"{"version":2,"primary":"notes","path":"notes.md","format":"md","viewer":"text","artifacts":[{"id":"notes","path":"notes.md","viewer":"markdown"}]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        let selection = try XCTUnwrap(HyphaArtifactOutputResolver().resolve(outDirectory: output))
+
+        XCTAssertEqual(selection.viewer, .markdown)
+    }
+
+    func testLegacyPDFQuickLookManifestRemainsReadable() throws {
+        let output = try temporaryDirectory()
+        try Data("pdf".utf8).write(to: output.appendingPathComponent("document.pdf"))
+        try Data(#"{"path":"document.pdf","format":"pdf","viewer":"quickLook"}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        let selection = try XCTUnwrap(HyphaArtifactOutputResolver().resolve(outDirectory: output))
+
+        XCTAssertEqual(selection.viewer, .quickLook)
+    }
+
+    func testViewerVocabularyRejectsSlideshowInVersionOne() throws {
+        let output = try temporaryDirectory()
+        try Data("deck".utf8).write(to: output.appendingPathComponent("deck.pptx"))
+        try Data(#"{"viewer":"slideshow","path":"deck.pptx","format":"pptx"}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(error as? HyphaArtifactOutputError, .viewerValueNotAllowed(.slideshow))
+        }
+    }
+
+    func testViewerVocabularyRejectsArtifactOnlyValuesInVersionTwoTopLevelMirror() throws {
+        for viewer in [HyphaArtifactViewer.slideshow, .pdf, .markdown] {
+            let output = try temporaryDirectory()
+            try Data("deck".utf8).write(to: output.appendingPathComponent("deck.pptx"))
+            let manifest = """
+            {"version":2,"primary":"deck","path":"deck.pptx","format":"pptx","viewer":"\(viewer.rawValue)","artifacts":[{"id":"deck","path":"deck.pptx","viewer":"slideshow"}]}
+            """
+            try Data(manifest.utf8).write(to: output.appendingPathComponent("out.json"))
+
+            XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+                XCTAssertEqual(error as? HyphaArtifactOutputError, .viewerValueNotAllowed(viewer))
+            }
+        }
+    }
+
+    func testVersionTwoRejectsCompatibilityMirrorThatDoesNotMatchPrimary() throws {
+        let output = try temporaryDirectory()
+        try Data("deck".utf8).write(to: output.appendingPathComponent("deck.pptx"))
+        try Data(#"{"version":2,"primary":"deck","path":"deck.pptx","format":"pptx","viewer":"web","artifacts":[{"id":"deck","path":"deck.pptx","viewer":"slideshow"}]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(error as? HyphaArtifactOutputError, .legacyPrimaryMismatch)
+        }
+    }
+
+    func testVersionTwoRequiresPrimaryWhenSeveralArtifactsAreDeclared() throws {
+        let output = try temporaryDirectory()
+        try Data("one".utf8).write(to: output.appendingPathComponent("one.txt"))
+        try Data("two".utf8).write(to: output.appendingPathComponent("two.txt"))
+        try Data(#"{"version":2,"path":"one.txt","artifacts":[{"id":"one","path":"one.txt"},{"id":"two","path":"two.txt"}]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(error as? HyphaArtifactOutputError, .primaryArtifactUnavailable)
+        }
+    }
+
+    func testVersionTwoRejectsDuplicateArtifactIdentifiers() throws {
+        let output = try temporaryDirectory()
+        try Data("one".utf8).write(to: output.appendingPathComponent("one.txt"))
+        try Data("two".utf8).write(to: output.appendingPathComponent("two.txt"))
+        try Data(#"{"version":2,"primary":"duplicate","path":"one.txt","artifacts":[{"id":"duplicate","path":"one.txt"},{"id":"duplicate","path":"two.txt"}]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(error as? HyphaArtifactOutputError, .duplicateArtifactID("duplicate"))
+        }
+    }
+
+    func testVersionTwoRejectsTraversalInDeclaredArtifact() throws {
+        let parent = try temporaryDirectory()
+        let output = parent.appendingPathComponent("out", isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        try Data("private".utf8).write(to: parent.appendingPathComponent("private.txt"))
+        try Data(#"{"version":2,"primary":"private","path":"../private.txt","artifacts":[{"id":"private","path":"../private.txt"}]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(error as? HyphaArtifactOutputError, .invalidArtifactDefinition)
+        }
+    }
+
+    func testVersionTwoRejectsWindowsAbsolutePathSyntax() throws {
+        let output = try temporaryDirectory()
+        try Data(#"{"version":2,"primary":"private","path":"C:/private.txt","viewer":"text","artifacts":[{"id":"private","path":"C:/private.txt"}]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(error as? HyphaArtifactOutputError, .invalidArtifactDefinition)
+        }
+    }
+
+    func testVersionTwoRejectsHTMLBundleThatDoesNotContainEntryPoint() throws {
+        let output = try temporaryDirectory()
+        let site = output.appendingPathComponent("site", isDirectory: true)
+        let other = output.appendingPathComponent("other", isDirectory: true)
+        try FileManager.default.createDirectory(at: site, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: other, withIntermediateDirectories: true)
+        try Data("<html></html>".utf8).write(to: other.appendingPathComponent("index.html"))
+        try Data(#"{"version":2,"primary":"site","path":"other/index.html","format":"html","viewer":"web","artifacts":[{"id":"site","path":"other/index.html","viewer":"web","bundle_root":"site"}]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(error as? HyphaArtifactOutputError, .bundleRootDoesNotContainArtifact)
+        }
+    }
+
+    func testVersionTwoRejectsUnknownFutureVersion() throws {
+        let output = try temporaryDirectory()
+        try Data(#"{"version":3,"artifacts":[]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(error as? HyphaArtifactOutputError, .unsupportedManifestVersion(3))
+        }
+    }
+
+    func testVersionTwoRejectsMoreThanSixtyFourArtifactsBeforeFileResolution() throws {
+        let output = try temporaryDirectory()
+        let artifacts = (0 ... 64).map { index in
+            ["id": "artifact-\(index)", "path": "artifact-\(index).txt"]
+        }
+        let manifest: [String: Any] = [
+            "version": 2,
+            "primary": "artifact-0",
+            "path": "artifact-0.txt",
+            "artifacts": artifacts,
+        ]
+        try JSONSerialization.data(withJSONObject: manifest)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(error as? HyphaArtifactOutputError, .invalidArtifactDefinition)
+        }
+    }
+
+    func testVersionTwoRejectsInvalidIDsTitlesAndMediaTypes() throws {
+        let invalidEntries: [[String: Any]] = [
+            ["id": "bad id", "path": "artifact.txt"],
+            ["id": "artifact", "path": "artifact.txt", "title": "   "],
+            ["id": "artifact", "path": "artifact.txt", "media_type": "text/plain; charset=utf-8"],
+            ["id": "artifact", "path": "artifact.txt", "format": ".txt"],
+        ]
+
+        for entry in invalidEntries {
+            let output = try temporaryDirectory()
+            try Data("artifact".utf8).write(to: output.appendingPathComponent("artifact.txt"))
+            let manifest: [String: Any] = [
+                "version": 2,
+                "primary": entry["id"] as? String ?? "artifact",
+                "path": "artifact.txt",
+                "viewer": "text",
+                "artifacts": [entry],
+            ]
+            try JSONSerialization.data(withJSONObject: manifest)
+                .write(to: output.appendingPathComponent("out.json"))
+
+            XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+                XCTAssertEqual(error as? HyphaArtifactOutputError, .invalidArtifactDefinition)
+            }
+        }
+    }
+
+    func testVersionTwoRejectsPrimaryIdentifierWithSurroundingWhitespace() throws {
+        let output = try temporaryDirectory()
+        try Data("artifact".utf8).write(to: output.appendingPathComponent("artifact.txt"))
+        try Data(#"{"version":2,"primary":" artifact ","path":"artifact.txt","viewer":"text","artifacts":[{"id":"artifact","path":"artifact.txt"}]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(error as? HyphaArtifactOutputError, .primaryArtifactUnavailable)
+        }
+    }
+
+    func testVersionTwoRejectsSymlinkEscape() throws {
+        let parent = try temporaryDirectory()
+        let output = parent.appendingPathComponent("out", isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let privateFile = parent.appendingPathComponent("private.txt")
+        try Data("private".utf8).write(to: privateFile)
+        try FileManager.default.createSymbolicLink(
+            at: output.appendingPathComponent("linked.txt"),
+            withDestinationURL: privateFile
+        )
+        try Data(#"{"version":2,"primary":"linked","path":"linked.txt","viewer":"text","artifacts":[{"id":"linked","path":"linked.txt"}]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(error as? HyphaArtifactOutputError, .pathEscapesOutputDirectory)
+        }
+    }
+
+    func testVersionTwoRejectsSlideshowPreferenceForNonPowerPointArtifact() throws {
+        let output = try temporaryDirectory()
+        try Data("notes".utf8).write(to: output.appendingPathComponent("notes.txt"))
+        try Data(#"{"version":2,"primary":"notes","path":"notes.txt","viewer":"text","artifacts":[{"id":"notes","path":"notes.txt","viewer":"slideshow"}]}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(error as? HyphaArtifactOutputError, .viewerFormatMismatch)
+        }
     }
 
     func testOutManifestRejectsTraversalOutsideOutDirectory() throws {
@@ -90,7 +381,7 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         let selection = try XCTUnwrap(HyphaArtifactOutputResolver().resolve(outDirectory: output))
 
         XCTAssertEqual(selection.url.lastPathComponent, "deck.pptx")
-        XCTAssertEqual(selection.viewer, .quickLook)
+        XCTAssertEqual(selection.viewer, .slideshow)
         XCTAssertEqual(selection.source, .discovery)
     }
 
@@ -109,7 +400,7 @@ final class HyphaRepositoryOutputTests: XCTestCase {
             selections.map(\.url.lastPathComponent),
             ["README.md", "index.html", "deck.pptx"]
         )
-        XCTAssertEqual(selections.map(\.viewer), [.markdown, .web, .quickLook])
+        XCTAssertEqual(selections.map(\.viewer), [.markdown, .web, .slideshow])
         XCTAssertTrue(selections.allSatisfy { $0.source == .discovery })
     }
 
@@ -203,6 +494,66 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         XCTAssertEqual(selection.source, .manifest)
     }
 
+    func testRepositoryOutputSchemaSplitsViewerVocabulariesAndCanonicalExampleParses() throws {
+        let root = repositoryRoot()
+        let schemaURL = root.appendingPathComponent("docs/out.schema.json")
+        let exampleURL = root.appendingPathComponent("docs/examples/out.v2.json")
+        let schema = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: schemaURL)) as? [String: Any]
+        )
+        let definitions = try XCTUnwrap(schema["$defs"] as? [String: Any])
+
+        func viewerValues(_ name: String) throws -> Set<String> {
+            let definition = try XCTUnwrap(definitions[name] as? [String: Any])
+            return Set(try XCTUnwrap(definition["enum"] as? [String]))
+        }
+
+        let legacy = try viewerValues("legacyInputViewer")
+        let mirror = try viewerValues("oldClientSafeMirrorViewer")
+        let artifact = try viewerValues("artifactViewer")
+
+        XCTAssertEqual(legacy, ["quickLook", "pdf", "web", "image", "markdown", "text"])
+        XCTAssertEqual(mirror, ["quickLook", "web", "image", "text"])
+        XCTAssertEqual(artifact, ["quickLook", "pdf", "web", "image", "markdown", "text", "slideshow"])
+        XCTAssertFalse(legacy.contains("slideshow"))
+        for artifactOnlyValue in ["slideshow", "pdf", "markdown"] {
+            XCTAssertTrue(artifact.contains(artifactOnlyValue))
+            XCTAssertFalse(mirror.contains(artifactOnlyValue))
+        }
+
+        let example = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: exampleURL)) as? [String: Any]
+        )
+        XCTAssertEqual(example["version"] as? Int, 2)
+        XCTAssertEqual(example["primary"] as? String, "deck")
+        XCTAssertEqual(example["viewer"] as? String, "quickLook")
+        XCTAssertEqual((example["artifacts"] as? [[String: Any]])?.count, 4)
+    }
+
+    func testRepositoryOutputDocumentationRecordsCompatibilityAndRemoteExecutionBoundaries() throws {
+        let root = repositoryRoot()
+        let documentation = try String(
+            contentsOf: root.appendingPathComponent("docs/repository-output-contract.md"),
+            encoding: .utf8
+        )
+        let readme = try String(contentsOf: root.appendingPathComponent("README.md"), encoding: .utf8)
+
+        for marker in [
+            "Three viewer vocabularies",
+            "stable identifier",
+            "bundle_root",
+            "media_type",
+            "PPTX/PPSX slideshow",
+            "must ignore it and must never execute it",
+            "Artifact order is stable",
+        ] {
+            XCTAssertTrue(documentation.contains(marker), "Missing output-contract documentation: \(marker)")
+        }
+        XCTAssertTrue(readme.contains("docs/repository-output-contract.md"))
+        XCTAssertTrue(readme.contains("docs/out.schema.json"))
+        XCTAssertTrue(readme.contains("docs/examples/out.v2.json"))
+    }
+
     func testMatrixRoomAttachmentContentNeverCarriesLocalPathOrBuildCommand() throws {
         let attachment = MatrixRoomRepositoryAttachment(
             repository: "git@github.com:ZenithResearch/Hypha.git",
@@ -254,6 +605,28 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         )
 
         XCTAssertEqual(try store.load(roomID: "!room:example.org")?.buildCommand, "")
+    }
+
+    private func canonicalVersionTwoOutput() throws -> URL {
+        let output = try temporaryDirectory()
+        let slides = output.appendingPathComponent("slides", isDirectory: true)
+        let site = output.appendingPathComponent("site", isDirectory: true)
+        try FileManager.default.createDirectory(at: slides, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: site, withIntermediateDirectories: true)
+        try Data("presentation".utf8).write(to: slides.appendingPathComponent("deck.pptx"))
+        try Data("pdf".utf8).write(to: output.appendingPathComponent("launch.pdf"))
+        try Data("<html></html>".utf8).write(to: site.appendingPathComponent("index.html"))
+        try Data("# Notes".utf8).write(to: output.appendingPathComponent("notes.md"))
+        try Data(contentsOf: repositoryRoot().appendingPathComponent("docs/examples/out.v2.json"))
+            .write(to: output.appendingPathComponent("out.json"))
+        return output
+    }
+
+    private func repositoryRoot() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
     }
 
     private func temporaryDirectory() throws -> URL {
