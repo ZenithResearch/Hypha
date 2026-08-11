@@ -136,6 +136,26 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(continuousSyncStartCount, 1)
     }
 
+    func testSignInRemainsActiveWhenIncomingVerificationControllerIsUnavailable() async throws {
+        let vault = MemorySessionVault()
+        let client = FakeLiveClient(
+            incomingVerificationHandlerError: FixtureSDKError("verification controller unavailable")
+        )
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: client),
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+
+        let rooms = try await service.signIn(username: "alice", password: "not-recorded")
+        let continuousSyncStartCount = await client.continuousSyncStartCount()
+
+        XCTAssertEqual(rooms, [])
+        XCTAssertEqual(try vault.loadSession()?.userId, "@alice:example.org")
+        XCTAssertEqual(continuousSyncStartCount, 1)
+    }
+
     func testQrLoginPersistsCanonicalAccountWithItsProvisionalEncryptedStore() async throws {
         let vault = MemorySessionVault()
         let client = FakeLiveClient(
@@ -1171,6 +1191,7 @@ private actor FakeLiveClient: MatrixLiveClient {
     private let syncError: Error?
     private let roomLoadError: Error?
     private let invitationError: Error?
+    private let incomingVerificationHandlerError: Error?
     private let userLookupResult: MatrixUserLookupResult
     private var suspendBootstrap: Bool
     private var bootstrapWaiters: [CheckedContinuation<Void, Never>] = []
@@ -1184,6 +1205,7 @@ private actor FakeLiveClient: MatrixLiveClient {
         syncError: Error? = nil,
         roomLoadError: Error? = nil,
         invitationError: Error? = nil,
+        incomingVerificationHandlerError: Error? = nil,
         userLookupResult: MatrixUserLookupResult = .unavailable,
         trustState: MatrixDeviceTrustState = .unknown,
         peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable,
@@ -1203,6 +1225,7 @@ private actor FakeLiveClient: MatrixLiveClient {
         self.syncError = syncError
         self.roomLoadError = roomLoadError
         self.invitationError = invitationError
+        self.incomingVerificationHandlerError = incomingVerificationHandlerError
         self.userLookupResult = userLookupResult
         self.trustState = trustState
         self.peerVerificationEligibility = peerVerificationEligibility
@@ -1310,6 +1333,11 @@ private actor FakeLiveClient: MatrixLiveClient {
     func requestDeviceVerification() async throws -> MatrixVerificationChallenge {
         verificationRequests += 1
         return verificationChallenge
+    }
+    func setIncomingDeviceVerificationHandler(
+        _ handler: (@Sendable (MatrixVerificationFlowState) -> Void)?
+    ) async throws {
+        if let incomingVerificationHandlerError { throw incomingVerificationHandlerError }
     }
     func approveDeviceVerification() async throws { verificationApprovals += 1 }
     func declineDeviceVerification() async { verificationDeclines += 1 }
