@@ -137,18 +137,42 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             "HyphaArtifactViewerView",
             "HyphaRepositoryBuilder",
             "Run this local build command?",
-            "Open output",
-            "matrix.room.content.open-output",
+            "Rebuild",
+            "matrix.room.content.rebuild",
             "@State private var artifacts: [HyphaArtifactSelection]",
             "@State private var selectedArtifactID: String?",
-            "Picker(\"Output asset\"",
-            "matrix.room.content.output-asset",
+            "loadAvailableOutputs()",
+            "ScrollView(.horizontal",
+            "LazyHStack",
+            "HyphaArtifactGalleryCard",
+            "matrix.room.content.output-gallery",
+            "matrix.room.content.output-card",
             "result.artifacts",
             "ForEach(artifacts)",
-            "Text(selection.title)",
+            "selectedArtifactID = selection.id",
         ] {
             XCTAssertTrue(roomContent.contains(marker), "Missing room-content output contract: \(marker)")
         }
+        XCTAssertFalse(
+            roomContent.contains("Open output"),
+            "Available output assets must open from the gallery without starting a build"
+        )
+        XCTAssertFalse(
+            roomContent.contains("artifacts = []\n        selectedArtifactID = nil\n        buildLog = \"\""),
+            "Starting a rebuild must not clear the last usable output gallery"
+        )
+        let loadBody = try XCTUnwrap(
+            roomContent.components(separatedBy: "private func load() async").last?
+                .components(separatedBy: "private func loadAvailableOutputs()").first
+        )
+        XCTAssertFalse(loadBody.contains("builder.build"), "Loading available assets must never start a build")
+
+        let rebuildBody = try XCTUnwrap(
+            roomContent.components(separatedBy: "private func runRebuild(command: String)").last?
+                .components(separatedBy: "private func beginSecurityScope").first
+        )
+        XCTAssertTrue(rebuildBody.contains("builder.build"))
+        XCTAssertFalse(rebuildBody.contains("artifacts = []"), "A rebuild must preserve usable output on failure")
         for marker in [
             "import PDFKit",
             "import QuickLookUI",
