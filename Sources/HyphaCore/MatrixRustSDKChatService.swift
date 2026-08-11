@@ -921,7 +921,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         self.client = client
         activeSession = session
         remember(rooms)
-        try await client.setIncomingDeviceVerificationHandler(incomingVerificationHandler)
+        try? await client.setIncomingDeviceVerificationHandler(incomingVerificationHandler)
         await client.startContinuousSync()
     }
 
