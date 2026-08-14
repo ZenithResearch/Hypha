@@ -130,11 +130,18 @@ final class MatrixShellSourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("Sources/HyphaCore/MatrixSynapseAdminClient.swift"),
             encoding: .utf8
         )
-        let source = [appSource, sheetSource, clientSource].joined(separator: "\n")
+        let rustServiceSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/HyphaCore/MatrixRustSDKChatService.swift"),
+            encoding: .utf8
+        )
+        let source = [appSource, sheetSource, clientSource, rustServiceSource].joined(separator: "\n")
 
         for marker in [
             ".sheet(isPresented: $showsAdministration)",
-            "model.adminAccessState == .authorized",
+            "matrix.admin.authorize",
+            "urn:synapse:admin:*",
+            "prefersEphemeralWebBrowserSession = true",
+            "endAdministratorAuthorization()",
             "MatrixAdminSheet",
             "matrix.admin.open",
             "matrix.admin.account.create",

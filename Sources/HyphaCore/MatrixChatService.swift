@@ -486,6 +486,10 @@ public protocol MatrixChatService: Sendable {
     func requestHomeserverPasswordReset() async throws -> MatrixPasswordResetRequest
     func currentHomeserverPasswordResetRequest() async throws -> MatrixPasswordResetRequest?
     func completeHomeserverPasswordResetRequest() async throws
+    func beginAdministratorAuthorization() async throws -> MatrixAdminOAuthRequest
+    func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws
+    func cancelAdministratorAuthorization(requestID: UUID?) async
+    func endAdministratorAuthorization() async
     func isHomeserverAdministrator() async throws -> Bool
     func administratorSnapshot() async throws -> MatrixAdminSnapshot
     func administratorPasswordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest]
@@ -585,6 +589,18 @@ public extension MatrixChatService {
     func currentHomeserverPasswordResetRequest() async throws -> MatrixPasswordResetRequest? { nil }
 
     func completeHomeserverPasswordResetRequest() async throws {}
+
+    func beginAdministratorAuthorization() async throws -> MatrixAdminOAuthRequest {
+        throw MatrixChatServiceError.unavailable(reason: "Homeserver administrator authorization is unavailable")
+    }
+
+    func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Homeserver administrator authorization is unavailable")
+    }
+
+    func cancelAdministratorAuthorization(requestID: UUID?) async {}
+
+    func endAdministratorAuthorization() async {}
 
     func administratorPasswordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest] {
         throw MatrixAdminClientError.serverRejected
@@ -913,6 +929,22 @@ public final class MatrixChatCoordinator {
         } catch {
             return false
         }
+    }
+
+    public func beginAdministratorAuthorization() async throws -> MatrixAdminOAuthRequest {
+        try await service.beginAdministratorAuthorization()
+    }
+
+    public func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws {
+        try await service.completeAdministratorAuthorization(requestID: requestID, callbackURL: callbackURL)
+    }
+
+    public func cancelAdministratorAuthorization(requestID: UUID?) async {
+        await service.cancelAdministratorAuthorization(requestID: requestID)
+    }
+
+    public func endAdministratorAuthorization() async {
+        await service.endAdministratorAuthorization()
     }
 
     public func isHomeserverAdministrator() async -> Bool {

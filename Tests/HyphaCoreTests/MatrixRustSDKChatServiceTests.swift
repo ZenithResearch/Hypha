@@ -4,6 +4,176 @@ import XCTest
 @testable import HyphaCore
 
 final class MatrixRustSDKChatServiceTests: XCTestCase {
+    func testAdministratorOAuthUsesSeparateMemoryOnlyCredentialAndRevokesAtEnd() async throws {
+        let vault = MemorySessionVault()
+        let liveClient = FakeLiveClient()
+        let authorizer = FakeAdministratorOAuthAuthorizer(credential: .init(
+            accessToken: "scoped-admin-token",
+            userID: "@alice:example.org",
+            deviceID: "TEMPADMINDEVICE",
+            homeserverURL: "https://synapse.zenith-research.ca"
+        ))
+        let adminClient = FakeMatrixAdminClient(isAdministrator: true)
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorOAuthAuthorizerFactory: { authorizer },
+            administratorClientFactory: { _, _, _ in adminClient },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let primarySession = try XCTUnwrap(vault.loadSession())
+
+        let request = try await service.beginAdministratorAuthorization()
+        try await service.completeAdministratorAuthorization(
+            requestID: request.id,
+            callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+        )
+
+        let authorizedBeforeEnd = try await service.isHomeserverAdministrator()
+        XCTAssertTrue(authorizedBeforeEnd)
+        XCTAssertEqual(try vault.loadSession(), primarySession)
+        XCTAssertNotEqual(try vault.loadSession()?.accessToken, "scoped-admin-token")
+        await service.endAdministratorAuthorization()
+        let authorizedAfterEnd = try await service.isHomeserverAdministrator()
+        let revokeCount = await authorizer.revokeCount()
+        XCTAssertFalse(authorizedAfterEnd)
+        XCTAssertEqual(revokeCount, 1)
+    }
+
+    func testAdministratorOAuthRejectsIdentityMismatchAndRevokesTemporarySession() async throws {
+        let vault = MemorySessionVault()
+        let authorizer = FakeAdministratorOAuthAuthorizer(credential: .init(
+            accessToken: "scoped-admin-token",
+            userID: "@mallory:example.org",
+            deviceID: "TEMPADMINDEVICE",
+            homeserverURL: "https://synapse.zenith-research.ca"
+        ))
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
+            administratorOAuthAuthorizerFactory: { authorizer },
+            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let request = try await service.beginAdministratorAuthorization()
+
+        await XCTAssertThrowsMatrixError(
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+            ),
+            expected: .unavailable(reason: "Administrator authorization identity changed")
+        )
+
+        let authorized = try await service.isHomeserverAdministrator()
+        let revokeCount = await authorizer.revokeCount()
+        XCTAssertFalse(authorized)
+        XCTAssertEqual(revokeCount, 1)
+    }
+
+    func testAdministratorOAuthRequiresAnActivePrimarySessionBeforeCreatingAttempt() async {
+        let factoryCalls = LockedCounter()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
+            administratorOAuthAuthorizerFactory: {
+                factoryCalls.increment()
+                return FakeAdministratorOAuthAuthorizer(credential: .init(
+                    accessToken: "unused",
+                    userID: "@alice:example.org",
+                    deviceID: "UNUSED",
+                    homeserverURL: "https://synapse.zenith-research.ca"
+                ))
+            }
+        )
+
+        await XCTAssertThrowsMatrixError(
+            try await service.beginAdministratorAuthorization(),
+            expected: .sessionExpired
+        )
+        XCTAssertEqual(factoryCalls.value(), 0)
+    }
+
+    func testAdministratorOAuthCancellationInvalidatesRequestAndAbortsAttempt() async throws {
+        let authorizer = FakeAdministratorOAuthAuthorizer(credential: .init(
+            accessToken: "unused",
+            userID: "@alice:example.org",
+            deviceID: "UNUSED",
+            homeserverURL: "https://synapse.zenith-research.ca"
+        ))
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
+            administratorOAuthAuthorizerFactory: { authorizer },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let request = try await service.beginAdministratorAuthorization()
+
+        await service.cancelAdministratorAuthorization(requestID: request.id)
+
+        await XCTAssertThrowsMatrixError(
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+            ),
+            expected: .unavailable(reason: "Administrator authorization request is stale or invalid")
+        )
+        let cancelCount = await authorizer.cancelCount()
+        XCTAssertEqual(cancelCount, 1)
+    }
+
+    func testAdministratorOAuthRevokesCredentialWhenAdminAPIRejectsAuthority() async throws {
+        let authorizer = FakeAdministratorOAuthAuthorizer(credential: .init(
+            accessToken: "scoped-but-denied-token",
+            userID: "@alice:example.org",
+            deviceID: "TEMPADMINDEVICE",
+            homeserverURL: "https://synapse.zenith-research.ca"
+        ))
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
+            administratorOAuthAuthorizerFactory: { authorizer },
+            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: false) },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let request = try await service.beginAdministratorAuthorization()
+
+        do {
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+            )
+            XCTFail("Expected administrator authority rejection")
+        } catch {
+            XCTAssertEqual(error as? MatrixAdminClientError, .notAdministrator)
+        }
+        let revokeCount = await authorizer.revokeCount()
+        XCTAssertEqual(revokeCount, 1)
+    }
+
+    func testAdministratorOAuthCallbackValidationIsExact() {
+        XCTAssertTrue(MatrixRustAdministratorOAuthAuthorizer.validCallback(
+            URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+        ))
+        for invalid in [
+            "https://ca.zenithresearch.hypha/oauth",
+            "ca.zenithresearch.hypha://attacker.example/oauth",
+            "ca.zenithresearch.hypha:/oauth/extra",
+            "ca.zenithresearch.hypha:/oauth#fragment",
+        ] {
+            XCTAssertFalse(MatrixRustAdministratorOAuthAuthorizer.validCallback(URL(string: invalid)!))
+        }
+    }
+
     func testPasswordSignInReauthenticatesExistingDeviceAndRestoresItsSDKStore() async throws {
         let accountKey = MatrixRustSDKChatService.accountKey(
             username: "alice",
@@ -1372,6 +1542,71 @@ private actor FakeLiveClient: MatrixLiveClient {
     func observedRepositoryAttachmentWrites() -> [MatrixRoomRepositoryAttachment] {
         repositoryAttachmentWrites
     }
+}
+
+private final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    func increment() {
+        lock.lock()
+        count += 1
+        lock.unlock()
+    }
+
+    func value() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+}
+
+private actor FakeAdministratorOAuthAuthorizer: MatrixAdministratorOAuthAuthorizing {
+    private let credential: MatrixAdministratorOAuthCredential
+    private var revokes = 0
+    private var cancels = 0
+
+    init(credential: MatrixAdministratorOAuthCredential) {
+        self.credential = credential
+    }
+
+    func authorizationURL() async throws -> URL {
+        URL(string: "https://auth.example.org/authorize")!
+    }
+
+    func complete(callbackURL: URL) async throws -> MatrixAdministratorOAuthCredential {
+        credential
+    }
+
+    func cancel() async { cancels += 1 }
+    func revoke() async { revokes += 1 }
+    func revokeCount() -> Int { revokes }
+    func cancelCount() -> Int { cancels }
+}
+
+private actor FakeMatrixAdminClient: MatrixAdminClient {
+    private let administrator: Bool
+
+    init(isAdministrator: Bool) { self.administrator = isAdministrator }
+
+    func isAdministrator() async throws -> Bool { administrator }
+    func snapshot() async throws -> MatrixAdminSnapshot { .init(users: [], rooms: []) }
+    func createAccount(localpart: String, temporaryPassword: String, administrator: Bool) async throws -> MatrixAdminUserSummary {
+        .init(userID: "@\(localpart):example.org", isAdministrator: administrator, isDeactivated: false, isGuest: false, userType: nil)
+    }
+    func createRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility) async throws -> MatrixAdminRoomSummary {
+        .init(roomID: "!fixture:example.org", name: name, joinedMemberCount: 1)
+    }
+    func logoutAccount(userID: String) async throws {}
+    func deactivateAccount(userID: String) async throws {}
+    func purgeRoom(roomID: String) async throws {}
+    func requestPasswordReset(requestID: String, requestedAtMilliseconds: Int64) async throws -> MatrixPasswordResetRequest {
+        .init(userID: "@fixture:example.org", requestID: requestID, requestedAtMilliseconds: requestedAtMilliseconds)
+    }
+    func currentPasswordResetRequest() async throws -> MatrixPasswordResetRequest? { nil }
+    func completePasswordResetRequest(completedAtMilliseconds: Int64) async throws {}
+    func passwordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest] { [] }
+    func resetPassword(for request: MatrixPasswordResetRequest, temporaryPassword: String) async throws {}
 }
 
 private actor FakeLiveClientFactory: MatrixLiveClientFactory {

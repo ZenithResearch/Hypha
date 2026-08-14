@@ -38,11 +38,25 @@ struct MatrixAdminSheet: View {
                     ProgressView("Checking administrator authority…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .denied:
-                    ContentUnavailableView(
-                        "Administrator access required",
-                        systemImage: "person.badge.shield.checkmark",
-                        description: Text("The active Matrix session is not authorized by this homeserver's administrator API.")
-                    )
+                    VStack(spacing: ZenithDesign.Space.x4) {
+                        ContentUnavailableView(
+                            "Administrator authorization required",
+                            systemImage: "person.badge.shield.checkmark",
+                            description: Text("Authorize this Matrix account with the homeserver before using temporary administrator controls.")
+                        )
+                        Button("Authorize with homeserver…") {
+                            Task { await model.authorizeAdministratorAccess() }
+                        }
+                        .buttonStyle(HyphaButtonStyle(.primary))
+                        .disabled(model.isAdminAuthorizationInFlight)
+                        .accessibilityIdentifier("matrix.admin.authorize")
+                        if let message = model.adminMessage {
+                            Text(message)
+                                .font(ZenithDesign.Typography.corporate(.callout))
+                                .foregroundStyle(ZenithDesign.Palette.muted)
+                        }
+                    }
+                    .padding(ZenithDesign.Space.x5)
                 }
             }
             .navigationTitle("Homeserver Administration")
@@ -59,7 +73,10 @@ struct MatrixAdminSheet: View {
             await model.refreshAdministratorAccess()
             await model.refreshAdministratorSnapshot()
         }
-        .onDisappear(perform: clearSecrets)
+        .onDisappear {
+            clearSecrets()
+            Task { await model.endAdministratorAccess() }
+        }
         .sheet(item: $passwordResetRequest) { request in
             MatrixAdminPasswordResetSheet(
                 model: model,
@@ -150,7 +167,7 @@ struct MatrixAdminSheet: View {
             Label("Administrator authority confirmed by the homeserver", systemImage: "checkmark.shield.fill")
                 .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
                 .foregroundStyle(ZenithDesign.Palette.success)
-            Text("These controls use the active Matrix administrator session. Hypha does not contain or accept the Synapse registration shared secret.")
+            Text("These controls use temporary homeserver authorization for the active Matrix account. Hypha does not contain or accept the Synapse registration shared secret.")
                 .font(ZenithDesign.Typography.corporate(.callout))
                 .foregroundStyle(ZenithDesign.Palette.muted)
             if let message = validationMessage ?? model.adminMessage {

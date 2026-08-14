@@ -1,6 +1,83 @@
 import Accessibility
+import AuthenticationServices
 import SwiftUI
 import HyphaCore
+#if os(macOS)
+import AppKit
+#else
+import UIKit
+#endif
+
+@MainActor
+final class MatrixAdminWebAuthorizationSession: NSObject, ASWebAuthenticationPresentationContextProviding {
+    private var session: ASWebAuthenticationSession?
+    private var continuation: CheckedContinuation<URL, Error>?
+
+    func callback(for request: MatrixAdminOAuthRequest) async throws -> URL {
+        guard session == nil, continuation == nil else {
+            throw MatrixChatServiceError.unavailable(reason: "Administrator authorization is already in progress")
+        }
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                self.continuation = continuation
+                let session = ASWebAuthenticationSession(
+                    url: request.authorizationURL,
+                    callbackURLScheme: request.callbackScheme
+                ) { [weak self] callbackURL, error in
+                    Task { @MainActor in
+                        self?.finish(callbackURL: callbackURL, error: error)
+                    }
+                }
+                session.presentationContextProvider = self
+                session.prefersEphemeralWebBrowserSession = true
+                self.session = session
+                guard session.start() else {
+                    finish(
+                        callbackURL: nil,
+                        error: MatrixChatServiceError.unavailable(reason: "Administrator authorization could not be opened")
+                    )
+                    return
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.cancel() }
+        }
+    }
+
+    func cancel() {
+        session?.cancel()
+        finish(
+            callbackURL: nil,
+            error: CancellationError()
+        )
+    }
+
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        #if os(macOS)
+        NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first ?? ASPresentationAnchor()
+        #else
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow }
+        return window ?? ASPresentationAnchor()
+        #endif
+    }
+
+    private func finish(callbackURL: URL?, error: Error?) {
+        guard let continuation else { return }
+        self.continuation = nil
+        session = nil
+        if let callbackURL,
+           MatrixRustAdministratorOAuthAuthorizer.validCallback(callbackURL) {
+            continuation.resume(returning: callbackURL)
+        } else {
+            continuation.resume(throwing: error ?? MatrixChatServiceError.unavailable(
+                reason: "Administrator authorization callback was invalid"
+            ))
+        }
+    }
+}
 
 @main
 struct HyphaApp: App {
@@ -132,6 +209,7 @@ final class MatrixAppModel: ObservableObject {
     @Published private(set) var adminPasswordResetRequests: [MatrixPasswordResetRequest] = []
     @Published private(set) var issuedPasswordResetRequestIDs: Set<String> = []
     @Published private(set) var isAdminOperationInFlight = false
+    @Published private(set) var isAdminAuthorizationInFlight = false
     @Published var adminMessage: String?
     @Published private(set) var isPasswordResetRequestInFlight = false
     @Published private(set) var passwordResetRequestMessage: String?
@@ -150,6 +228,7 @@ final class MatrixAppModel: ObservableObject {
     private var registrationClient: MatrixInviteRegistrationClient?
     private var timelineRefreshTask: Task<Void, Never>?
     private var authenticationOperationGate = HyphaAuthenticationOperationGate()
+    private let adminWebAuthorizationSession = MatrixAdminWebAuthorizationSession()
 
     init(
         healthChecker: MatrixHomeserverHealthChecker,
@@ -1046,6 +1125,53 @@ final class MatrixAppModel: ObservableObject {
         guard coordinator === self.coordinator else { return }
         adminAccessState = authorized ? .authorized : .denied
         if !authorized { adminSnapshot = nil }
+    }
+
+    func authorizeAdministratorAccess() async {
+        guard let coordinator, !isAdminAuthorizationInFlight else { return }
+        isAdminAuthorizationInFlight = true
+        adminAccessState = .checking
+        adminMessage = nil
+        var requestID: UUID?
+        defer { isAdminAuthorizationInFlight = false }
+        do {
+            let request = try await coordinator.beginAdministratorAuthorization()
+            requestID = request.id
+            guard coordinator === self.coordinator else {
+                await coordinator.cancelAdministratorAuthorization(requestID: request.id)
+                return
+            }
+            let callbackURL = try await adminWebAuthorizationSession.callback(for: request)
+            try await coordinator.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: callbackURL
+            )
+            guard coordinator === self.coordinator else {
+                await coordinator.endAdministratorAuthorization()
+                return
+            }
+            adminAccessState = .authorized
+            await refreshAdministratorSnapshot()
+        } catch {
+            await coordinator.cancelAdministratorAuthorization(requestID: requestID)
+            guard coordinator === self.coordinator else { return }
+            adminAccessState = .denied
+            adminSnapshot = nil
+            adminMessage = error is CancellationError
+                ? "Administrator authorization was cancelled."
+                : "The homeserver did not grant administrator authority to this account."
+        }
+    }
+
+    func endAdministratorAccess() async {
+        adminWebAuthorizationSession.cancel()
+        guard let coordinator else {
+            resetAdministratorState()
+            return
+        }
+        await coordinator.endAdministratorAuthorization()
+        guard coordinator === self.coordinator else { return }
+        resetAdministratorState()
     }
 
     func refreshAdministratorSnapshot() async {
@@ -2886,11 +3012,9 @@ private struct MatrixCompanionShell: View {
                     Button("Change Password…", action: openPasswordChange)
                         .buttonStyle(HyphaButtonStyle(.secondary))
                         .accessibilityIdentifier("matrix.password.open")
-                    if model.adminAccessState == .authorized {
-                        Button("Homeserver Administration…", action: openAdministration)
-                            .buttonStyle(HyphaButtonStyle(.secondary))
-                            .accessibilityIdentifier("matrix.admin.open")
-                    }
+                    Button("Homeserver Administration…", action: openAdministration)
+                        .buttonStyle(HyphaButtonStyle(.secondary))
+                        .accessibilityIdentifier("matrix.admin.open")
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, ZenithDesign.Space.x5)
@@ -3016,10 +3140,8 @@ private struct MatrixCompanionShell: View {
 
                 Divider()
                 Button("Change Password…", action: openPasswordChange)
-                if model.adminAccessState == .authorized {
-                    Button("Homeserver Administration…", action: openAdministration)
-                        .accessibilityIdentifier("matrix.admin.open")
-                }
+                Button("Homeserver Administration…", action: openAdministration)
+                    .accessibilityIdentifier("matrix.admin.open")
                 Button("Refresh Security Status") {
                     Task { await model.refreshDeviceVerification() }
                 }
