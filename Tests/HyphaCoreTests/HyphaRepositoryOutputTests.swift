@@ -575,6 +575,40 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         )
     }
 
+    func testCancellingBuildTerminatesDescendantsAndReturnsCancellation() async throws {
+        let repository = try temporaryDirectory()
+        try FileManager.default.createDirectory(
+            at: repository.appendingPathComponent(".git", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        let marker = repository.appendingPathComponent("cancelled-descendant-survived")
+        let command = "(/bin/zsh -c 'trap \"\" TERM HUP; /bin/sleep 0.5; /usr/bin/touch \(marker.path)') & /bin/sleep 30"
+        let buildTask = Task {
+            try await HyphaRepositoryBuilder().build(
+                repositoryRoot: repository,
+                command: command,
+                timeout: .seconds(1)
+            )
+        }
+
+        try await Task<Never, Never>.sleep(for: .milliseconds(100))
+        buildTask.cancel()
+        do {
+            _ = try await buildTask.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            XCTFail("Expected CancellationError, received \(error)")
+        }
+
+        try await Task<Never, Never>.sleep(for: .milliseconds(600))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: marker.path),
+            "Cancelling a build must terminate descendants immediately"
+        )
+    }
+
     func testFailedBuildTerminatesDescendantsBeforeRestoringOutput() async throws {
         let repository = try temporaryDirectory()
         try FileManager.default.createDirectory(

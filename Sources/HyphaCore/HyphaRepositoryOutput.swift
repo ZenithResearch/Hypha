@@ -803,27 +803,33 @@ public struct HyphaRepositoryBuilder: Sendable {
         let timeoutSeconds = Self.seconds(from: timeout)
         let processResult: (Int32, String)
         do {
-            processResult = try await Task.detached(priority: .userInitiated) {
-                let temporary = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("hypha-build-\(UUID().uuidString).log")
-                FileManager.default.createFile(atPath: temporary.path, contents: nil)
-                defer { try? FileManager.default.removeItem(at: temporary) }
-                guard let handle = try? FileHandle(forWritingTo: temporary) else {
+            processResult = try await withThrowingTaskGroup(of: (Int32, String).self) { group in
+                group.addTask(priority: .userInitiated) {
+                    let temporary = FileManager.default.temporaryDirectory
+                        .appendingPathComponent("hypha-build-\(UUID().uuidString).log")
+                    FileManager.default.createFile(atPath: temporary.path, contents: nil)
+                    defer { try? FileManager.default.removeItem(at: temporary) }
+                    guard let handle = try? FileHandle(forWritingTo: temporary) else {
+                        throw HyphaRepositoryBuildError.launchFailed
+                    }
+                    defer { try? handle.close() }
+
+                    let terminationStatus = try await Self.runProcessGroup(
+                        command: cleanCommand,
+                        currentDirectoryURL: root,
+                        standardOutputFileDescriptor: handle.fileDescriptor,
+                        timeoutSeconds: timeoutSeconds
+                    )
+                    try? handle.synchronize()
+                    let data = (try? Data(contentsOf: temporary, options: [.mappedIfSafe])) ?? Data()
+                    let capped = data.prefix(256 * 1_024)
+                    return (terminationStatus, String(decoding: capped, as: UTF8.self))
+                }
+                guard let result = try await group.next() else {
                     throw HyphaRepositoryBuildError.launchFailed
                 }
-                defer { try? handle.close() }
-
-                let terminationStatus = try await Self.runProcessGroup(
-                    command: cleanCommand,
-                    currentDirectoryURL: root,
-                    standardOutputFileDescriptor: handle.fileDescriptor,
-                    timeoutSeconds: timeoutSeconds
-                )
-                try? handle.synchronize()
-                let data = (try? Data(contentsOf: temporary, options: [.mappedIfSafe])) ?? Data()
-                let capped = data.prefix(256 * 1_024)
-                return (terminationStatus, String(decoding: capped, as: UTF8.self))
-            }.value
+                return result
+            }
         } catch {
             try Self.restore(snapshot)
             throw error
