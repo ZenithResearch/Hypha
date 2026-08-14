@@ -1,0 +1,181 @@
+{
+  "valid": [
+    {
+      "label": "unversioned v1",
+      "instance": { "viewer": "quickLook", "path": "deck.pptx", "format": "pptx" }
+    },
+    {
+      "label": "explicit v1",
+      "instance": { "version": 1, "viewer": "quickLook", "path": "deck.pptx", "format": "pptx" }
+    },
+    {
+      "label": "HTML bundle inferred from path",
+      "instance": {
+        "version": 2,
+        "primary": "site",
+        "path": "site/index.html",
+        "artifacts": [
+          { "id": "site", "path": "site/index.html", "bundle_root": "site" }
+        ]
+      }
+    },
+    {
+      "label": "hidden path component",
+      "instance": {
+        "version": 2,
+        "primary": "site",
+        "path": "site/.assets/index.html",
+        "artifacts": [
+          {
+            "id": "site",
+            "path": "site/.assets/index.html",
+            "bundle_root": "site/.assets"
+          }
+        ]
+      }
+    },
+    {
+      "label": "case-insensitive declared HTML format",
+      "instance": {
+        "version": 2,
+        "primary": "site",
+        "path": "site/index.HTML",
+        "artifacts": [
+          {
+            "id": "site",
+            "path": "site/index.HTML",
+            "format": "HTML",
+            "bundle_root": "site"
+          }
+        ]
+      }
+    },
+    {
+      "label": "PDF artifact and old-client mirror",
+      "instance": {
+        "version": 2,
+        "primary": "brief",
+        "path": "brief.pdf",
+        "viewer": "quickLook",
+        "artifacts": [{ "id": "brief", "path": "brief.pdf", "viewer": "pdf" }]
+      }
+    },
+    {
+      "label": "Markdown artifact and old-client mirror",
+      "instance": {
+        "version": 2,
+        "primary": "notes",
+        "path": "notes.md",
+        "viewer": "text",
+        "artifacts": [{ "id": "notes", "path": "notes.md", "viewer": "markdown" }]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "label": "slideshow in v1",
+      "instance": { "viewer": "slideshow", "path": "deck.pptx", "format": "pptx" }
+    },
+    {
+      "label": "slideshow at the v2 top level",
+      "instance": {
+        "version": 2,
+        "primary": "deck",
+        "path": "deck.pptx",
+        "viewer": "slideshow",
+        "artifacts": [{ "id": "deck", "path": "deck.pptx", "viewer": "slideshow" }]
+      }
+    },
+    {
+      "label": "pdf at the v2 top level",
+      "instance": {
+        "version": 2,
+        "primary": "deck",
+        "path": "deck.pptx",
+        "viewer": "pdf",
+        "artifacts": [{ "id": "deck", "path": "deck.pptx", "viewer": "slideshow" }]
+      }
+    },
+    {
+      "label": "markdown at the v2 top level",
+      "instance": {
+        "version": 2,
+        "primary": "deck",
+        "path": "deck.pptx",
+        "viewer": "markdown",
+        "artifacts": [{ "id": "deck", "path": "deck.pptx", "viewer": "slideshow" }]
+      }
+    },
+    {
+      "label": "dot path",
+      "instance": { "version": 2, "primary": "artifact", "path": ".", "artifacts": [{ "id": "artifact", "path": "." }] }
+    },
+    {
+      "label": "leading dot component",
+      "instance": { "version": 2, "primary": "artifact", "path": "./artifact.txt", "artifacts": [{ "id": "artifact", "path": "./artifact.txt" }] }
+    },
+    {
+      "label": "trailing dot component",
+      "instance": { "version": 2, "primary": "artifact", "path": "artifact/.", "artifacts": [{ "id": "artifact", "path": "artifact/." }] }
+    },
+    {
+      "label": "leading whitespace",
+      "instance": { "version": 2, "primary": "artifact", "path": " artifact.txt", "artifacts": [{ "id": "artifact", "path": " artifact.txt" }] }
+    },
+    {
+      "label": "trailing whitespace",
+      "instance": { "version": 2, "primary": "artifact", "path": "artifact.txt ", "artifacts": [{ "id": "artifact", "path": "artifact.txt " }] }
+    },
+    {
+      "label": "duplicate separator",
+      "instance": { "version": 2, "primary": "artifact", "path": "artifact//file.txt", "artifacts": [{ "id": "artifact", "path": "artifact//file.txt" }] }
+    },
+    {
+      "label": "traversal",
+      "instance": { "version": 2, "primary": "artifact", "path": "artifact/../file.txt", "artifacts": [{ "id": "artifact", "path": "artifact/../file.txt" }] }
+    },
+    {
+      "label": "Windows absolute path",
+      "instance": { "version": 2, "primary": "artifact", "path": "C:/artifact.txt", "artifacts": [{ "id": "artifact", "path": "C:/artifact.txt" }] }
+    },
+    {
+      "label": "backslash path",
+      "instance": { "version": 2, "primary": "artifact", "path": "artifact\\file.txt", "artifacts": [{ "id": "artifact", "path": "artifact\\file.txt" }] }
+    },
+    {
+      "label": "control character path",
+      "instance": { "version": 2, "primary": "artifact", "path": "artifact\u007ffile.txt", "artifacts": [{ "id": "artifact", "path": "artifact\u007ffile.txt" }] }
+    },
+    {
+      "label": "bundle root without an HTML effective format",
+      "instance": {
+        "version": 2,
+        "primary": "site",
+        "path": "site/index.txt",
+        "artifacts": [{ "id": "site", "path": "site/index.txt", "bundle_root": "site" }]
+      }
+    },
+    {
+      "label": "bundle root with a non-HTML declared format",
+      "instance": {
+        "version": 2,
+        "primary": "site",
+        "path": "site/index.html",
+        "artifacts": [
+          { "id": "site", "path": "site/index.html", "format": "pdf", "bundle_root": "site" }
+        ]
+      }
+    },
+    {
+      "label": "bundle root with a non-web declared viewer",
+      "instance": {
+        "version": 2,
+        "primary": "site",
+        "path": "site/index.html",
+        "artifacts": [
+          { "id": "site", "path": "site/index.html", "viewer": "text", "bundle_root": "site" }
+        ]
+      }
+    }
+  ]
+}

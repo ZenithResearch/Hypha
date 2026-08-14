@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hypha.zenithresearch.ca/schemas/out.schema.json",
+  "title": "Hypha repository output manifest",
+  "description": "A version-1 single-artifact or version-2 declared-artifact manifest stored at out/out.json.",
+  "oneOf": [
+    {
+      "title": "Tolerant legacy single-artifact manifest",
+      "type": "object",
+      "properties": {
+        "version": { "const": 1 },
+        "build": { "type": "string" },
+        "viewer": { "$ref": "#/$defs/legacyInputViewer" },
+        "path": { "$ref": "#/$defs/legacyRelativePath" },
+        "format": { "$ref": "#/$defs/format" },
+        "artifacts": false
+      },
+      "anyOf": [
+        { "required": ["build"] },
+        { "required": ["viewer"] },
+        { "required": ["path"] },
+        { "required": ["format"] }
+      ]
+    },
+    {
+      "title": "Declared-artifact manifest",
+      "type": "object",
+      "required": ["version", "primary", "path", "artifacts"],
+      "properties": {
+        "version": { "const": 2 },
+        "build": { "type": "string" },
+        "primary": { "$ref": "#/$defs/artifactID" },
+        "path": { "$ref": "#/$defs/relativePath" },
+        "format": { "$ref": "#/$defs/format" },
+        "viewer": { "$ref": "#/$defs/oldClientSafeMirrorViewer" },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/artifact" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "artifactID": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "legacyRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+"
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!\\s)(?!.*\\s$)(?!.*\\\\)(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))[^\\u0000-\\u001F\\u007F-\\u009F]+$"
+    },
+    "format": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9.+_-]{0,31}$"
+    },
+    "htmlFormat": {
+      "type": "string",
+      "pattern": "^[Hh][Tt][Mm][Ll]?$"
+    },
+    "legacyInputViewer": {
+      "description": "Values accepted from existing version-1 manifests.",
+      "enum": ["quickLook", "pdf", "web", "image", "markdown", "text"]
+    },
+    "oldClientSafeMirrorViewer": {
+      "description": "Top-level version-2 mirror values understood by older Hypha clients.",
+      "enum": ["quickLook", "web", "image", "text"]
+    },
+    "artifactViewer": {
+      "description": "Version-2 artifact renderer preferences. Runtime file validation remains authoritative.",
+      "enum": ["quickLook", "pdf", "web", "image", "markdown", "text", "slideshow"]
+    },
+    "mediaType": {
+      "type": "string",
+      "maxLength": 127,
+      "pattern": "^[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+$"
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["id", "path"],
+      "properties": {
+        "id": { "$ref": "#/$defs/artifactID" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "path": { "$ref": "#/$defs/relativePath" },
+        "format": { "$ref": "#/$defs/format" },
+        "media_type": { "$ref": "#/$defs/mediaType" },
+        "viewer": { "$ref": "#/$defs/artifactViewer" },
+        "bundle_root": { "$ref": "#/$defs/relativePath" }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["bundle_root"] },
+          "then": {
+            "allOf": [
+              {
+                "if": { "required": ["format"] },
+                "then": { "properties": { "format": { "$ref": "#/$defs/htmlFormat" } } },
+                "else": {
+                  "properties": {
+                    "path": { "type": "string", "pattern": "\\.[Hh][Tt][Mm][Ll]?$" }
+                  }
+                }
+              },
+              {
+                "if": { "required": ["viewer"] },
+                "then": { "properties": { "viewer": { "const": "web" } } }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

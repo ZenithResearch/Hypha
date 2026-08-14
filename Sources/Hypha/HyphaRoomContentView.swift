@@ -1,4 +1,5 @@
 #if os(macOS)
+import AppKit
 import HyphaCore
 import SwiftUI
 
@@ -12,12 +13,12 @@ struct HyphaRoomContentView: View {
     @State private var buildCommand = ""
     @State private var pendingBuildCommand = ""
     @State private var artifacts: [HyphaArtifactSelection] = []
-    @State private var selectedArtifactURL: URL?
+    @State private var selectedArtifactID: String?
     @State private var buildLog = ""
     @State private var statusMessage: String?
     @State private var statusIsError = false
     @State private var isLoading = true
-    @State private var isOpeningOutput = false
+    @State private var isRebuilding = false
     @State private var showsBuildConfirmation = false
     @State private var scopedURL: URL?
     @State private var isAccessingSecurityScope = false
@@ -27,15 +28,8 @@ struct HyphaRoomContentView: View {
     private let resolver = HyphaArtifactOutputResolver()
 
     private var artifact: HyphaArtifactSelection? {
-        guard let selectedArtifactURL else { return artifacts.first }
-        return artifacts.first { $0.url == selectedArtifactURL } ?? artifacts.first
-    }
-
-    private var outputActionLabel: String {
-        if isOpeningOutput { return "Working…" }
-        return buildCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? "Open output"
-            : "Build and open output"
+        guard let selectedArtifactID else { return artifacts.first }
+        return artifacts.first { $0.id == selectedArtifactID } ?? artifacts.first
     }
 
     var body: some View {
@@ -55,28 +49,44 @@ struct HyphaRoomContentView: View {
 
                 repositoryCard
 
-                if let artifact {
+                if !artifacts.isEmpty {
                     VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
-                        if artifacts.count > 1 {
-                            Picker("Output asset", selection: $selectedArtifactURL) {
-                                ForEach(artifacts, id: \.url) { selection in
-                                    Text(selection.url.lastPathComponent)
-                                        .tag(Optional(selection.url))
-                                }
-                            }
-                            .pickerStyle(.menu)
-                            .accessibilityIdentifier("matrix.room.content.output-asset")
-                        }
                         HStack {
-                            Text(artifact.url.lastPathComponent)
+                            Label("Available outputs", systemImage: "rectangle.grid.1x2")
                                 .font(.headline)
                             Spacer()
-                            Text(artifact.format.uppercased())
-                                .font(.caption.monospaced())
+                            Text("\(artifacts.count)")
+                                .font(ZenithDesign.Typography.technical(.caption, weight: .semibold))
                                 .foregroundStyle(ZenithDesign.Palette.muted)
                         }
-                        HyphaArtifactViewerView(selection: artifact)
-                            .frame(minHeight: 420)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            LazyHStack(spacing: ZenithDesign.Space.x3) {
+                                ForEach(artifacts) { selection in
+                                    HyphaArtifactGalleryCard(
+                                        selection: selection,
+                                        isSelected: selection.id == artifact?.id
+                                    ) {
+                                        selectedArtifactID = selection.id
+                                    }
+                                }
+                            }
+                            .padding(.vertical, ZenithDesign.Space.x1)
+                        }
+                        .accessibilityIdentifier("matrix.room.content.output-gallery")
+
+                        if let artifact {
+                            HStack {
+                                Text(artifact.title)
+                                    .font(.headline)
+                                Spacer()
+                                Text(artifact.format.uppercased())
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(ZenithDesign.Palette.muted)
+                            }
+                            HyphaArtifactViewerView(selection: artifact)
+                                .frame(minHeight: 420)
+                        }
                     }
                     .padding(ZenithDesign.Space.x3)
                     .background(ZenithDesign.Palette.baseSubtle)
@@ -90,7 +100,7 @@ struct HyphaRoomContentView: View {
                     VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
                         Label("Content", systemImage: "doc.richtext")
                             .font(.headline)
-                        Text("Open the repository output here. Repository settings only define the local checkout, build command, and output contract.")
+                        Text("No available outputs were found in out/. Add an output asset, or use Rebuild after configuring a build command in Repository settings.")
                             .foregroundStyle(ZenithDesign.Palette.muted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -108,7 +118,7 @@ struct HyphaRoomContentView: View {
 
                 if !buildLog.isEmpty {
                     VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
-                        Text("Build log")
+                        Text("Rebuild log")
                             .font(.headline)
                         Text(buildLog)
                             .font(.system(.caption, design: .monospaced))
@@ -131,7 +141,7 @@ struct HyphaRoomContentView: View {
             isPresented: $showsBuildConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Run build") { runBuild(command: pendingBuildCommand) }
+            Button("Rebuild output") { runRebuild(command: pendingBuildCommand) }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Build commands run with your user permissions from the repository root. Review the command before continuing:\n\n\(pendingBuildCommand)\n\nHypha will inspect only the out/ directory for content output.")
@@ -158,14 +168,14 @@ struct HyphaRoomContentView: View {
                     LabeledContent("Remote", value: remote)
                 }
                 LabeledContent("Output contract", value: "\(attachment.outputDirectory)/\(attachment.manifestPath)")
-                Button(outputActionLabel) {
-                    prepareOutput()
+                Button(isRebuilding ? "Rebuilding…" : "Rebuild") {
+                    prepareRebuild()
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isOpeningOutput || repositoryRoot == nil)
-                .accessibilityIdentifier("matrix.room.content.open-output")
+                .buttonStyle(HyphaButtonStyle(.secondary))
+                .disabled(isRebuilding || repositoryRoot == nil)
+                .accessibilityIdentifier("matrix.room.content.rebuild")
                 if repositoryRoot == nil {
-                    Text("Choose the local checkout in Repository settings on this Mac before opening output.")
+                    Text("Choose the local checkout in Repository settings on this Mac to load or rebuild output.")
                         .font(.caption)
                         .foregroundStyle(ZenithDesign.Palette.muted)
                 }
@@ -189,7 +199,7 @@ struct HyphaRoomContentView: View {
     private func load() async {
         isLoading = true
         artifacts = []
-        selectedArtifactURL = nil
+        selectedArtifactID = nil
         statusMessage = nil
         endSecurityScope()
         defer { isLoading = false }
@@ -204,6 +214,7 @@ struct HyphaRoomContentView: View {
                 repositoryRoot = binding.repositoryRoot
                 buildCommand = binding.buildCommand
                 beginSecurityScope(for: binding.repositoryRoot)
+                loadAvailableOutputs()
             } else {
                 repositoryRoot = nil
                 buildCommand = ""
@@ -215,7 +226,26 @@ struct HyphaRoomContentView: View {
         }
     }
 
-    private func prepareOutput() {
+    private func loadAvailableOutputs() {
+        guard let repositoryRoot else { return }
+        let out = repositoryRoot.appendingPathComponent("out", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: out.path) else { return }
+        do {
+            let availableArtifacts = try resolver.resolveAll(outDirectory: out)
+            artifacts = availableArtifacts
+            if let selectedArtifactID,
+               availableArtifacts.contains(where: { $0.id == selectedArtifactID }) {
+                return
+            }
+            selectedArtifactID = availableArtifacts.first?.id
+        } catch let error as HyphaArtifactOutputError {
+            status("Hypha could not read out/out.json: \(artifactErrorMessage(error))", error: true)
+        } catch {
+            status("Hypha could not inspect this repository's available output.", error: true)
+        }
+    }
+
+    private func prepareRebuild() {
         guard let repositoryRoot else { return }
         let explicitCommand = buildCommand.trimmingCharacters(in: .whitespacesAndNewlines)
         if !explicitCommand.isEmpty {
@@ -231,7 +261,7 @@ struct HyphaRoomContentView: View {
                 pendingBuildCommand = manifestCommand
                 showsBuildConfirmation = true
             } else {
-                runBuild(command: "")
+                status("No rebuild command is configured. Add one in Repository settings or out/out.json.", error: true)
             }
         } catch let error as HyphaArtifactOutputError {
             status("Hypha could not read out/out.json: \(artifactErrorMessage(error))", error: true)
@@ -240,33 +270,30 @@ struct HyphaRoomContentView: View {
         }
     }
 
-    private func runBuild(command: String) {
+    private func runRebuild(command: String) {
         guard let repositoryRoot else { return }
-        isOpeningOutput = true
-        artifacts = []
-        selectedArtifactURL = nil
+        isRebuilding = true
         buildLog = ""
         statusMessage = nil
         Task {
-            defer { isOpeningOutput = false }
+            defer { isRebuilding = false }
             do {
                 let result = try await builder.build(repositoryRoot: repositoryRoot, command: command)
                 buildLog = result.log
                 guard result.exitCode == 0 else {
-                    status("Build failed with exit code \(result.exitCode). Review the build log.", error: true)
+                    status("Rebuild failed with exit code \(result.exitCode). Review the rebuild log. The previous output remains available.", error: true)
                     return
                 }
                 guard let selection = result.artifacts.first else {
-                    let prefix = result.didRunCommand ? "Build succeeded" : "No build command was provided"
-                    status("\(prefix), but out/ contains no supported output.", error: true)
+                    status("Rebuild succeeded, but out/ contains no supported output. The previous output remains selected.", error: true)
                     return
                 }
                 artifacts = result.artifacts
-                selectedArtifactURL = selection.url
+                selectedArtifactID = selection.id
                 let suffix = result.artifacts.count == 1
                     ? ""
-                    : " and found \(result.artifacts.count - 1) additional output assets"
-                status("Opened \(selection.url.lastPathComponent)\(suffix) from this room's content view.")
+                    : " with \(result.artifacts.count - 1) additional output assets"
+                status("Rebuilt \(selection.url.lastPathComponent)\(suffix).")
             } catch let error as HyphaArtifactOutputError {
                 status("out/out.json is invalid: \(artifactErrorMessage(error))", error: true)
             } catch let error as HyphaRepositoryBuildError {
@@ -299,6 +326,7 @@ struct HyphaRoomContentView: View {
         case .invalidRepository: "Choose a valid Git repository root."
         case .launchFailed: "Hypha could not launch the local build shell."
         case .timedOut: "The build exceeded the 15-minute limit and was terminated."
+        case .outputRollbackFailed: "Hypha could not preserve or restore the previous output safely."
         }
     }
 
@@ -312,7 +340,123 @@ struct HyphaRoomContentView: View {
         case let .unsupportedFormat(format): "format \(format) is not supported."
         case .viewerFormatMismatch: "viewer does not match the supported-type map."
         case .ambiguousManifestSelection: "more than one file matches; add path."
+        case let .unsupportedManifestVersion(version): "manifest version \(version) is not supported."
+        case let .viewerValueNotAllowed(viewer): "viewer \(viewer.rawValue) is not allowed in this manifest position."
+        case .invalidArtifactDefinition: "a declared artifact has invalid id, path, title, format, media type, or viewer metadata."
+        case let .duplicateArtifactID(id): "artifact id \(id) is declared more than once."
+        case .primaryArtifactUnavailable: "primary must identify one declared artifact."
+        case .legacyPrimaryMismatch: "the legacy path, format, and viewer must mirror the declared primary artifact."
+        case .bundleRootUnavailable: "bundle_root must name an existing directory inside out/."
+        case .bundleRootDoesNotContainArtifact: "bundle_root must contain the HTML entry point."
         }
+    }
+}
+
+private struct HyphaArtifactGalleryCard: View {
+    let selection: HyphaArtifactSelection
+    let isSelected: Bool
+    let action: () -> Void
+
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
+    @State private var isCursorPushed = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
+                HStack {
+                    Image(systemName: iconName)
+                        .font(.title2)
+                        .foregroundStyle(isSelected ? ZenithDesign.Palette.brand : ZenithDesign.Palette.content)
+                    Spacer()
+                    Text(selection.format.uppercased())
+                        .font(ZenithDesign.Typography.technical(.caption2, weight: .semibold))
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                }
+
+                VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                    Text(selection.title)
+                        .font(ZenithDesign.Typography.corporate(.callout, weight: .semibold))
+                        .foregroundStyle(ZenithDesign.Palette.content)
+                        .lineLimit(2)
+                    Text(selection.url.lastPathComponent)
+                        .font(ZenithDesign.Typography.technical(.caption2))
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+
+                Text(viewerLabel)
+                    .font(ZenithDesign.Typography.technical(.caption2, weight: .semibold))
+                    .foregroundStyle(isSelected ? ZenithDesign.Palette.brand : ZenithDesign.Palette.muted)
+            }
+            .frame(width: 212, alignment: .leading)
+            .frame(minHeight: 116, alignment: .leading)
+            .padding(ZenithDesign.Space.x3)
+            .background(isSelected ? ZenithDesign.Palette.brand.opacity(0.08) : ZenithDesign.Palette.baseRaised.opacity(0.55))
+            .clipShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.card, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: ZenithDesign.Radius.card, style: .continuous)
+                    .stroke(cardBorder, lineWidth: isFocused || isSelected ? 2 : 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.card, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .focused($isFocused)
+        .onHover { hovering in
+            isHovered = hovering
+            updateCursor(hovering: hovering)
+        }
+        .onDisappear { releaseCursorIfNeeded() }
+        .accessibilityLabel("\(selection.title), \(selection.format.uppercased()) output")
+        .accessibilityValue(isSelected ? "Selected" : "Available")
+        .accessibilityHint("Opens with the \(viewerLabel.lowercased()) viewer")
+        .accessibilityIdentifier("matrix.room.content.output-card.\(selection.id)")
+    }
+
+    private var cardBorder: Color {
+        if isFocused || isSelected { return ZenithDesign.Palette.brand }
+        return isHovered ? ZenithDesign.Palette.borderStrong : ZenithDesign.Palette.border
+    }
+
+    private var iconName: String {
+        switch selection.viewer {
+        case .slideshow: "rectangle.on.rectangle.angled"
+        case .pdf: "doc.richtext"
+        case .web: "globe"
+        case .image: "photo"
+        case .markdown: "text.document"
+        case .text: "doc.plaintext"
+        case .quickLook: "doc"
+        }
+    }
+
+    private var viewerLabel: String {
+        switch selection.viewer {
+        case .slideshow: "Slideshow"
+        case .pdf: "PDF"
+        case .web: "Web"
+        case .image: "Image"
+        case .markdown: "Markdown"
+        case .text: "Text"
+        case .quickLook: "Quick Look"
+        }
+    }
+
+    private func updateCursor(hovering: Bool) {
+        if hovering {
+            guard !isCursorPushed else { return }
+            NSCursor.pointingHand.push()
+            isCursorPushed = true
+        } else {
+            releaseCursorIfNeeded()
+        }
+    }
+
+    private func releaseCursorIfNeeded() {
+        guard isCursorPushed else { return }
+        NSCursor.pop()
+        isCursorPushed = false
     }
 }
 #endif

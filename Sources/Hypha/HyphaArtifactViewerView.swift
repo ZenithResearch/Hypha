@@ -1,6 +1,7 @@
 #if os(macOS)
 import AppKit
 import HyphaCore
+import PDFKit
 import QuickLookUI
 import SwiftUI
 import WebKit
@@ -13,19 +14,62 @@ struct HyphaArtifactViewerView: View {
             switch selection.viewer {
             case .quickLook:
                 HyphaQuickLookView(url: selection.url)
+            case .pdf:
+                HyphaPDFArtifactView(url: selection.url)
             case .web:
-                HyphaWebArtifactView(url: selection.url)
+                HyphaWebArtifactView(
+                    url: selection.url,
+                    readAccessURL: selection.bundleRoot ?? selection.url.deletingLastPathComponent()
+                )
             case .image:
                 HyphaImageArtifactView(url: selection.url)
             case .markdown:
                 HyphaMarkdownArtifactView(url: selection.url)
             case .text:
                 HyphaTextArtifactView(url: selection.url)
+            case .slideshow:
+                HyphaSlideshowCompatibilityView(url: selection.url)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ZenithDesign.Palette.base)
         .accessibilityIdentifier("hypha.artifact.viewer")
+    }
+}
+
+private struct HyphaPDFArtifactView: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> PDFView {
+        let view = PDFView(frame: .zero)
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        view.document = PDFDocument(url: url)
+        return view
+    }
+
+    func updateNSView(_ view: PDFView, context: Context) {
+        guard view.document?.documentURL != url else { return }
+        view.document = PDFDocument(url: url)
+        view.autoScales = true
+    }
+}
+
+private struct HyphaSlideshowCompatibilityView: View {
+    let url: URL
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            HyphaQuickLookView(url: url)
+            Label("Compatibility preview", systemImage: "rectangle.on.rectangle")
+                .font(.caption.weight(.medium))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.regularMaterial, in: Capsule())
+                .padding(12)
+                .help("The native Hypha slideshow renderer is not available in this build.")
+        }
+        .accessibilityIdentifier("hypha.artifact.slideshow-compatibility")
     }
 }
 
@@ -47,9 +91,10 @@ private struct HyphaQuickLookView: NSViewRepresentable {
 
 private struct HyphaWebArtifactView: NSViewRepresentable {
     let url: URL
+    let readAccessURL: URL
 
     func makeCoordinator() -> NavigationPolicy {
-        NavigationPolicy(allowedDirectory: url.deletingLastPathComponent())
+        NavigationPolicy(allowedDirectory: readAccessURL)
     }
 
     func makeNSView(context: Context) -> WKWebView {
@@ -58,23 +103,73 @@ private struct HyphaWebArtifactView: NSViewRepresentable {
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
-        view.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        context.coordinator.load(url: url, readAccessURL: readAccessURL, in: view)
         return view
     }
 
     func updateNSView(_ view: WKWebView, context: Context) {
-        guard view.url != url else { return }
-        context.coordinator.allowedDirectory = url.deletingLastPathComponent()
-            .standardizedFileURL
-            .resolvingSymlinksInPath()
-        view.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        context.coordinator.load(url: url, readAccessURL: readAccessURL, in: view)
     }
 
     final class NavigationPolicy: NSObject, WKNavigationDelegate {
+        private static let offlineRules = #"[{"trigger":{"url-filter":"^(?:https?|wss?)://"},"action":{"type":"block"}}]"#
+
         var allowedDirectory: URL
+        private var currentURL: URL?
+        private var contentRuleList: WKContentRuleList?
+        private var loadGeneration = 0
 
         init(allowedDirectory: URL) {
             self.allowedDirectory = allowedDirectory.standardizedFileURL.resolvingSymlinksInPath()
+        }
+
+        func load(url: URL, readAccessURL: URL, in webView: WKWebView) {
+            let resolvedURL = url.standardizedFileURL.resolvingSymlinksInPath()
+            let resolvedReadAccess = readAccessURL.standardizedFileURL.resolvingSymlinksInPath()
+            guard currentURL != resolvedURL || allowedDirectory != resolvedReadAccess else { return }
+
+            currentURL = resolvedURL
+            allowedDirectory = resolvedReadAccess
+            loadGeneration += 1
+            let generation = loadGeneration
+
+            if let contentRuleList {
+                present(
+                    url: resolvedURL,
+                    readAccessURL: resolvedReadAccess,
+                    ruleList: contentRuleList,
+                    in: webView
+                )
+                return
+            }
+
+            WKContentRuleListStore.default().compileContentRuleList(
+                forIdentifier: "ca.zenithresearch.hypha.offline-artifact-v1",
+                encodedContentRuleList: Self.offlineRules
+            ) { [weak self, weak webView] ruleList, _ in
+                guard let self, let webView, generation == self.loadGeneration,
+                      let ruleList else {
+                    return
+                }
+                self.contentRuleList = ruleList
+                self.present(
+                    url: resolvedURL,
+                    readAccessURL: resolvedReadAccess,
+                    ruleList: ruleList,
+                    in: webView
+                )
+            }
+        }
+
+        private func present(
+            url: URL,
+            readAccessURL: URL,
+            ruleList: WKContentRuleList,
+            in webView: WKWebView
+        ) {
+            webView.configuration.userContentController.removeAllContentRuleLists()
+            webView.configuration.userContentController.add(ruleList)
+            webView.loadFileURL(url, allowingReadAccessTo: readAccessURL)
         }
 
         func webView(
