@@ -62,13 +62,31 @@ struct MatrixAdminSheet: View {
             .navigationTitle("Homeserver Administration")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { isPresented = false }
-                        .disabled(model.isAdminOperationInFlight)
+                    Button(model.hasUnconfirmedAdminRevocation ? "Retry revocation" : "Done") {
+                        clearSecrets()
+                        Task {
+                            if await model.endAdministratorAccess() {
+                                isPresented = false
+                            }
+                        }
+                    }
+                    .disabled(
+                        model.isAdminOperationInFlight
+                            || model.isAdminAuthorizationInFlight
+                            || model.isAdminRevocationInFlight
+                    )
                 }
             }
         }
         .hyphaFlexibleSheetFrame(minWidth: 680, idealWidth: 760, minHeight: 560, idealHeight: 680)
         .hyphaMobileSheetPresentation()
+        .interactiveDismissDisabled(
+            model.adminAccessState == .authorized
+                || model.hasUnconfirmedAdminRevocation
+                || model.isAdminOperationInFlight
+                || model.isAdminAuthorizationInFlight
+                || model.isAdminRevocationInFlight
+        )
         .task {
             await model.refreshAdministratorAccess()
             await model.refreshAdministratorSnapshot()

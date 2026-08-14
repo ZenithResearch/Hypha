@@ -210,6 +210,8 @@ final class MatrixAppModel: ObservableObject {
     @Published private(set) var issuedPasswordResetRequestIDs: Set<String> = []
     @Published private(set) var isAdminOperationInFlight = false
     @Published private(set) var isAdminAuthorizationInFlight = false
+    @Published private(set) var isAdminRevocationInFlight = false
+    @Published private(set) var hasUnconfirmedAdminRevocation = false
     @Published var adminMessage: String?
     @Published private(set) var isPasswordResetRequestInFlight = false
     @Published private(set) var passwordResetRequestMessage: String?
@@ -350,8 +352,10 @@ final class MatrixAppModel: ObservableObject {
         await connectHomeserver()
     }
 
-    func changeHomeserver() {
-        guard !isAuthenticationOperationInFlight else { return }
+    @discardableResult
+    func changeHomeserver() async -> Bool {
+        guard !isAuthenticationOperationInFlight else { return false }
+        guard await suspendCoordinatorForAccountTransition() else { return false }
         timelineRefreshTask?.cancel()
         timelineRefreshTask = nil
         defaults.removeObject(forKey: storageIdentity.homeserverDefaultsKey)
@@ -376,6 +380,23 @@ final class MatrixAppModel: ObservableObject {
         resetSecurityState()
         resetAdministratorState()
         homeserverState = .awaitingInput
+        return true
+    }
+
+    private func suspendCoordinatorForAccountTransition() async -> Bool {
+        guard let coordinator else { return true }
+        let revoked = await coordinator.endAdministratorAuthorization()
+        guard coordinator === self.coordinator else { return false }
+        guard revoked else {
+            hasUnconfirmedAdminRevocation = true
+            adminAccessState = .denied
+            adminSnapshot = nil
+            adminMessage = "The homeserver could not confirm administrator revocation. Check your connection and retry before changing accounts or homeservers."
+            return false
+        }
+        hasUnconfirmedAdminRevocation = false
+        await coordinator.suspend()
+        return coordinator === self.coordinator
     }
 
     func createAccount(
@@ -553,7 +574,7 @@ final class MatrixAppModel: ObservableObject {
               ) else { return }
         guard beginAuthenticationOperation() else { return }
         defer { finishAuthenticationOperation() }
-        await coordinator?.suspend()
+        guard await suspendCoordinatorForAccountTransition() else { return }
         timelineRefreshTask?.cancel()
         timelineRefreshTask = nil
         do {
@@ -596,7 +617,7 @@ final class MatrixAppModel: ObservableObject {
               ) else { return }
         guard beginAuthenticationOperation() else { return }
         defer { finishAuthenticationOperation() }
-        await coordinator?.suspend()
+        guard await suspendCoordinatorForAccountTransition() else { return }
         timelineRefreshTask?.cancel()
         timelineRefreshTask = nil
         do {
@@ -620,7 +641,7 @@ final class MatrixAppModel: ObservableObject {
         guard let configuration = activeConfiguration, beginAuthenticationOperation() else { return }
         defer { finishAuthenticationOperation() }
         if activeSessionAccountKey == session.accountKey {
-            await coordinator?.suspend()
+            guard await suspendCoordinatorForAccountTransition() else { return }
             timelineRefreshTask?.cancel()
             timelineRefreshTask = nil
             rooms = []
@@ -652,7 +673,7 @@ final class MatrixAppModel: ObservableObject {
     func beginAddingAccount() async {
         guard let configuration = activeConfiguration,
               !isAuthenticationOperationInFlight else { return }
-        await coordinator?.suspend()
+        guard await suspendCoordinatorForAccountTransition() else { return }
         timelineRefreshTask?.cancel()
         timelineRefreshTask = nil
         coordinator = makeCoordinator(configuration: configuration)
@@ -1163,15 +1184,28 @@ final class MatrixAppModel: ObservableObject {
         }
     }
 
-    func endAdministratorAccess() async {
+    @discardableResult
+    func endAdministratorAccess() async -> Bool {
+        guard !isAdminRevocationInFlight else { return false }
+        isAdminRevocationInFlight = true
+        defer { isAdminRevocationInFlight = false }
         adminWebAuthorizationSession.cancel()
         guard let coordinator else {
             resetAdministratorState()
-            return
+            return true
         }
-        await coordinator.endAdministratorAuthorization()
-        guard coordinator === self.coordinator else { return }
+        let revoked = await coordinator.endAdministratorAuthorization()
+        guard coordinator === self.coordinator else { return revoked }
+        guard revoked else {
+            hasUnconfirmedAdminRevocation = true
+            adminAccessState = .denied
+            adminSnapshot = nil
+            adminMessage = "Administrator authority is disabled locally, but the homeserver could not confirm revocation. Check your connection and retry before closing."
+            return false
+        }
+        hasUnconfirmedAdminRevocation = false
         resetAdministratorState()
+        return true
     }
 
     func refreshAdministratorSnapshot() async {
@@ -1636,7 +1670,9 @@ final class MatrixAppModel: ObservableObject {
         if case .sessionExpired = state, let accountKey = activeSessionAccountKey {
             try? sessionVault.deleteSession(accountKey: accountKey)
             if let configuration = activeConfiguration { refreshSavedSessions(configuration: configuration) }
-            resetAdministratorState()
+            adminAccessState = .denied
+            adminSnapshot = nil
+            Task { await endAdministratorAccess() }
         }
     }
 }
@@ -1894,8 +1930,11 @@ private struct MatrixCompanionShell: View {
                     .foregroundStyle(ZenithDesign.Palette.muted)
                     Spacer()
                     Button("Change homeserver") {
-                        authRoute = .landing
-                        model.changeHomeserver()
+                        Task {
+                            if await model.changeHomeserver() {
+                                authRoute = .landing
+                            }
+                        }
                     }
                     .buttonStyle(.plain)
                     .disabled(model.isAuthenticationOperationInFlight)
@@ -2472,9 +2511,12 @@ private struct MatrixCompanionShell: View {
                     LabeledContent("Connected to", value: homeserver.host ?? homeserver.absoluteString)
                 }
                 Button {
-                    showsSettings = false
-                    authRoute = .landing
-                    model.changeHomeserver()
+                    Task {
+                        if await model.changeHomeserver() {
+                            showsSettings = false
+                            authRoute = .landing
+                        }
+                    }
                 } label: {
                     Label("Change homeserver", systemImage: "network")
                 }

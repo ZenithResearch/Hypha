@@ -174,6 +174,42 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         }
     }
 
+    func testAdministratorOAuthRetainsFailedRevocationForRetryWhileDisablingLocalAuthority() async throws {
+        let authorizer = FakeAdministratorOAuthAuthorizer(
+            credential: .init(
+                accessToken: "scoped-admin-token",
+                userID: "@alice:example.org",
+                deviceID: "TEMPADMINDEVICE",
+                homeserverURL: "https://synapse.zenith-research.ca"
+            ),
+            revocationResults: [false, true]
+        )
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
+            administratorOAuthAuthorizerFactory: { authorizer },
+            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let request = try await service.beginAdministratorAuthorization()
+        try await service.completeAdministratorAuthorization(
+            requestID: request.id,
+            callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+        )
+
+        let firstRevocation = await service.endAdministratorAuthorization()
+        let authorizedAfterFailure = try await service.isHomeserverAdministrator()
+        let secondRevocation = await service.endAdministratorAuthorization()
+        let revokeCount = await authorizer.revokeCount()
+
+        XCTAssertFalse(firstRevocation)
+        XCTAssertFalse(authorizedAfterFailure)
+        XCTAssertTrue(secondRevocation)
+        XCTAssertEqual(revokeCount, 2)
+    }
+
     func testPasswordSignInReauthenticatesExistingDeviceAndRestoresItsSDKStore() async throws {
         let accountKey = MatrixRustSDKChatService.accountKey(
             username: "alice",
@@ -1563,11 +1599,16 @@ private final class LockedCounter: @unchecked Sendable {
 
 private actor FakeAdministratorOAuthAuthorizer: MatrixAdministratorOAuthAuthorizing {
     private let credential: MatrixAdministratorOAuthCredential
+    private var revocationResults: [Bool]
     private var revokes = 0
     private var cancels = 0
 
-    init(credential: MatrixAdministratorOAuthCredential) {
+    init(
+        credential: MatrixAdministratorOAuthCredential,
+        revocationResults: [Bool] = [true]
+    ) {
         self.credential = credential
+        self.revocationResults = revocationResults
     }
 
     func authorizationURL() async throws -> URL {
@@ -1579,7 +1620,10 @@ private actor FakeAdministratorOAuthAuthorizer: MatrixAdministratorOAuthAuthoriz
     }
 
     func cancel() async { cancels += 1 }
-    func revoke() async { revokes += 1 }
+    func revoke() async -> Bool {
+        revokes += 1
+        return revocationResults.isEmpty ? true : revocationResults.removeFirst()
+    }
     func revokeCount() -> Int { revokes }
     func cancelCount() -> Int { cancels }
 }

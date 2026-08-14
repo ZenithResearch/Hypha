@@ -489,7 +489,8 @@ public protocol MatrixChatService: Sendable {
     func beginAdministratorAuthorization() async throws -> MatrixAdminOAuthRequest
     func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws
     func cancelAdministratorAuthorization(requestID: UUID?) async
-    func endAdministratorAuthorization() async
+    @discardableResult
+    func endAdministratorAuthorization() async -> Bool
     func isHomeserverAdministrator() async throws -> Bool
     func administratorSnapshot() async throws -> MatrixAdminSnapshot
     func administratorPasswordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest]
@@ -600,7 +601,8 @@ public extension MatrixChatService {
 
     func cancelAdministratorAuthorization(requestID: UUID?) async {}
 
-    func endAdministratorAuthorization() async {}
+    @discardableResult
+    func endAdministratorAuthorization() async -> Bool { true }
 
     func administratorPasswordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest] {
         throw MatrixAdminClientError.serverRejected
@@ -943,7 +945,8 @@ public final class MatrixChatCoordinator {
         await service.cancelAdministratorAuthorization(requestID: requestID)
     }
 
-    public func endAdministratorAuthorization() async {
+    @discardableResult
+    public func endAdministratorAuthorization() async -> Bool {
         await service.endAdministratorAuthorization()
     }
 
