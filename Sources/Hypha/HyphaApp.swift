@@ -579,7 +579,7 @@ final class MatrixAppModel: ObservableObject {
         timelineRefreshTask = nil
         do {
             guard let savedPassword = try credentialStore.password(for: credential) else {
-                retrySignIn(username: credential.username, message: .savedCredentialUnavailable)
+                await retrySignIn(username: credential.username, message: .savedCredentialUnavailable)
                 return
             }
             let coordinator = makeCoordinator(configuration: configuration)
@@ -605,7 +605,7 @@ final class MatrixAppModel: ObservableObject {
             }
             refreshSavedCredentials(configuration: configuration)
         } catch {
-            retrySignIn(username: credential.username, message: .savedCredentialUnavailable)
+            await retrySignIn(username: credential.username, message: .savedCredentialUnavailable)
         }
     }
 
@@ -939,10 +939,12 @@ final class MatrixAppModel: ObservableObject {
         }
     }
 
+    @discardableResult
     func retrySignIn(
         username: String? = nil,
         message: MatrixSignOutMessage? = nil
-    ) {
+    ) async -> Bool {
+        guard await suspendCoordinatorForAccountTransition() else { return false }
         password = ""
         savePasswordToApplePasswords = false
         if let username { self.username = username }
@@ -952,6 +954,7 @@ final class MatrixAppModel: ObservableObject {
         state = .signedOut(message: message)
         resetSecurityState()
         resetAdministratorState()
+        return true
     }
 
     func bootstrapFirstDeviceTrust() async {
@@ -3503,8 +3506,11 @@ private struct MatrixCompanionShell: View {
         VStack(spacing: 0) {
             statePanel(title: title, message: message, symbol: symbol, identifier: identifier)
             Button("Sign in with password") {
-                model.retrySignIn()
-                authRoute = .passwordSignIn
+                Task {
+                    if await model.retrySignIn() {
+                        authRoute = .passwordSignIn
+                    }
+                }
             }
                 .buttonStyle(ZenithPrimaryButtonStyle())
                 .accessibilityIdentifier("matrix.login.password-fallback-action")
@@ -3520,8 +3526,11 @@ private struct MatrixCompanionShell: View {
                 identifier: "matrix.unavailable"
             )
             Button("Sign in with password") {
-                model.retrySignIn()
-                authRoute = .passwordSignIn
+                Task {
+                    if await model.retrySignIn() {
+                        authRoute = .passwordSignIn
+                    }
+                }
             }
                 .buttonStyle(ZenithPrimaryButtonStyle())
                 .accessibilityIdentifier("matrix.login.retry")
