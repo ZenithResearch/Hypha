@@ -575,6 +575,29 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         )
     }
 
+    func testFailedBuildTerminatesDescendantsBeforeRestoringOutput() async throws {
+        let repository = try temporaryDirectory()
+        try FileManager.default.createDirectory(
+            at: repository.appendingPathComponent(".git", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        let output = repository.appendingPathComponent("out", isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let artifact = output.appendingPathComponent("index.html")
+        try Data("last usable".utf8).write(to: artifact)
+        let command = "(/bin/zsh -c 'trap \"\" TERM HUP; /bin/sleep 1; printf overwritten > out/index.html') & exit 1"
+
+        let result = try await HyphaRepositoryBuilder().build(
+            repositoryRoot: repository,
+            command: command,
+            timeout: .seconds(5)
+        )
+
+        XCTAssertEqual(result.exitCode, 1)
+        try await Task<Never, Never>.sleep(for: .milliseconds(1_200))
+        XCTAssertEqual(try String(contentsOf: artifact, encoding: .utf8), "last usable")
+    }
+
     func testEmptyBuildCommandResolvesExistingOutputWithoutLaunchingShell() async throws {
         let repository = try temporaryDirectory()
         try FileManager.default.createDirectory(

@@ -22,6 +22,20 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         XCTAssertTrue(workflow.contains("npm --prefix docs test"))
     }
 
+    func testOutputRollbackAtomicallySwapsTheRestoredDirectory() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let core = try String(
+            contentsOf: root.appendingPathComponent("Sources/HyphaCore/HyphaRepositoryOutput.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(core.contains("renameatx_np("))
+        XCTAssertTrue(core.contains("RENAME_SWAP"))
+    }
+
     func testRoomContentStartsPrimaryAndKeepsArtifactViewerOutOfRepositorySettings() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

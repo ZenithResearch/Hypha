@@ -934,27 +934,32 @@ public struct HyphaRepositoryBuilder: Sendable {
         while Date() < deadline {
             let waitResult = waitpid(processID, &waitStatus, WNOHANG)
             if waitResult == processID {
+                await terminateProcessGroupIfNeeded(processID)
                 return exitStatus(from: waitStatus)
             }
             if waitResult == -1 {
-                _ = kill(-processID, SIGKILL)
+                await terminateProcessGroupIfNeeded(processID)
                 throw HyphaRepositoryBuildError.launchFailed
             }
             try? await Task<Never, Never>.sleep(for: .milliseconds(50))
             if Task.isCancelled {
-                _ = kill(-processID, SIGTERM)
-                try? await Task<Never, Never>.sleep(for: .milliseconds(200))
-                _ = kill(-processID, SIGKILL)
+                await terminateProcessGroupIfNeeded(processID)
                 while waitpid(processID, &waitStatus, 0) == -1, errno == EINTR {}
                 throw CancellationError()
             }
         }
 
+        await terminateProcessGroupIfNeeded(processID)
+        while waitpid(processID, &waitStatus, 0) == -1, errno == EINTR {}
+        throw HyphaRepositoryBuildError.timedOut
+    }
+
+    private static func terminateProcessGroupIfNeeded(_ processID: pid_t) async {
+        errno = 0
+        guard kill(-processID, 0) == 0 || errno == EPERM else { return }
         _ = kill(-processID, SIGTERM)
         try? await Task<Never, Never>.sleep(for: .milliseconds(200))
         _ = kill(-processID, SIGKILL)
-        while waitpid(processID, &waitStatus, 0) == -1, errno == EINTR {}
-        throw HyphaRepositoryBuildError.timedOut
     }
 
     private static func exitStatus(from waitStatus: Int32) -> Int32 {
@@ -998,9 +1003,26 @@ private struct HyphaRepositoryOutputSnapshot: @unchecked Sendable {
             defer { try? fileManager.removeItem(at: restoreCandidate) }
             try fileManager.copyItem(at: snapshotRoot.appendingPathComponent("out"), to: restoreCandidate)
             if fileManager.fileExists(atPath: outputURL.path) {
-                try fileManager.removeItem(at: outputURL)
+                let swapResult = restoreCandidate.path.withCString { restorePath in
+                    outputURL.path.withCString { outputPath in
+                        renameatx_np(
+                            AT_FDCWD,
+                            restorePath,
+                            AT_FDCWD,
+                            outputPath,
+                            UInt32(RENAME_SWAP)
+                        )
+                    }
+                }
+                guard swapResult == 0 else {
+                    throw CocoaError(
+                        .fileWriteUnknown,
+                        userInfo: [NSFilePathErrorKey: outputURL.path]
+                    )
+                }
+            } else {
+                try fileManager.moveItem(at: restoreCandidate, to: outputURL)
             }
-            try fileManager.moveItem(at: restoreCandidate, to: outputURL)
         } else if fileManager.fileExists(atPath: outputURL.path) {
             try fileManager.removeItem(at: outputURL)
         }
