@@ -48,7 +48,7 @@ CRITICAL_POLICY_HASHES = {
     "project.yml": "24dfe46d130050ee80d0f236cd6f6a2eb6bdacc7ad08114c22c1bd7f1dbbb477",
     "Resources/iOS/Info.plist": "f684655642e476f10aa8b909f0bf62fecb65e9d91f2bcdf3ef7f60666625b2f6",
     "HyphaMobile.xcodeproj/project.pbxproj": "94b4fef7dd2c2cc6441ca876dd304dd5d1b90bab205617d2c96e1e16c8662b87",
-    ".github/workflows/ci.yml": "93b2d8b9692a6c43849e854e73d1946918e464e9e8897cd34fe66a134aaf90cc",
+    ".github/workflows/ci.yml": "0294f8bbe209080af2c89cccb1c9fc8f64ce444c6ace61468c815341287b12e0",
     ".github/workflows/release.yml": "a471607fe5e1ccd41d810433ee0a927fa25db4218306f2626176777d09dd58bf",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
     "build-app.sh": "6f1b7ba44241e52439fe024922b9b266f2a866ca19fa3f58b131ccd98d1ebee4",

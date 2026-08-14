@@ -1,4 +1,7 @@
 import Foundation
+#if os(macOS)
+import Darwin
+#endif
 
 public enum HyphaArtifactViewer: String, Codable, Equatable, Sendable {
     case quickLook
@@ -524,7 +527,9 @@ public struct HyphaArtifactOutputResolver: Sendable {
         }
     }
 
-    private func supportedFiles(in root: URL) throws -> [(url: URL, format: String, viewer: HyphaArtifactViewer)] {
+    private func supportedFiles(
+        in root: URL
+    ) throws -> [(id: String, url: URL, format: String, viewer: HyphaArtifactViewer)] {
         let fileManager = FileManager.default
         guard let enumerator = fileManager.enumerator(
             at: root,
@@ -533,24 +538,25 @@ public struct HyphaArtifactOutputResolver: Sendable {
         ) else {
             throw HyphaArtifactOutputError.outputDirectoryUnavailable
         }
-        var matches: [(url: URL, format: String, viewer: HyphaArtifactViewer)] = []
+        var matches: [(id: String, url: URL, format: String, viewer: HyphaArtifactViewer)] = []
         for case let candidate as URL in enumerator {
             guard candidate.lastPathComponent != "out.json" else { continue }
+            let id = relativePath(for: candidate.standardizedFileURL, root: root)
             let resolved = candidate.standardizedFileURL.resolvingSymlinksInPath()
             guard isContained(resolved, by: root) else { continue }
             let values = try resolved.resourceValues(forKeys: [.isRegularFileKey])
             guard values.isRegularFile == true else { continue }
             let format = HyphaArtifactViewerRegistry.normalize(resolved.pathExtension)
             guard let viewer = HyphaArtifactViewerRegistry.viewer(forFormat: format) else { continue }
-            matches.append((resolved, format, viewer))
+            matches.append((id, resolved, format, viewer))
         }
-        return matches.sorted { $0.url.path < $1.url.path }
+        return matches.sorted { $0.id < $1.id }
     }
 
     private func discoveredSelections(in root: URL) throws -> [HyphaArtifactSelection] {
         try supportedFiles(in: root).map {
             HyphaArtifactSelection(
-                id: relativePath(for: $0.url, root: root),
+                id: $0.id,
                 url: $0.url,
                 format: $0.format,
                 viewer: $0.viewer,
@@ -633,6 +639,7 @@ public enum HyphaRepositoryBuildError: Error, Equatable, Sendable {
     case invalidRepository
     case launchFailed
     case timedOut
+    case outputRollbackFailed
 }
 
 public struct HyphaRepositoryBuildResult: Equatable, Sendable {
@@ -785,54 +792,64 @@ public struct HyphaRepositoryBuilder: Sendable {
             )
         }
 
+        let snapshot: HyphaRepositoryOutputSnapshot
+        do {
+            snapshot = try HyphaRepositoryOutputSnapshot.capture(outputURL: out)
+        } catch {
+            throw HyphaRepositoryBuildError.outputRollbackFailed
+        }
+        defer { snapshot.discard() }
+
         let timeoutSeconds = Self.seconds(from: timeout)
-        let processResult: (Int32, String) = try await Task.detached(priority: .userInitiated) {
-            let temporary = FileManager.default.temporaryDirectory
-                .appendingPathComponent("hypha-build-\(UUID().uuidString).log")
-            FileManager.default.createFile(atPath: temporary.path, contents: nil)
-            defer { try? FileManager.default.removeItem(at: temporary) }
-            guard let handle = try? FileHandle(forWritingTo: temporary) else {
-                throw HyphaRepositoryBuildError.launchFailed
-            }
-            defer { try? handle.close() }
+        let processResult: (Int32, String)
+        do {
+            processResult = try await Task.detached(priority: .userInitiated) {
+                let temporary = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("hypha-build-\(UUID().uuidString).log")
+                FileManager.default.createFile(atPath: temporary.path, contents: nil)
+                defer { try? FileManager.default.removeItem(at: temporary) }
+                guard let handle = try? FileHandle(forWritingTo: temporary) else {
+                    throw HyphaRepositoryBuildError.launchFailed
+                }
+                defer { try? handle.close() }
 
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-            process.arguments = ["-lc", cleanCommand]
-            process.currentDirectoryURL = root
-            process.standardOutput = handle
-            process.standardError = handle
-            do {
-                try process.run()
-            } catch {
-                throw HyphaRepositoryBuildError.launchFailed
-            }
+                let terminationStatus = try await Self.runProcessGroup(
+                    command: cleanCommand,
+                    currentDirectoryURL: root,
+                    standardOutputFileDescriptor: handle.fileDescriptor,
+                    timeoutSeconds: timeoutSeconds
+                )
+                try? handle.synchronize()
+                let data = (try? Data(contentsOf: temporary, options: [.mappedIfSafe])) ?? Data()
+                let capped = data.prefix(256 * 1_024)
+                return (terminationStatus, String(decoding: capped, as: UTF8.self))
+            }.value
+        } catch {
+            try Self.restore(snapshot)
+            throw error
+        }
 
-            let deadline = Date().addingTimeInterval(timeoutSeconds)
-            while process.isRunning, Date() < deadline {
-                try await Task<Never, Never>.sleep(for: .milliseconds(50))
-            }
-            if process.isRunning {
-                process.terminate()
-                process.waitUntilExit()
-                throw HyphaRepositoryBuildError.timedOut
-            }
-            process.waitUntilExit()
-            try? handle.synchronize()
-            let data = (try? Data(contentsOf: temporary, options: [.mappedIfSafe])) ?? Data()
-            let capped = data.prefix(256 * 1_024)
-            return (process.terminationStatus, String(decoding: capped, as: UTF8.self))
-        }.value
+        if processResult.0 != 0 {
+            try Self.restore(snapshot)
+        }
 
         let artifacts: [HyphaArtifactSelection]
         if processResult.0 == 0 {
-            if FileManager.default.fileExists(atPath: out.path) {
-                artifacts = try resolver.resolveAll(outDirectory: out)
-            } else {
-                artifacts = []
+            do {
+                if FileManager.default.fileExists(atPath: out.path) {
+                    artifacts = try resolver.resolveAll(outDirectory: out)
+                } else {
+                    artifacts = []
+                }
+            } catch {
+                try Self.restore(snapshot)
+                throw error
             }
         } else {
             artifacts = []
+        }
+        if processResult.0 == 0, artifacts.isEmpty, snapshot.hadOutput {
+            try Self.restore(snapshot)
         }
         return HyphaRepositoryBuildResult(
             exitCode: processResult.0,
@@ -850,7 +867,150 @@ public struct HyphaRepositoryBuilder: Sendable {
         return TimeInterval(components.seconds)
             + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
     }
+
+#if os(macOS)
+    private static func restore(_ snapshot: HyphaRepositoryOutputSnapshot) throws {
+        do {
+            try snapshot.restore()
+        } catch {
+            throw HyphaRepositoryBuildError.outputRollbackFailed
+        }
+    }
+
+    private static func runProcessGroup(
+        command: String,
+        currentDirectoryURL: URL,
+        standardOutputFileDescriptor: Int32,
+        timeoutSeconds: TimeInterval
+    ) async throws -> Int32 {
+        var fileActions: posix_spawn_file_actions_t?
+        guard posix_spawn_file_actions_init(&fileActions) == 0 else {
+            throw HyphaRepositoryBuildError.launchFailed
+        }
+        defer { posix_spawn_file_actions_destroy(&fileActions) }
+        guard posix_spawn_file_actions_adddup2(
+            &fileActions,
+            standardOutputFileDescriptor,
+            STDOUT_FILENO
+        ) == 0,
+        posix_spawn_file_actions_adddup2(
+            &fileActions,
+            standardOutputFileDescriptor,
+            STDERR_FILENO
+        ) == 0,
+        posix_spawn_file_actions_addchdir(&fileActions, currentDirectoryURL.path) == 0 else {
+            throw HyphaRepositoryBuildError.launchFailed
+        }
+
+        var attributes: posix_spawnattr_t?
+        guard posix_spawnattr_init(&attributes) == 0 else {
+            throw HyphaRepositoryBuildError.launchFailed
+        }
+        defer { posix_spawnattr_destroy(&attributes) }
+        guard posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP)) == 0,
+              posix_spawnattr_setpgroup(&attributes, 0) == 0 else {
+            throw HyphaRepositoryBuildError.launchFailed
+        }
+
+        let arguments = ["/bin/zsh", "-lc", command]
+        let mutableArguments = arguments.map { strdup($0) }
+        defer { mutableArguments.forEach { free($0) } }
+        var argumentVector = mutableArguments + [nil]
+        var processID: pid_t = 0
+        let spawnResult = posix_spawn(
+            &processID,
+            "/bin/zsh",
+            &fileActions,
+            &attributes,
+            &argumentVector,
+            environ
+        )
+        guard spawnResult == 0 else {
+            throw HyphaRepositoryBuildError.launchFailed
+        }
+
+        var waitStatus: Int32 = 0
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        while Date() < deadline {
+            let waitResult = waitpid(processID, &waitStatus, WNOHANG)
+            if waitResult == processID {
+                return exitStatus(from: waitStatus)
+            }
+            if waitResult == -1 {
+                _ = kill(-processID, SIGKILL)
+                throw HyphaRepositoryBuildError.launchFailed
+            }
+            try? await Task<Never, Never>.sleep(for: .milliseconds(50))
+            if Task.isCancelled {
+                _ = kill(-processID, SIGTERM)
+                try? await Task<Never, Never>.sleep(for: .milliseconds(200))
+                _ = kill(-processID, SIGKILL)
+                while waitpid(processID, &waitStatus, 0) == -1, errno == EINTR {}
+                throw CancellationError()
+            }
+        }
+
+        _ = kill(-processID, SIGTERM)
+        try? await Task<Never, Never>.sleep(for: .milliseconds(200))
+        _ = kill(-processID, SIGKILL)
+        while waitpid(processID, &waitStatus, 0) == -1, errno == EINTR {}
+        throw HyphaRepositoryBuildError.timedOut
+    }
+
+    private static func exitStatus(from waitStatus: Int32) -> Int32 {
+        let terminationSignal = waitStatus & 0x7f
+        if terminationSignal == 0 {
+            return (waitStatus >> 8) & 0xff
+        }
+        return 128 + terminationSignal
+    }
+#endif
 }
+
+#if os(macOS)
+private struct HyphaRepositoryOutputSnapshot: @unchecked Sendable {
+    let outputURL: URL
+    let snapshotRoot: URL
+    let hadOutput: Bool
+
+    static func capture(outputURL: URL) throws -> Self {
+        let fileManager = FileManager.default
+        let snapshotRoot = fileManager.temporaryDirectory
+            .appendingPathComponent("hypha-output-snapshot-\(UUID().uuidString)", isDirectory: true)
+        do {
+            try fileManager.createDirectory(at: snapshotRoot, withIntermediateDirectories: true)
+            let hadOutput = fileManager.fileExists(atPath: outputURL.path)
+            if hadOutput {
+                try fileManager.copyItem(at: outputURL, to: snapshotRoot.appendingPathComponent("out"))
+            }
+            return Self(outputURL: outputURL, snapshotRoot: snapshotRoot, hadOutput: hadOutput)
+        } catch {
+            try? fileManager.removeItem(at: snapshotRoot)
+            throw error
+        }
+    }
+
+    func restore() throws {
+        let fileManager = FileManager.default
+        if hadOutput {
+            let restoreCandidate = outputURL.deletingLastPathComponent()
+                .appendingPathComponent(".hypha-output-restore-\(UUID().uuidString)", isDirectory: true)
+            defer { try? fileManager.removeItem(at: restoreCandidate) }
+            try fileManager.copyItem(at: snapshotRoot.appendingPathComponent("out"), to: restoreCandidate)
+            if fileManager.fileExists(atPath: outputURL.path) {
+                try fileManager.removeItem(at: outputURL)
+            }
+            try fileManager.moveItem(at: restoreCandidate, to: outputURL)
+        } else if fileManager.fileExists(atPath: outputURL.path) {
+            try fileManager.removeItem(at: outputURL)
+        }
+    }
+
+    func discard() {
+        try? FileManager.default.removeItem(at: snapshotRoot)
+    }
+}
+#endif
 
 public struct MatrixRoomRepositoryAttachment: Codable, Equatable, Sendable {
     public static let eventType = "ca.zenithresearch.hypha.repository"

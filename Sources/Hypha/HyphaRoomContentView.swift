@@ -326,6 +326,7 @@ struct HyphaRoomContentView: View {
         case .invalidRepository: "Choose a valid Git repository root."
         case .launchFailed: "Hypha could not launch the local build shell."
         case .timedOut: "The build exceeded the 15-minute limit and was terminated."
+        case .outputRollbackFailed: "Hypha could not preserve or restore the previous output safely."
         }
     }
 

@@ -2,6 +2,26 @@ import Foundation
 import XCTest
 
 final class HyphaRepositoryUISourceContractTests: XCTestCase {
+    func testSchemaConformanceIsAnExplicitCIStepOutsideXCTest() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let outputTests = try String(
+            contentsOf: root.appendingPathComponent("Tests/HyphaCoreTests/HyphaRepositoryOutputTests.swift"),
+            encoding: .utf8
+        )
+        let workflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/ci.yml"),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(outputTests.contains("runNPM("))
+        XCTAssertFalse(outputTests.contains("npm --prefix docs"))
+        XCTAssertTrue(workflow.contains("npm --prefix docs ci --ignore-scripts --no-audit --no-fund"))
+        XCTAssertTrue(workflow.contains("npm --prefix docs test"))
+    }
+
     func testRoomContentStartsPrimaryAndKeepsArtifactViewerOutOfRepositorySettings() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

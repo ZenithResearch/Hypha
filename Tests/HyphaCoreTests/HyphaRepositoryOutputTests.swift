@@ -437,6 +437,22 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         XCTAssertTrue(selections.allSatisfy { $0.source == .discovery })
     }
 
+    func testDiscoveryPreservesUniqueIDsForInternalSymlinkAliases() throws {
+        let output = try temporaryDirectory()
+        let target = output.appendingPathComponent("target.txt")
+        try Data("target".utf8).write(to: target)
+        try FileManager.default.createSymbolicLink(
+            at: output.appendingPathComponent("alias.txt"),
+            withDestinationURL: target
+        )
+
+        let selections = try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)
+
+        XCTAssertEqual(selections.map(\.id), ["alias.txt", "target.txt"])
+        XCTAssertEqual(Set(selections.map(\.id)).count, selections.count)
+        XCTAssertEqual(Set(selections.map(\.url)).count, 1)
+    }
+
     func testManifestSelectionRemainsDefaultWhileOtherSupportedAssetsStayAvailable() throws {
         let output = try temporaryDirectory()
         try Data("read me".utf8).write(to: output.appendingPathComponent("README.md"))
@@ -481,6 +497,82 @@ final class HyphaRepositoryOutputTests: XCTestCase {
             encoding: .utf8
         ).trimmingCharacters(in: .whitespacesAndNewlines)
         XCTAssertEqual(URL(fileURLWithPath: reportedRoot).lastPathComponent, repository.lastPathComponent)
+    }
+
+    func testFailedBuildRestoresTheLastUsableOutput() async throws {
+        let repository = try temporaryDirectory()
+        try FileManager.default.createDirectory(
+            at: repository.appendingPathComponent(".git", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        let output = repository.appendingPathComponent("out", isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let deck = output.appendingPathComponent("deck.pptx")
+        try Data("last usable output".utf8).write(to: deck)
+
+        let result = try await HyphaRepositoryBuilder().build(
+            repositoryRoot: repository,
+            command: "rm -rf out && mkdir out && printf partial > out/partial.txt && exit 1",
+            timeout: .seconds(5)
+        )
+
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertEqual(try Data(contentsOf: deck), Data("last usable output".utf8))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathComponent("partial.txt").path))
+        XCTAssertEqual(
+            try HyphaArtifactOutputResolver().resolveAll(outDirectory: output).map(\.url.lastPathComponent),
+            ["deck.pptx"]
+        )
+    }
+
+    func testBuildWithoutUsableArtifactsRestoresTheLastUsableOutput() async throws {
+        let repository = try temporaryDirectory()
+        try FileManager.default.createDirectory(
+            at: repository.appendingPathComponent(".git", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        let output = repository.appendingPathComponent("out", isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        let deck = output.appendingPathComponent("deck.pptx")
+        try Data("last usable output".utf8).write(to: deck)
+
+        let result = try await HyphaRepositoryBuilder().build(
+            repositoryRoot: repository,
+            command: "rm -rf out && mkdir out && printf unsupported > out/archive.bin",
+            timeout: .seconds(5)
+        )
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(result.artifacts.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: deck), Data("last usable output".utf8))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: output.appendingPathComponent("archive.bin").path))
+    }
+
+    func testBuildTimeoutTerminatesDescendantProcesses() async throws {
+        let repository = try temporaryDirectory()
+        try FileManager.default.createDirectory(
+            at: repository.appendingPathComponent(".git", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        let marker = repository.appendingPathComponent("descendant-survived")
+        let command = "(/bin/zsh -c 'trap \"\" TERM HUP; /bin/sleep 1; /usr/bin/touch \(marker.path)') & /bin/sleep 30"
+
+        do {
+            _ = try await HyphaRepositoryBuilder().build(
+                repositoryRoot: repository,
+                command: command,
+                timeout: .milliseconds(100)
+            )
+            XCTFail("Expected the build to time out")
+        } catch let error as HyphaRepositoryBuildError {
+            XCTAssertEqual(error, .timedOut)
+        }
+
+        try await Task<Never, Never>.sleep(for: .milliseconds(1_200))
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: marker.path),
+            "A timed-out build must terminate descendants before they can keep mutating the repository"
+        )
     }
 
     func testEmptyBuildCommandResolvesExistingOutputWithoutLaunchingShell() async throws {
@@ -563,14 +655,6 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         XCTAssertEqual((example["artifacts"] as? [[String: Any]])?.count, 4)
     }
 
-    func testRepositoryOutputSchemaConformanceSuite() throws {
-        let root = repositoryRoot()
-        try runNPM(
-            ["--prefix", "docs", "ci", "--ignore-scripts", "--no-audit", "--no-fund"],
-            at: root
-        )
-        try runNPM(["--prefix", "docs", "test"], at: root)
-    }
 
     func testRepositoryOutputDocumentationRecordsCompatibilityAndRemoteExecutionBoundaries() throws {
         let root = repositoryRoot()
@@ -664,32 +748,6 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         return output
     }
 
-    private func runNPM(
-        _ arguments: [String],
-        at root: URL,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) throws {
-        let process = Process()
-        let output = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["npm"] + arguments
-        process.currentDirectoryURL = root
-        process.standardOutput = output
-        process.standardError = output
-        try process.run()
-        process.waitUntilExit()
-
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        let text = String(decoding: data, as: UTF8.self)
-        XCTAssertEqual(
-            process.terminationStatus,
-            0,
-            "npm \(arguments.joined(separator: " ")) failed:\n\(text)",
-            file: file,
-            line: line
-        )
-    }
 
     private func repositoryRoot() -> URL {
         URL(fileURLWithPath: #filePath)
