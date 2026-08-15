@@ -87,6 +87,7 @@ public protocol MatrixAdminClient: Sendable {
         temporaryPassword: String,
         administrator: Bool
     ) async throws -> MatrixAdminUserSummary
+    func setAdministrator(userID: String, administrator: Bool) async throws -> MatrixAdminUserSummary
     func createRoom(
         name: String,
         topic: String,
@@ -101,6 +102,12 @@ public protocol MatrixAdminClient: Sendable {
     func completePasswordResetRequest(completedAtMilliseconds: Int64) async throws
     func passwordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest]
     func resetPassword(for request: MatrixPasswordResetRequest, temporaryPassword: String) async throws
+}
+
+public extension MatrixAdminClient {
+    func setAdministrator(userID: String, administrator: Bool) async throws -> MatrixAdminUserSummary {
+        throw MatrixAdminClientError.serverRejected
+    }
 }
 
 public struct MatrixAdminHTTPResponse: Sendable {
@@ -268,6 +275,38 @@ public struct MatrixSynapseAdminClient: MatrixAdminClient, Sendable {
             throw MatrixAdminClientError.credentialNotEstablished
         }
         return verifiedUser
+    }
+
+    public func setAdministrator(
+        userID: String,
+        administrator: Bool
+    ) async throws -> MatrixAdminUserSummary {
+        guard validUserID(userID), userID != currentUserID else {
+            throw MatrixAdminClientError.invalidInput
+        }
+        let response = try await perform(
+            method: "PUT",
+            path: "/_synapse/admin/v1/users/\(encoded(userID))/admin",
+            json: ["admin": administrator]
+        )
+        guard response.statusCode == 200 else {
+            throw mappedError(for: response.statusCode)
+        }
+        let verification = try await perform(
+            method: "GET",
+            path: "/_synapse/admin/v2/users/\(encoded(userID))"
+        )
+        guard verification.statusCode == 200,
+              let object = jsonObject(verification.body),
+              let user = parseUser(object),
+              user.userID == userID,
+              user.isAdministrator == administrator,
+              !user.isDeactivated,
+              object["locked"] as? Bool != true,
+              object["approved"] as? Bool != false else {
+            throw MatrixAdminClientError.invalidResponse
+        }
+        return user
     }
 
     public func requestPasswordReset(

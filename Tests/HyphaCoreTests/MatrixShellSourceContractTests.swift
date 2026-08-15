@@ -1390,6 +1390,30 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(client.contains("json: [\"erase\": true]"))
     }
 
+    func testExistingAccountPromotionIsRoleOnlyAndRequiresConfirmation() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let sheet = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/MatrixAdminSheet.swift"),
+            encoding: .utf8
+        )
+        let app = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
+            encoding: .utf8
+        )
+        let client = try String(
+            contentsOf: root.appendingPathComponent("Sources/HyphaCore/MatrixSynapseAdminClient.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(sheet.contains("Promote to administrator…"))
+        XCTAssertTrue(sheet.contains("Promote existing account?"))
+        XCTAssertTrue(sheet.contains("This changes only the Synapse administrator role and does not reset the account password."))
+        XCTAssertTrue(app.contains("promoteAdministratorManagedAccount"))
+        XCTAssertTrue(client.contains("path: \"/_synapse/admin/v1/users/\\(encoded(userID))/admin\""))
+        XCTAssertTrue(client.contains("json: [\"admin\": administrator]"))
+    }
+
     func testServerPendingPasswordResetForcesDurablePasswordResetBeforeChat() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

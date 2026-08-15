@@ -1273,6 +1273,16 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         )
     }
 
+    public func setAdministratorManagedAccount(
+        userID: String,
+        administrator: Bool
+    ) async throws -> MatrixAdminUserSummary {
+        try await authorizedAdministratorClient().setAdministrator(
+            userID: userID,
+            administrator: administrator
+        )
+    }
+
     public func deactivateAdministratorManagedAccount(userID: String) async throws {
         try await authorizedAdministratorClient().deactivateAccount(userID: userID)
     }

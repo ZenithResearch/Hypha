@@ -18,6 +18,7 @@ struct MatrixAdminSheet: View {
     @State private var passwordConfirmation = ""
     @State private var selectedRole: MatrixAdminAccountRole = .user
     @State private var showsAdministratorCreationConfirmation = false
+    @State private var userPendingPromotion: MatrixAdminUserSummary?
     @State private var userPendingDeactivation: MatrixAdminUserSummary?
     @State private var userPendingLogout: MatrixAdminUserSummary?
     @State private var passwordResetRequest: MatrixPasswordResetRequest?
@@ -131,6 +132,23 @@ struct MatrixAdminSheet: View {
             Button("Cancel", role: .cancel) { userPendingDeactivation = nil }
         } message: { user in
             Text("This permanently disables \(user.isAdministrator ? "administrator " : "")\(user.userID), signs out every device, and erases profile data. Synapse retains the Matrix ID and event references so room history remains internally consistent; the ID cannot be recreated.")
+        }
+        .confirmationDialog(
+            "Promote existing account?",
+            isPresented: Binding(
+                get: { userPendingPromotion != nil },
+                set: { if !$0 { userPendingPromotion = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: userPendingPromotion
+        ) { user in
+            Button("Promote to administrator", role: .destructive) {
+                userPendingPromotion = nil
+                Task { await model.promoteAdministratorManagedAccount(user) }
+            }
+            Button("Cancel", role: .cancel) { userPendingPromotion = nil }
+        } message: { user in
+            Text("Promote \(user.userID)? This changes only the Synapse administrator role and does not reset the account password.")
         }
         .confirmationDialog(
             "Log out every device for this account?",
@@ -373,6 +391,13 @@ struct MatrixAdminSheet: View {
                                 .foregroundStyle(ZenithDesign.Palette.muted)
                         }
                         Spacer()
+                        if !user.isAdministrator && user.userType == nil {
+                            Button("Promote to administrator…") {
+                                userPendingPromotion = user
+                            }
+                            .disabled(model.isAdminOperationInFlight)
+                            .accessibilityLabel("Promote \(user.userID) to administrator")
+                        }
                         Button("Log out devices…", role: .destructive) {
                             userPendingLogout = user
                         }
