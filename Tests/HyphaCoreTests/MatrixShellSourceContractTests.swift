@@ -112,6 +112,56 @@ final class MatrixShellSourceContractTests: XCTestCase {
         )
     }
 
+    func testLostRecoveryResetUsesSessionBoundSDKPasswordContinuation() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let serviceSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/HyphaCore/MatrixRustSDKChatService.swift"),
+            encoding: .utf8
+        )
+        let bindingSource = try String(
+            contentsOf: root.appendingPathComponent("Vendor/MatrixRustSDK/Sources/MatrixRustSDK/matrix_sdk_ffi.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(serviceSource.contains("resetWithPassword(password:"))
+        XCTAssertTrue(bindingSource.contains("func resetWithPassword(password:"))
+        XCTAssertFalse(serviceSource.contains("AuthData.password"))
+    }
+
+    func testLostRecoveryResetUIIsExplicitFailClosedAndKeepsNewKeyVisible() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
+            encoding: .utf8
+        )
+
+        for marker in [
+            "I no longer have this recovery key",
+            "Reset encryption identity",
+            "The destructive reset starts before Matrix asks for your password or approval.",
+            "Historical encrypted messages may remain inaccessible.",
+            "matrix.recovery.reset.password",
+            "isRecoveryIdentityResetActive",
+            "guard !isRecoveryIdentityResetActive else",
+            ".interactiveDismissDisabled(",
+            "saveRecoveryKeyInApplePasswords",
+            "I have stored this recovery key",
+            "replacementRecoveryKey",
+            "if !isRecoveryIdentityResetActive",
+            "case terminalFailure(String)",
+            "Do not retry this identity reset",
+            ".privacySensitive()",
+        ] {
+            XCTAssertTrue(source.contains(marker), "Missing fail-closed lost-recovery UI contract: \(marker)")
+        }
+    }
+
     func testAdministratorControlsAreAuthorityGatedAndPresentedAsASheet() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
@@ -821,10 +871,11 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(provenance.contains("238e8745a9103cf0ee071771d7e93e007939cd20"))
         XCTAssertTrue(provenance.contains("f53e2ac81"))
         XCTAssertTrue(provenance.contains("c73782cbb"))
-        XCTAssertTrue(provenance.contains("7b55c8972456b30f61e26a7cb8745b262288172c07be6aafd014a472940a3658"))
+        XCTAssertTrue(provenance.contains("9b853f98352f088ae0939e28d4d739349c396f9b57f6af815c0a7957156fe4c8"))
         XCTAssertTrue(provenance.contains("f2f814679"))
         XCTAssertTrue(provenance.contains("97fa91b0c756604ef0b03ab9479fc704d1362c55"))
         XCTAssertTrue(provenance.contains("f4889ec898e77d8b8c9013adadd77f3d0901fc2d"))
+        XCTAssertTrue(provenance.contains("d28c164ef37cd67723aa565bf5aec9c0cefc3bb8"))
         XCTAssertTrue(provenance.contains("533973cb7d918108fa111214575382bfbe30f765"))
         XCTAssertTrue(provenance.contains("2ee2199867bb28b723d80b1c6f80315301058c57"))
         XCTAssertTrue(provenance.contains("94f7106f93016e212fe69e9cc6f6d098f6dc71b6"))

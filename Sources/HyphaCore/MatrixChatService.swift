@@ -163,6 +163,12 @@ public enum MatrixRecoveryState: Equatable, Sendable {
     case diagnostic(MatrixCrossSigningDiagnosticReceipt)
 }
 
+public enum MatrixRecoveryIdentityResetAuthorization: Equatable, Sendable {
+    case password
+    case oauth(approvalURL: URL)
+    case completed
+}
+
 public enum MatrixDiagnosticUploadTransport: Equatable, Sendable { case accepted, failed }
 public enum MatrixDiagnosticUploadProcessing: Equatable, Sendable {
     case accepted, keyMismatch, invalidSignature, otherFailure
@@ -523,6 +529,10 @@ public protocol MatrixChatService: Sendable {
     func encryptionRecoveryState(trustState: MatrixDeviceTrustState) async throws -> MatrixRecoveryState
     func setupEncryptionRecovery() async throws -> String
     func restoreEncryption(recoveryKey: String) async throws
+    func beginEncryptionIdentityReset() async throws -> MatrixRecoveryIdentityResetAuthorization
+    func continueEncryptionIdentityReset(password: String) async throws -> Bool
+    func continueEncryptionIdentityResetAfterOAuth() async throws
+    func createReplacementEncryptionRecoveryKey() async throws -> String
     func deviceTrustState() async throws -> MatrixDeviceTrustState
     func peerVerificationEligibility() async -> MatrixPeerVerificationEligibility
     func bootstrapFirstDeviceTrust() async throws -> MatrixFirstDeviceTrustBootstrapState
@@ -664,6 +674,18 @@ public extension MatrixChatService {
     }
     func restoreEncryption(recoveryKey: String) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Encryption recovery is unavailable")
+    }
+    func beginEncryptionIdentityReset() async throws -> MatrixRecoveryIdentityResetAuthorization {
+        throw MatrixChatServiceError.unavailable(reason: "Encryption identity reset is unavailable")
+    }
+    func continueEncryptionIdentityReset(password: String) async throws -> Bool {
+        throw MatrixChatServiceError.unavailable(reason: "Encryption identity reset is unavailable")
+    }
+    func continueEncryptionIdentityResetAfterOAuth() async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Encryption identity reset is unavailable")
+    }
+    func createReplacementEncryptionRecoveryKey() async throws -> String {
+        throw MatrixChatServiceError.unavailable(reason: "Replacement recovery-key creation is unavailable")
     }
     func deviceTrustState() async throws -> MatrixDeviceTrustState { .unknown }
     func peerVerificationEligibility() async -> MatrixPeerVerificationEligibility { .unavailable }
@@ -1295,6 +1317,22 @@ public final class MatrixChatCoordinator {
             recoveryState = .failed(reason: "Encryption recovery setup failed")
             return nil
         }
+    }
+
+    public func beginEncryptionIdentityReset() async throws -> MatrixRecoveryIdentityResetAuthorization {
+        try await service.beginEncryptionIdentityReset()
+    }
+
+    public func continueEncryptionIdentityReset(password: String) async throws -> Bool {
+        try await service.continueEncryptionIdentityReset(password: password)
+    }
+
+    public func continueEncryptionIdentityResetAfterOAuth() async throws {
+        try await service.continueEncryptionIdentityResetAfterOAuth()
+    }
+
+    public func createReplacementEncryptionRecoveryKey() async throws -> String {
+        try await service.createReplacementEncryptionRecoveryKey()
     }
 
     public func refreshRecoveryState() async {

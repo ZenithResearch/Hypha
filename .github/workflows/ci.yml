@@ -20,7 +20,7 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_26.4.app/Contents/Developer
       - name: Verify patched SDK artifact
         run: |
-          expected=7b55c8972456b30f61e26a7cb8745b262288172c07be6aafd014a472940a3658
+          expected=9b853f98352f088ae0939e28d4d739349c396f9b57f6af815c0a7957156fe4c8
           actual=$(shasum -a 256 Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip | cut -d ' ' -f 1)
           test "$actual" = "$expected"
           grep -q '67d27c766ee61eca55707ddad232e57769344e5f' Vendor/MatrixRustSDK/PROVENANCE.md
@@ -33,6 +33,7 @@ jobs:
           grep -q 'f2f814679' Vendor/MatrixRustSDK/PROVENANCE.md
           grep -q '97fa91b0c756604ef0b03ab9479fc704d1362c55' Vendor/MatrixRustSDK/PROVENANCE.md
           grep -q 'f4889ec898e77d8b8c9013adadd77f3d0901fc2d' Vendor/MatrixRustSDK/PROVENANCE.md
+          grep -q 'd28c164ef37cd67723aa565bf5aec9c0cefc3bb8' Vendor/MatrixRustSDK/PROVENANCE.md
           grep -q '533973cb7d918108fa111214575382bfbe30f765' Vendor/MatrixRustSDK/PROVENANCE.md
           grep -q '2ee2199867bb28b723d80b1c6f80315301058c57' Vendor/MatrixRustSDK/PROVENANCE.md
           grep -q '94f7106f93016e212fe69e9cc6f6d098f6dc71b6' Vendor/MatrixRustSDK/PROVENANCE.md

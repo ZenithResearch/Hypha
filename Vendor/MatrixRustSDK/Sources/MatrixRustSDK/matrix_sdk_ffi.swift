@@ -6416,7 +6416,7 @@ public protocol IdentityResetHandleProtocol: AnyObject, Sendable {
      */
     func authType()  -> CrossSigningResetAuthType
     
-    func cancel() async 
+    func cancel() async  -> Bool
     
     /**
      * This method starts the identity reset process and
@@ -6428,6 +6428,13 @@ public protocol IdentityResetHandleProtocol: AnyObject, Sendable {
      * 4. Finally, re-enable key backups only if they were enabled before
      */
     func reset(auth: AuthData?) async throws 
+    
+    /**
+     * Continue a UIAA-backed identity reset with password authentication.
+     * The SDK derives the current user and attaches the retained UIAA session;
+     * the generated binding does not retain or print the password.
+     */
+    func resetWithPassword(password: String) async throws  -> UiaaChallenge?
     
 }
 open class IdentityResetHandle: IdentityResetHandleProtocol, @unchecked Sendable {
@@ -6495,7 +6502,7 @@ open func authType() -> CrossSigningResetAuthType  {
 })
 }
     
-open func cancel()async   {
+open func cancel()async  -> Bool  {
     return
         try!  await uniffiRustCallAsync(
             rustFutureFunc: {
@@ -6504,10 +6511,10 @@ open func cancel()async   {
                     
                 )
             },
-            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
-            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
-            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
-            liftFunc: { $0 },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_i8,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_i8,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_i8,
+            liftFunc: FfiConverterBool.lift,
             errorHandler: nil
             
         )
@@ -6535,6 +6542,28 @@ open func reset(auth: AuthData?)async throws   {
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
             liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Continue a UIAA-backed identity reset with password authentication.
+     * The SDK derives the current user and attaches the retained UIAA session;
+     * the generated binding does not retain or print the password.
+     */
+open func resetWithPassword(password: String)async throws  -> UiaaChallenge?  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_identityresethandle_reset_with_password(
+                    self.uniffiCloneHandle(),
+                    FfiConverterString.lower(password)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterOptionTypeUiaaChallenge.lift,
             errorHandler: FfiConverterTypeClientError_lift
         )
 }
@@ -55954,10 +55983,13 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_identityresethandle_auth_type() != 21421) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_identityresethandle_cancel() != 14034) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_identityresethandle_cancel() != 58902) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_identityresethandle_reset() != 29457) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_identityresethandle_reset_with_password() != 22644) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_secretsbundlewithuserid_contains_backup_key() != 61271) {

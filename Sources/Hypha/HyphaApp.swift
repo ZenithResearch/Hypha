@@ -157,6 +157,19 @@ enum MatrixRecoveryKeySaveState: Equatable {
     case failed(String)
 }
 
+enum MatrixRecoveryIdentityResetPresentationState: Equatable {
+    case idle
+    case confirming
+    case starting
+    case passwordRequired
+    case oauthApprovalRequired(URL)
+    case completing
+    case creatingReplacementKey
+    case replacementKeyAvailable
+    case terminalFailure(String)
+    case failed(message: String, retryKeyCreation: Bool)
+}
+
 enum MatrixAppAdminAccessState: Equatable {
     case unknown
     case checking
@@ -186,6 +199,8 @@ final class MatrixAppModel: ObservableObject {
     @Published var verificationFlowState: MatrixVerificationFlowState = .idle
     @Published var recoveryState: MatrixRecoveryState = .unknown
     @Published private(set) var recoveryKeySaveState: MatrixRecoveryKeySaveState = .idle
+    @Published private(set) var recoveryIdentityResetState: MatrixRecoveryIdentityResetPresentationState = .idle
+    @Published private(set) var replacementRecoveryKey: String?
     @Published var firstDeviceTrustBootstrapState: MatrixFirstDeviceTrustBootstrapState = .notBootstrapped
     @Published var peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable
     @Published var registrationAvailability: MatrixRegistrationAvailability = .unavailable
@@ -215,6 +230,14 @@ final class MatrixAppModel: ObservableObject {
     @Published var adminMessage: String?
     @Published private(set) var isPasswordResetRequestInFlight = false
     @Published private(set) var passwordResetRequestMessage: String?
+
+    var isRecoveryIdentityResetActive: Bool {
+        recoveryIdentityResetState != .idle
+    }
+
+    var canCancelRecoveryIdentityReset: Bool {
+        recoveryIdentityResetState == .confirming
+    }
 
     private let storageIdentity: MatrixPlatformStorageIdentity
     private let defaults: UserDefaults
@@ -384,6 +407,7 @@ final class MatrixAppModel: ObservableObject {
     }
 
     private func suspendCoordinatorForAccountTransition() async -> Bool {
+        guard !isRecoveryIdentityResetActive else { return false }
         guard let coordinator else { return true }
         let revoked = await coordinator.endAdministratorAuthorization()
         guard coordinator === self.coordinator else { return false }
@@ -1028,6 +1052,123 @@ final class MatrixAppModel: ObservableObject {
         return recoveryKey
     }
 
+    func prepareEncryptionIdentityReset() {
+        guard coordinator != nil, recoveryIdentityResetState == .idle else { return }
+        recoveryIdentityResetState = .confirming
+        replacementRecoveryKey = nil
+        recoveryKeySaveState = .idle
+    }
+
+    func cancelEncryptionIdentityResetPresentation() {
+        guard canCancelRecoveryIdentityReset else { return }
+        recoveryIdentityResetState = .idle
+        replacementRecoveryKey = nil
+    }
+
+    func beginEncryptionIdentityReset() async {
+        guard let coordinator, recoveryIdentityResetState == .confirming else { return }
+        recoveryIdentityResetState = .starting
+        do {
+            switch try await coordinator.beginEncryptionIdentityReset() {
+            case .password:
+                recoveryIdentityResetState = .passwordRequired
+            case let .oauth(approvalURL):
+                recoveryIdentityResetState = .oauthApprovalRequired(approvalURL)
+            case .completed:
+                await createReplacementEncryptionRecoveryKey(using: coordinator)
+            }
+        } catch {
+            recoveryIdentityResetState = .terminalFailure(
+                "Matrix may already have changed the encryption identity. Keep this session open and do not start another reset."
+            )
+        }
+    }
+
+    func continueEncryptionIdentityReset(password: String) async {
+        guard let coordinator, recoveryIdentityResetState == .passwordRequired else { return }
+        recoveryIdentityResetState = .completing
+        do {
+            guard try await coordinator.continueEncryptionIdentityReset(password: password) else {
+                recoveryIdentityResetState = .passwordRequired
+                return
+            }
+            await createReplacementEncryptionRecoveryKey(using: coordinator)
+        } catch {
+            recoveryIdentityResetState = .passwordRequired
+        }
+    }
+
+    func continueEncryptionIdentityResetAfterOAuth() async {
+        guard let coordinator,
+              case .oauthApprovalRequired = recoveryIdentityResetState else { return }
+        recoveryIdentityResetState = .completing
+        do {
+            try await coordinator.continueEncryptionIdentityResetAfterOAuth()
+            await createReplacementEncryptionRecoveryKey(using: coordinator)
+        } catch {
+            recoveryIdentityResetState = .failed(
+                message: "Matrix has not confirmed approval yet. Return to the approval page and retry.",
+                retryKeyCreation: false
+            )
+        }
+    }
+
+    func retryReplacementEncryptionRecoveryKey() async {
+        guard let coordinator,
+              case let .failed(_, retryKeyCreation) = recoveryIdentityResetState,
+              retryKeyCreation else { return }
+        await createReplacementEncryptionRecoveryKey(using: coordinator)
+    }
+
+    func retryEncryptionIdentityResetAuthorization() async {
+        guard let coordinator,
+              case let .failed(_, retryKeyCreation) = recoveryIdentityResetState,
+              !retryKeyCreation else { return }
+        recoveryIdentityResetState = .starting
+        do {
+            switch try await coordinator.beginEncryptionIdentityReset() {
+            case .password:
+                recoveryIdentityResetState = .passwordRequired
+            case let .oauth(approvalURL):
+                recoveryIdentityResetState = .oauthApprovalRequired(approvalURL)
+            case .completed:
+                await createReplacementEncryptionRecoveryKey(using: coordinator)
+            }
+        } catch {
+            recoveryIdentityResetState = .failed(
+                message: "The encryption identity reset could not continue. Keep this session open and retry.",
+                retryKeyCreation: false
+            )
+        }
+    }
+
+    func confirmReplacementRecoveryKeyCustody() async {
+        guard replacementRecoveryKey != nil,
+              recoveryIdentityResetState == .replacementKeyAvailable else { return }
+        replacementRecoveryKey = nil
+        recoveryIdentityResetState = .idle
+        if let coordinator {
+            await coordinator.refreshTrustState()
+            await coordinator.refreshRecoveryState()
+            applySecurityState(from: coordinator)
+        }
+    }
+
+    private func createReplacementEncryptionRecoveryKey(using coordinator: MatrixChatCoordinator) async {
+        recoveryIdentityResetState = .creatingReplacementKey
+        do {
+            let recoveryKey = try await coordinator.createReplacementEncryptionRecoveryKey()
+            replacementRecoveryKey = recoveryKey
+            recoveryIdentityResetState = .replacementKeyAvailable
+            _ = await saveRecoveryKeyInApplePasswords(recoveryKey)
+        } catch {
+            recoveryIdentityResetState = .failed(
+                message: "The identity reset completed, but creating the replacement recovery key failed. Retry key creation without resetting the identity again.",
+                retryKeyCreation: true
+            )
+        }
+    }
+
     @discardableResult
     func saveRecoveryKeyInApplePasswords(_ recoveryKey: String) async -> Bool {
         guard let configuration = activeConfiguration,
@@ -1470,6 +1611,10 @@ final class MatrixAppModel: ObservableObject {
         verificationFlowState = .idle
         recoveryState = .unknown
         recoveryKeySaveState = .idle
+        if !isRecoveryIdentityResetActive {
+            recoveryIdentityResetState = .idle
+            replacementRecoveryKey = nil
+        }
         firstDeviceTrustBootstrapState = .notBootstrapped
         peerVerificationEligibility = .unavailable
     }
@@ -4221,6 +4366,7 @@ private struct MatrixRecoverySheet: View {
     @Binding var isPresented: Bool
     @State private var recoveryKey = ""
     @State private var isSubmitting = false
+    @State private var showsLostKeyReset = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -4234,6 +4380,11 @@ private struct MatrixRecoverySheet: View {
                 .textFieldStyle(ZenithInputStyle())
                 .accessibilityIdentifier("matrix.recovery.key")
                 .onSubmit { submit() }
+            Button("I no longer have this recovery key", role: .destructive) {
+                model.prepareEncryptionIdentityReset()
+                showsLostKeyReset = true
+            }
+            .disabled(isSubmitting)
             HStack {
                 Button("Cancel") {
                     recoveryKey = ""
@@ -4260,6 +4411,9 @@ private struct MatrixRecoverySheet: View {
         .hyphaFixedSheetFrame(width: 500)
         .hyphaMobileSheetPresentation()
         .onDisappear { recoveryKey = "" }
+        .sheet(isPresented: $showsLostKeyReset) {
+            MatrixLostRecoveryResetSheet(model: model, isPresented: $showsLostKeyReset)
+        }
     }
 
     @ViewBuilder
@@ -4303,6 +4457,165 @@ private struct MatrixRecoverySheet: View {
             } else if model.recoveryState == .ready {
                 recoveryKey = keyForRequest
             }
+        }
+    }
+}
+
+private struct MatrixLostRecoveryResetSheet: View {
+    @Environment(\.openURL) private var openURL
+    @ObservedObject var model: MatrixAppModel
+    @Binding var isPresented: Bool
+    @State private var acknowledgedDestruction = false
+    @State private var password = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x4) {
+            Text("Reset encryption identity")
+                .font(ZenithDesign.Typography.technical(size: 22, weight: .semibold))
+            content
+        }
+        .padding(24)
+        .hyphaScrollableSheetContent()
+        .hyphaFixedSheetFrame(width: 560)
+        .hyphaMobileSheetPresentation()
+        .interactiveDismissDisabled(model.isRecoveryIdentityResetActive && !model.canCancelRecoveryIdentityReset)
+        .onDisappear {
+            password = ""
+            if model.canCancelRecoveryIdentityReset {
+                model.cancelEncryptionIdentityResetPresentation()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch model.recoveryIdentityResetState {
+        case .idle:
+            EmptyView()
+        case .confirming:
+            Label("This cannot restore the missing recovery key.", systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(ZenithDesign.Palette.error)
+            Text("The destructive reset starts before Matrix asks for your password or approval.")
+            Text("The current session and its local encrypted store remain in place, but the server backup, Secret Storage, and cross-signing identity will be replaced. Historical encrypted messages may remain inaccessible.")
+                .foregroundStyle(ZenithDesign.Palette.muted)
+            Toggle(
+                "I understand that encrypted history available only through the old recovery identity may be permanently inaccessible.",
+                isOn: $acknowledgedDestruction
+            )
+            HStack {
+                Button("Cancel") {
+                    model.cancelEncryptionIdentityResetPresentation()
+                    isPresented = false
+                }
+                Spacer()
+                Button("Start destructive reset", role: .destructive) {
+                    Task { await model.beginEncryptionIdentityReset() }
+                }
+                .disabled(!acknowledgedDestruction)
+            }
+        case .starting:
+            progress("Starting the destructive reset…")
+        case .passwordRequired:
+            Text("Enter the Matrix account password. It is used only for this in-memory authorization attempt.")
+                .foregroundStyle(ZenithDesign.Palette.muted)
+            SecureField("Matrix account password", text: $password)
+                .textFieldStyle(ZenithInputStyle())
+                .textContentType(.password)
+                .privacySensitive()
+                .accessibilityIdentifier("matrix.recovery.reset.password")
+            Button("Authorize identity reset") {
+                let passwordForRequest = password
+                password = ""
+                Task { await model.continueEncryptionIdentityReset(password: passwordForRequest) }
+            }
+            .buttonStyle(ZenithPrimaryButtonStyle())
+            .disabled(password.isEmpty)
+        case let .oauthApprovalRequired(approvalURL):
+            Text("Matrix requires approval in your browser. This does not replace the current Hypha session.")
+                .foregroundStyle(ZenithDesign.Palette.muted)
+            HStack {
+                Button("Open approval page") { openURL(approvalURL) }
+                Spacer()
+                Button("I approved the reset") {
+                    Task { await model.continueEncryptionIdentityResetAfterOAuth() }
+                }
+                .buttonStyle(ZenithPrimaryButtonStyle())
+            }
+        case .completing:
+            progress("Completing the identity reset…")
+        case .creatingReplacementKey:
+            progress("Creating the replacement recovery key…")
+        case .replacementKeyAvailable:
+            replacementKeyContent
+        case let .terminalFailure(message):
+            Label(message, systemImage: "exclamationmark.octagon.fill")
+                .foregroundStyle(ZenithDesign.Palette.error)
+            Text("Do not retry this identity reset. Keep Hypha and the current Matrix session open for recovery-state reconciliation.")
+                .foregroundStyle(ZenithDesign.Palette.muted)
+        case let .failed(message, retryKeyCreation):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(ZenithDesign.Palette.error)
+            Button(retryKeyCreation ? "Retry replacement-key creation" : "Retry reset authorization") {
+                Task {
+                    if retryKeyCreation {
+                        await model.retryReplacementEncryptionRecoveryKey()
+                    } else {
+                        await model.retryEncryptionIdentityResetAuthorization()
+                    }
+                }
+            }
+            .buttonStyle(ZenithPrimaryButtonStyle())
+        }
+    }
+
+    @ViewBuilder
+    private var replacementKeyContent: some View {
+        if let replacementRecoveryKey = model.replacementRecoveryKey {
+            Text("New recovery key")
+                .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
+            Text(replacementRecoveryKey)
+                .font(ZenithDesign.Typography.technical(.body, weight: .regular))
+                .textSelection(.enabled)
+                .privacySensitive()
+                .padding(ZenithDesign.Space.x3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(ZenithDesign.Palette.baseRaised, in: RoundedRectangle(cornerRadius: 10))
+            Text("Keep this screen open until you have copied or stored the key. Apple Passwords saving alone is not treated as custody confirmation.")
+                .foregroundStyle(ZenithDesign.Palette.muted)
+            recoveryKeySaveStatus(replacementRecoveryKey)
+            Button("I have stored this recovery key") {
+                Task {
+                    await model.confirmReplacementRecoveryKeyCustody()
+                    isPresented = false
+                }
+            }
+            .buttonStyle(ZenithPrimaryButtonStyle())
+        }
+    }
+
+    @ViewBuilder
+    private func recoveryKeySaveStatus(_ recoveryKey: String) -> some View {
+        switch model.recoveryKeySaveState {
+        case .idle:
+            EmptyView()
+        case .saving:
+            progress("Saving to Apple Passwords…")
+        case .saved:
+            Label("Saved to Apple Passwords", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(ZenithDesign.Palette.success)
+        case let .failed(message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(ZenithDesign.Palette.warning)
+            Button("Retry Apple Passwords") {
+                Task { _ = await model.saveRecoveryKeyInApplePasswords(recoveryKey) }
+            }
+        }
+    }
+
+    private func progress(_ message: String) -> some View {
+        HStack(spacing: ZenithDesign.Space.x2) {
+            ProgressView().controlSize(.small)
+            Text(message).foregroundStyle(ZenithDesign.Palette.muted)
         }
     }
 }
