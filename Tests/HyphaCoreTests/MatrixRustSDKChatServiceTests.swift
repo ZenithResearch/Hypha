@@ -252,6 +252,51 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertTrue(finalEnd)
     }
 
+    func testAdministratorOAuthRequeueDuringRevocationRequiresAnotherConfirmedLogout() async throws {
+        let authorizer = SuspendingAdministratorOAuthAuthorizer(
+            credential: .init(
+                accessToken: "scoped-admin-token",
+                userID: "@alice:example.org",
+                deviceID: "TEMPADMINDEVICE",
+                homeserverURL: "https://synapse.zenith-research.ca"
+            ),
+            suspendFirstRevocation: true
+        )
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
+            administratorOAuthAuthorizerFactory: { authorizer },
+            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let request = try await service.beginAdministratorAuthorization()
+        let completion = Task {
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+            )
+        }
+        await authorizer.waitUntilCompletionStarts()
+        let firstEnd = Task { await service.endAdministratorAuthorization() }
+        await authorizer.waitUntilFirstRevocationStarts()
+
+        await authorizer.resumeCompletion()
+        await XCTAssertThrowsMatrixError(
+            try await completion.value,
+            expected: .administratorRevocationUnconfirmed
+        )
+        await authorizer.resumeFirstRevocation()
+        let firstEndResult = await firstEnd.value
+        XCTAssertFalse(firstEndResult)
+
+        let finalEnd = await service.endAdministratorAuthorization()
+        let revokeCount = await authorizer.revokeCount()
+        XCTAssertTrue(finalEnd)
+        XCTAssertEqual(revokeCount, 2)
+    }
+
     func testAdministratorOAuthRevokesCredentialWhenAdminAPIRejectsAuthority() async throws {
         let authorizer = FakeAdministratorOAuthAuthorizer(credential: .init(
             accessToken: "scoped-but-denied-token",
@@ -1788,13 +1833,21 @@ private actor FakeAdministratorOAuthAuthorizer: MatrixAdministratorOAuthAuthoriz
 
 private actor SuspendingAdministratorOAuthAuthorizer: MatrixAdministratorOAuthAuthorizing {
     private let credential: MatrixAdministratorOAuthCredential
+    private let suspendFirstRevocation: Bool
     private var completionStarted = false
     private var completionWaiters: [CheckedContinuation<Void, Never>] = []
     private var completionContinuation: CheckedContinuation<Void, Never>?
+    private var firstRevocationStarted = false
+    private var firstRevocationWaiters: [CheckedContinuation<Void, Never>] = []
+    private var firstRevocationContinuation: CheckedContinuation<Void, Never>?
     private var revokes = 0
 
-    init(credential: MatrixAdministratorOAuthCredential) {
+    init(
+        credential: MatrixAdministratorOAuthCredential,
+        suspendFirstRevocation: Bool = false
+    ) {
         self.credential = credential
+        self.suspendFirstRevocation = suspendFirstRevocation
     }
 
     func authorizationURL() async throws -> URL {
@@ -1828,7 +1881,28 @@ private actor SuspendingAdministratorOAuthAuthorizer: MatrixAdministratorOAuthAu
 
     func revoke() async -> Bool {
         revokes += 1
+        if suspendFirstRevocation, revokes == 1 {
+            firstRevocationStarted = true
+            let waiters = firstRevocationWaiters
+            firstRevocationWaiters.removeAll()
+            waiters.forEach { $0.resume() }
+            await withCheckedContinuation { continuation in
+                firstRevocationContinuation = continuation
+            }
+        }
         return true
+    }
+
+    func waitUntilFirstRevocationStarts() async {
+        guard !firstRevocationStarted else { return }
+        await withCheckedContinuation { continuation in
+            firstRevocationWaiters.append(continuation)
+        }
+    }
+
+    func resumeFirstRevocation() {
+        firstRevocationContinuation?.resume()
+        firstRevocationContinuation = nil
     }
 
     func revokeCount() -> Int { revokes }

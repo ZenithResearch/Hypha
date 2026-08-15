@@ -446,6 +446,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
     private var scopedAdministratorClient: (any MatrixAdminClient)?
     private var administratorAuthorizersAwaitingRevocation: [ObjectIdentifier: any MatrixAdministratorOAuthAuthorizing] = [:]
     private var administratorRevocationsInFlight: Set<ObjectIdentifier> = []
+    private var administratorRevocationGenerations: [ObjectIdentifier: UInt] = [:]
     private var administratorOAuthCompletionsInFlight: Set<UUID> = []
 
     public init(
@@ -1032,21 +1033,16 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         authorizedAdministratorBinding = nil
         scopedAdministratorClient = nil
         if let pending {
-            administratorAuthorizersAwaitingRevocation[ObjectIdentifier(pending)] = pending
+            retainAdministratorRevocation(pending)
         }
         if let authorized {
-            administratorAuthorizersAwaitingRevocation[ObjectIdentifier(authorized)] = authorized
+            retainAdministratorRevocation(authorized)
         }
         let revocations = administratorAuthorizersAwaitingRevocation.filter {
             !administratorRevocationsInFlight.contains($0.key)
         }
         for (id, authorizer) in revocations {
-            administratorRevocationsInFlight.insert(id)
-            let revoked = await authorizer.revoke()
-            administratorRevocationsInFlight.remove(id)
-            if revoked {
-                administratorAuthorizersAwaitingRevocation.removeValue(forKey: id)
-            }
+            _ = await attemptAdministratorRevocation(id: id, authorizer: authorizer)
         }
         return administratorAuthorizersAwaitingRevocation.isEmpty
             && administratorOAuthCompletionsInFlight.isEmpty
@@ -1055,14 +1051,29 @@ public actor MatrixRustSDKChatService: MatrixChatService {
     @discardableResult
     private func queueAdministratorRevocation(_ authorizer: any MatrixAdministratorOAuthAuthorizing) async -> Bool {
         let id = ObjectIdentifier(authorizer)
+        retainAdministratorRevocation(authorizer)
+        return await attemptAdministratorRevocation(id: id, authorizer: authorizer)
+    }
+
+    private func retainAdministratorRevocation(_ authorizer: any MatrixAdministratorOAuthAuthorizing) {
+        let id = ObjectIdentifier(authorizer)
         administratorAuthorizersAwaitingRevocation[id] = authorizer
-        administratorRevocationsInFlight.insert(id)
+        administratorRevocationGenerations[id, default: 0] &+= 1
+    }
+
+    private func attemptAdministratorRevocation(
+        id: ObjectIdentifier,
+        authorizer: any MatrixAdministratorOAuthAuthorizing
+    ) async -> Bool {
+        guard administratorRevocationsInFlight.insert(id).inserted else { return false }
+        let generation = administratorRevocationGenerations[id]
         let revoked = await authorizer.revoke()
         administratorRevocationsInFlight.remove(id)
-        if revoked {
-            administratorAuthorizersAwaitingRevocation.removeValue(forKey: id)
+        guard revoked, administratorRevocationGenerations[id] == generation else { return false }
+        if administratorAuthorizersAwaitingRevocation.removeValue(forKey: id) != nil {
+            administratorRevocationGenerations.removeValue(forKey: id)
         }
-        return revoked
+        return true
     }
 
     public func isHomeserverAdministrator() async throws -> Bool {
