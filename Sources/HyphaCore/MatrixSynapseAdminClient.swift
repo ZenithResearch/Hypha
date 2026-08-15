@@ -187,6 +187,20 @@ public struct MatrixSynapseAdminClient: MatrixAdminClient, Sendable {
             method: "GET",
             path: "/_synapse/admin/v1/users/\(encoded(currentUserID))/admin"
         )
+        if response.statusCode == 404 {
+            let userResponse = try await perform(
+                method: "GET",
+                path: "/_synapse/admin/v2/users/\(encoded(currentUserID))"
+            )
+            guard userResponse.statusCode == 200,
+                  let user = jsonObject(userResponse.body),
+                  user["name"] as? String == currentUserID,
+                  let deactivated = user["deactivated"] as? Bool,
+                  !deactivated else {
+                throw mappedError(for: userResponse.statusCode)
+            }
+            return true
+        }
         guard response.statusCode == 200,
               let object = jsonObject(response.body),
               let administrator = object["admin"] as? Bool else {

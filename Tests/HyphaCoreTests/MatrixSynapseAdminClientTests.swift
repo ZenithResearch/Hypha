@@ -29,6 +29,49 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
         XCTAssertTrue(allowedResult)
     }
 
+    func testAdministratorAccessFallsBackToAuthoritativeUserDetailWhenLegacyEndpointIsUnavailable() async throws {
+        let transport = RecordingAdminTransport(responses: [
+            .json(status: 404, body: ["errcode": "M_UNRECOGNIZED"]),
+            .json(status: 200, body: [
+                "name": "@operator:example.org",
+                "admin": false,
+                "deactivated": false,
+            ]),
+        ])
+        let client = MatrixSynapseAdminClient(
+            homeserver: URL(string: "https://synapse.example.org")!,
+            currentUserID: "@operator:example.org",
+            accessToken: "secret-token-material",
+            transport: transport
+        )
+
+        let authorized = try await client.isAdministrator()
+        XCTAssertTrue(authorized)
+        let requests = await transport.requests()
+        XCTAssertEqual(requests.map(\.url?.path), [
+            "/_synapse/admin/v1/users/@operator:example.org/admin",
+            "/_synapse/admin/v2/users/@operator:example.org",
+        ])
+    }
+
+    func testAdministratorFallbackRejectsMalformedUserDetail() async throws {
+        let transport = RecordingAdminTransport(responses: [
+            .json(status: 404, body: ["errcode": "M_UNRECOGNIZED"]),
+            .json(status: 200, body: ["name": "@operator:example.org"]),
+        ])
+        let client = MatrixSynapseAdminClient(
+            homeserver: URL(string: "https://synapse.example.org")!,
+            currentUserID: "@operator:example.org",
+            accessToken: "secret-token-material",
+            transport: transport
+        )
+
+        await XCTAssertThrowsAdminError(
+            try await client.isAdministrator(),
+            expected: .invalidResponse
+        )
+    }
+
     func testAccountCreationUsesCurrentServerNameAndRequestedAdministratorRole() async throws {
         let transport = RecordingAdminTransport(responses: [
             .json(status: 200, body: [

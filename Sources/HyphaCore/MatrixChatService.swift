@@ -458,6 +458,7 @@ public enum MatrixChatServiceError: Error, Equatable, Sendable {
     case recoveryFailed(stage: MatrixRecoveryFailureStage)
     case recoveryDiagnostic(receipt: MatrixCrossSigningDiagnosticReceipt)
     case noSavedSession
+    case administratorRevocationUnconfirmed
     case unavailable(reason: String)
 }
 
@@ -486,6 +487,12 @@ public protocol MatrixChatService: Sendable {
     func requestHomeserverPasswordReset() async throws -> MatrixPasswordResetRequest
     func currentHomeserverPasswordResetRequest() async throws -> MatrixPasswordResetRequest?
     func completeHomeserverPasswordResetRequest() async throws
+    func beginAdministratorAuthorization() async throws -> MatrixAdminOAuthRequest
+    func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws
+    @discardableResult
+    func cancelAdministratorAuthorization(requestID: UUID?) async -> Bool
+    @discardableResult
+    func endAdministratorAuthorization() async -> Bool
     func isHomeserverAdministrator() async throws -> Bool
     func administratorSnapshot() async throws -> MatrixAdminSnapshot
     func administratorPasswordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest]
@@ -585,6 +592,20 @@ public extension MatrixChatService {
     func currentHomeserverPasswordResetRequest() async throws -> MatrixPasswordResetRequest? { nil }
 
     func completeHomeserverPasswordResetRequest() async throws {}
+
+    func beginAdministratorAuthorization() async throws -> MatrixAdminOAuthRequest {
+        throw MatrixChatServiceError.unavailable(reason: "Homeserver administrator authorization is unavailable")
+    }
+
+    func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Homeserver administrator authorization is unavailable")
+    }
+
+    @discardableResult
+    func cancelAdministratorAuthorization(requestID: UUID?) async -> Bool { true }
+
+    @discardableResult
+    func endAdministratorAuthorization() async -> Bool { true }
 
     func administratorPasswordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest] {
         throw MatrixAdminClientError.serverRejected
@@ -915,12 +936,26 @@ public final class MatrixChatCoordinator {
         }
     }
 
-    public func isHomeserverAdministrator() async -> Bool {
-        do {
-            return try await service.isHomeserverAdministrator()
-        } catch {
-            return false
-        }
+    public func beginAdministratorAuthorization() async throws -> MatrixAdminOAuthRequest {
+        try await service.beginAdministratorAuthorization()
+    }
+
+    public func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws {
+        try await service.completeAdministratorAuthorization(requestID: requestID, callbackURL: callbackURL)
+    }
+
+    @discardableResult
+    public func cancelAdministratorAuthorization(requestID: UUID?) async -> Bool {
+        await service.cancelAdministratorAuthorization(requestID: requestID)
+    }
+
+    @discardableResult
+    public func endAdministratorAuthorization() async -> Bool {
+        await service.endAdministratorAuthorization()
+    }
+
+    public func isHomeserverAdministrator() async throws -> Bool {
+        try await service.isHomeserverAdministrator()
     }
 
     public func administratorSnapshot() async throws -> MatrixAdminSnapshot {
@@ -1405,6 +1440,8 @@ public final class MatrixChatCoordinator {
             return .unavailable(reason: receipt.stableCode)
         case .noSavedSession:
             return .signedOut(message: nil)
+        case .administratorRevocationUnconfirmed:
+            return .unavailable(reason: "Administrator authorization revocation is unconfirmed")
         case let .unavailable(reason):
             return .unavailable(reason: reason)
         }

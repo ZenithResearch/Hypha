@@ -277,14 +277,159 @@ public extension MatrixLiveClientFactory {
     func resetStore(accountKey: String) async throws {}
 }
 
+public struct MatrixAdminOAuthRequest: Equatable, Sendable {
+    public let id: UUID
+    public let authorizationURL: URL
+    public let callbackScheme: String
+
+    public init(id: UUID, authorizationURL: URL, callbackScheme: String) {
+        self.id = id
+        self.authorizationURL = authorizationURL
+        self.callbackScheme = callbackScheme
+    }
+}
+
+public struct MatrixAdministratorOAuthCredential: Equatable, Sendable {
+    public let accessToken: String
+    public let userID: String
+    public let deviceID: String
+    public let homeserverURL: String
+
+    public init(accessToken: String, userID: String, deviceID: String, homeserverURL: String) {
+        self.accessToken = accessToken
+        self.userID = userID
+        self.deviceID = deviceID
+        self.homeserverURL = homeserverURL
+    }
+}
+
+public protocol MatrixAdministratorOAuthAuthorizing: AnyObject, Sendable {
+    func authorizationURL() async throws -> URL
+    func complete(callbackURL: URL) async throws -> MatrixAdministratorOAuthCredential
+    func cancel() async
+    @discardableResult
+    func revoke() async -> Bool
+}
+
+public actor MatrixRustAdministratorOAuthAuthorizer: MatrixAdministratorOAuthAuthorizing {
+    public static let callbackScheme = "ca.zenithresearch.hypha"
+    public static let callbackPath = "/oauth"
+    public static let requiredScopes = ["urn:synapse:admin:*"]
+
+    private static let oauthConfiguration = OAuthConfiguration(
+        clientName: "Hypha Homeserver Administration",
+        redirectUri: "\(callbackScheme):\(callbackPath)",
+        clientUri: "https://zenith-research.ca/hypha",
+        logoUri: nil,
+        tosUri: nil,
+        policyUri: nil,
+        staticRegistrations: [:]
+    )
+
+    private let client: Client
+    private var authorizationData: OAuthAuthorizationData?
+
+    public init(configuration: MatrixProductConfiguration) async throws {
+        let client = try await ClientBuilder()
+            .homeserverUrl(url: configuration.homeserver.absoluteString)
+            .inMemoryStore()
+            .build()
+        guard MatrixRustLiveClientFactory.matchesConfiguredHomeserver(
+            client.homeserver(),
+            configured: configuration.homeserver
+        ) else {
+            throw MatrixChatServiceError.unavailable(reason: "Administrator authorization resolved to another homeserver")
+        }
+        self.client = client
+    }
+
+    public func authorizationURL() async throws -> URL {
+        guard authorizationData == nil else {
+            throw MatrixChatServiceError.unavailable(reason: "Administrator authorization is already in progress")
+        }
+        let data = try await client.urlForOauth(
+            oauthConfiguration: Self.oauthConfiguration,
+            prompt: .consent,
+            loginHint: nil,
+            deviceId: nil,
+            additionalScopes: Self.requiredScopes
+        )
+        guard let url = URL(string: data.loginUrl()),
+              url.scheme?.lowercased() == "https",
+              url.host != nil,
+              url.user == nil,
+              url.password == nil else {
+            await client.abortOauthAuth(authorizationData: data)
+            throw MatrixChatServiceError.unavailable(reason: "Homeserver returned an invalid administrator authorization URL")
+        }
+        authorizationData = data
+        return url
+    }
+
+    public func complete(callbackURL: URL) async throws -> MatrixAdministratorOAuthCredential {
+        guard authorizationData != nil,
+              Self.validCallback(callbackURL) else {
+            throw MatrixChatServiceError.unavailable(reason: "Administrator authorization callback was invalid")
+        }
+        defer { authorizationData = nil }
+        try await client.loginWithOauthCallback(callbackUrl: callbackURL.absoluteString)
+        let session = try client.session()
+        return MatrixAdministratorOAuthCredential(
+            accessToken: session.accessToken,
+            userID: session.userId,
+            deviceID: session.deviceId,
+            homeserverURL: session.homeserverUrl
+        )
+    }
+
+    public func cancel() async {
+        guard let authorizationData else { return }
+        self.authorizationData = nil
+        await client.abortOauthAuth(authorizationData: authorizationData)
+    }
+
+    @discardableResult
+    public func revoke() async -> Bool {
+        await cancel()
+        do {
+            try await client.logout()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    public static func validCallback(_ url: URL) -> Bool {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return false }
+        return components.scheme?.lowercased() == callbackScheme
+            && components.host == nil
+            && components.user == nil
+            && components.password == nil
+            && components.port == nil
+            && components.percentEncodedPath == callbackPath
+            && components.fragment == nil
+    }
+}
+
 public actor MatrixRustSDKChatService: MatrixChatService {
     public typealias RandomStoreKey = @Sendable () throws -> Data
     public typealias RandomStoreNamespace = @Sendable () throws -> String
+    public typealias AdministratorOAuthAuthorizerFactory = @Sendable () async throws -> any MatrixAdministratorOAuthAuthorizing
+    public typealias AdministratorClientFactory = @Sendable (URL, String, String) -> any MatrixAdminClient
+
+    private struct AdministratorSessionBinding: Equatable, Sendable {
+        let accountKey: String
+        let userID: String
+        let deviceID: String
+        let homeserverURL: String
+    }
 
     private let configuration: MatrixProductConfiguration
     private let vault: any MatrixSDKSessionVault
     private let clientFactory: any MatrixLiveClientFactory
     private let passwordSessionReauthenticator: any MatrixPasswordSessionReauthenticating
+    private let administratorOAuthAuthorizerFactory: AdministratorOAuthAuthorizerFactory
+    private let administratorClientFactory: AdministratorClientFactory
     private let randomStoreKey: RandomStoreKey
     private let randomStoreNamespace: RandomStoreNamespace
     private var client: (any MatrixLiveClient)?
@@ -293,12 +438,26 @@ public actor MatrixRustSDKChatService: MatrixChatService {
     private var activeSession: MatrixSDKSessionRecord?
     private var roomsByID: [String: MatrixRoomSummary] = [:]
     private var firstDeviceBootstrapInFlight = false
+    private var pendingAdministratorOAuthAuthorizer: (any MatrixAdministratorOAuthAuthorizing)?
+    private var pendingAdministratorRequestID: UUID?
+    private var pendingAdministratorBinding: AdministratorSessionBinding?
+    private var authorizedAdministratorOAuthAuthorizer: (any MatrixAdministratorOAuthAuthorizing)?
+    private var authorizedAdministratorBinding: AdministratorSessionBinding?
+    private var scopedAdministratorClient: (any MatrixAdminClient)?
+    private var administratorAuthorizersAwaitingRevocation: [ObjectIdentifier: any MatrixAdministratorOAuthAuthorizing] = [:]
+    private var administratorRevocationsInFlight: Set<ObjectIdentifier> = []
+    private var administratorRevocationGenerations: [ObjectIdentifier: UInt] = [:]
+    private var administratorOAuthCompletionsInFlight: Set<UUID> = []
 
     public init(
         configuration: MatrixProductConfiguration,
         vault: any MatrixSDKSessionVault,
         clientFactory: any MatrixLiveClientFactory,
         passwordSessionReauthenticator: any MatrixPasswordSessionReauthenticating = MatrixPasswordSessionReauthenticator(),
+        administratorOAuthAuthorizerFactory: AdministratorOAuthAuthorizerFactory? = nil,
+        administratorClientFactory: @escaping AdministratorClientFactory = { homeserver, userID, accessToken in
+            MatrixSynapseAdminClient(homeserver: homeserver, currentUserID: userID, accessToken: accessToken)
+        },
         randomStoreKey: @escaping RandomStoreKey = { try MatrixRustSDKChatService.secureRandomStoreKey() },
         randomStoreNamespace: @escaping RandomStoreNamespace = { try MatrixRustSDKChatService.secureRandomStoreNamespace() }
     ) {
@@ -306,6 +465,10 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         self.vault = vault
         self.clientFactory = clientFactory
         self.passwordSessionReauthenticator = passwordSessionReauthenticator
+        self.administratorOAuthAuthorizerFactory = administratorOAuthAuthorizerFactory ?? {
+            try await MatrixRustAdministratorOAuthAuthorizer(configuration: configuration)
+        }
+        self.administratorClientFactory = administratorClientFactory
         self.randomStoreKey = randomStoreKey
         self.randomStoreNamespace = randomStoreNamespace
     }
@@ -733,36 +896,206 @@ public actor MatrixRustSDKChatService: MatrixChatService {
     }
 
     public func requestHomeserverPasswordReset() async throws -> MatrixPasswordResetRequest {
-        try await administratorClient().requestPasswordReset()
+        try await primarySessionClient().requestPasswordReset()
     }
 
     public func currentHomeserverPasswordResetRequest() async throws -> MatrixPasswordResetRequest? {
-        try await administratorClient().currentPasswordResetRequest()
+        try await primarySessionClient().currentPasswordResetRequest()
     }
 
     public func completeHomeserverPasswordResetRequest() async throws {
-        try await administratorClient().completePasswordResetRequest()
+        try await primarySessionClient().completePasswordResetRequest()
+    }
+
+    public func beginAdministratorAuthorization() async throws -> MatrixAdminOAuthRequest {
+        let binding = try currentAdministratorBinding()
+        guard await endAdministratorAuthorization() else {
+            throw MatrixChatServiceError.unavailable(reason: "Previous administrator authorization could not be revoked")
+        }
+        let authorizer = try await administratorOAuthAuthorizerFactory()
+        guard binding == (try? currentAdministratorBinding()) else {
+            await authorizer.revoke()
+            throw MatrixChatServiceError.sessionExpired
+        }
+        let requestID = UUID()
+        pendingAdministratorOAuthAuthorizer = authorizer
+        pendingAdministratorRequestID = requestID
+        pendingAdministratorBinding = binding
+        do {
+            let url = try await authorizer.authorizationURL()
+            guard pendingAdministratorRequestID == requestID,
+                  pendingAdministratorBinding == binding,
+                  binding == (try? currentAdministratorBinding()) else {
+                await authorizer.revoke()
+                throw MatrixChatServiceError.sessionExpired
+            }
+            return MatrixAdminOAuthRequest(
+                id: requestID,
+                authorizationURL: url,
+                callbackScheme: MatrixRustAdministratorOAuthAuthorizer.callbackScheme
+            )
+        } catch {
+            if pendingAdministratorRequestID == requestID {
+                pendingAdministratorOAuthAuthorizer = nil
+                pendingAdministratorRequestID = nil
+                pendingAdministratorBinding = nil
+            }
+            await authorizer.revoke()
+            throw error
+        }
+    }
+
+    public func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws {
+        guard pendingAdministratorRequestID == requestID,
+              let binding = pendingAdministratorBinding,
+              let authorizer = pendingAdministratorOAuthAuthorizer else {
+            throw MatrixChatServiceError.unavailable(reason: "Administrator authorization request is stale or invalid")
+        }
+        guard MatrixRustAdministratorOAuthAuthorizer.validCallback(callbackURL) else {
+            throw MatrixChatServiceError.unavailable(reason: "Administrator OAuth callback is invalid")
+        }
+        guard administratorOAuthCompletionsInFlight.insert(requestID).inserted else {
+            throw MatrixChatServiceError.unavailable(
+                reason: "Administrator authorization callback is already being completed"
+            )
+        }
+        defer { administratorOAuthCompletionsInFlight.remove(requestID) }
+        do {
+            let credential = try await authorizer.complete(callbackURL: callbackURL)
+            guard pendingAdministratorRequestID == requestID,
+                  pendingAdministratorBinding == binding,
+                  binding == (try? currentAdministratorBinding()),
+                  credential.userID == binding.userID,
+                  MatrixRustLiveClientFactory.matchesConfiguredHomeserver(
+                    credential.homeserverURL,
+                    configured: configuration.homeserver
+                  ) else {
+                throw MatrixChatServiceError.unavailable(reason: "Administrator authorization identity changed")
+            }
+            let adminClient = administratorClientFactory(
+                configuration.homeserver,
+                credential.userID,
+                credential.accessToken
+            )
+            guard try await adminClient.isAdministrator(),
+                  pendingAdministratorRequestID == requestID,
+                  pendingAdministratorBinding == binding,
+                  binding == (try? currentAdministratorBinding()) else {
+                throw MatrixAdminClientError.notAdministrator
+            }
+            pendingAdministratorOAuthAuthorizer = nil
+            pendingAdministratorRequestID = nil
+            pendingAdministratorBinding = nil
+            authorizedAdministratorOAuthAuthorizer = authorizer
+            authorizedAdministratorBinding = binding
+            scopedAdministratorClient = adminClient
+        } catch {
+            if pendingAdministratorRequestID == requestID {
+                pendingAdministratorOAuthAuthorizer = nil
+                pendingAdministratorRequestID = nil
+                pendingAdministratorBinding = nil
+            }
+            let revoked = await queueAdministratorRevocation(authorizer)
+            if !revoked {
+                throw MatrixChatServiceError.administratorRevocationUnconfirmed
+            }
+            throw error
+        }
+    }
+
+    @discardableResult
+    public func cancelAdministratorAuthorization(requestID: UUID?) async -> Bool {
+        guard requestID == nil || pendingAdministratorRequestID == requestID else { return true }
+        let completionInFlight = requestID.map(administratorOAuthCompletionsInFlight.contains)
+            ?? !administratorOAuthCompletionsInFlight.isEmpty
+        let authorizer = pendingAdministratorOAuthAuthorizer
+        pendingAdministratorOAuthAuthorizer = nil
+        pendingAdministratorRequestID = nil
+        pendingAdministratorBinding = nil
+        if completionInFlight {
+            if let authorizer {
+                _ = await queueAdministratorRevocation(authorizer)
+            }
+            return false
+        }
+        await authorizer?.cancel()
+        return true
+    }
+
+    @discardableResult
+    public func endAdministratorAuthorization() async -> Bool {
+        let pending = pendingAdministratorOAuthAuthorizer
+        let authorized = authorizedAdministratorOAuthAuthorizer
+        pendingAdministratorOAuthAuthorizer = nil
+        pendingAdministratorRequestID = nil
+        pendingAdministratorBinding = nil
+        authorizedAdministratorOAuthAuthorizer = nil
+        authorizedAdministratorBinding = nil
+        scopedAdministratorClient = nil
+        if let pending {
+            retainAdministratorRevocation(pending)
+        }
+        if let authorized {
+            retainAdministratorRevocation(authorized)
+        }
+        let revocations = administratorAuthorizersAwaitingRevocation.filter {
+            !administratorRevocationsInFlight.contains($0.key)
+        }
+        for (id, authorizer) in revocations {
+            _ = await attemptAdministratorRevocation(id: id, authorizer: authorizer)
+        }
+        return administratorAuthorizersAwaitingRevocation.isEmpty
+            && administratorOAuthCompletionsInFlight.isEmpty
+    }
+
+    @discardableResult
+    private func queueAdministratorRevocation(_ authorizer: any MatrixAdministratorOAuthAuthorizing) async -> Bool {
+        let id = ObjectIdentifier(authorizer)
+        retainAdministratorRevocation(authorizer)
+        return await attemptAdministratorRevocation(id: id, authorizer: authorizer)
+    }
+
+    private func retainAdministratorRevocation(_ authorizer: any MatrixAdministratorOAuthAuthorizing) {
+        let id = ObjectIdentifier(authorizer)
+        administratorAuthorizersAwaitingRevocation[id] = authorizer
+        administratorRevocationGenerations[id, default: 0] &+= 1
+    }
+
+    private func attemptAdministratorRevocation(
+        id: ObjectIdentifier,
+        authorizer: any MatrixAdministratorOAuthAuthorizing
+    ) async -> Bool {
+        guard administratorRevocationsInFlight.insert(id).inserted else { return false }
+        let generation = administratorRevocationGenerations[id]
+        let revoked = await authorizer.revoke()
+        administratorRevocationsInFlight.remove(id)
+        guard revoked, administratorRevocationGenerations[id] == generation else { return false }
+        if administratorAuthorizersAwaitingRevocation.removeValue(forKey: id) != nil {
+            administratorRevocationGenerations.removeValue(forKey: id)
+        }
+        return true
     }
 
     public func isHomeserverAdministrator() async throws -> Bool {
-        try await administratorClient().isAdministrator()
+        guard let client = try? authorizedAdministratorClient() else { return false }
+        return try await client.isAdministrator()
     }
 
     public func administratorSnapshot() async throws -> MatrixAdminSnapshot {
-        try await administratorClient().snapshot()
+        try await authorizedAdministratorClient().snapshot()
     }
 
     public func administratorPasswordResetRequests(
         users: [MatrixAdminUserSummary]
     ) async throws -> [MatrixPasswordResetRequest] {
-        try await administratorClient().passwordResetRequests(users: users)
+        try await authorizedAdministratorClient().passwordResetRequests(users: users)
     }
 
     public func resetAdministratorManagedPassword(
         for request: MatrixPasswordResetRequest,
         temporaryPassword: String
     ) async throws {
-        try await administratorClient().resetPassword(
+        try await authorizedAdministratorClient().resetPassword(
             for: request,
             temporaryPassword: temporaryPassword
         )
@@ -773,7 +1106,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         temporaryPassword: String,
         administrator: Bool
     ) async throws -> MatrixAdminUserSummary {
-        try await administratorClient().createAccount(
+        try await authorizedAdministratorClient().createAccount(
             localpart: localpart,
             temporaryPassword: temporaryPassword,
             administrator: administrator
@@ -781,19 +1114,19 @@ public actor MatrixRustSDKChatService: MatrixChatService {
     }
 
     public func deactivateAdministratorManagedAccount(userID: String) async throws {
-        try await administratorClient().deactivateAccount(userID: userID)
+        try await authorizedAdministratorClient().deactivateAccount(userID: userID)
     }
 
     public func createAdministratorManagedRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility) async throws -> MatrixAdminRoomSummary {
-        try await administratorClient().createRoom(name: name, topic: topic, asSpace: asSpace, visibility: visibility)
+        try await authorizedAdministratorClient().createRoom(name: name, topic: topic, asSpace: asSpace, visibility: visibility)
     }
 
     public func logoutAdministratorManagedAccount(userID: String) async throws {
-        try await administratorClient().logoutAccount(userID: userID)
+        try await authorizedAdministratorClient().logoutAccount(userID: userID)
     }
 
     public func purgeAdministratorManagedRoom(roomID: String) async throws {
-        try await administratorClient().purgeRoom(roomID: roomID)
+        try await authorizedAdministratorClient().purgeRoom(roomID: roomID)
     }
 
     public func deviceTrustState() async throws -> MatrixDeviceTrustState {
@@ -872,6 +1205,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
     }
 
     public func suspend() async {
+        _ = await endAdministratorAuthorization()
         if let client {
             await client.stopContinuousSync()
         }
@@ -881,6 +1215,9 @@ public actor MatrixRustSDKChatService: MatrixChatService {
     }
 
     public func logout() async throws {
+        guard await endAdministratorAuthorization() else {
+            throw MatrixChatServiceError.unavailable(reason: "Administrator authorization could not be revoked")
+        }
         var remoteLogoutError: Error?
         if let client {
             await client.stopContinuousSync()
@@ -918,6 +1255,9 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         session: MatrixSDKSessionRecord,
         rooms: [MatrixRoomSummary]
     ) async throws {
+        guard await endAdministratorAuthorization() else {
+            throw MatrixChatServiceError.unavailable(reason: "Administrator authorization could not be revoked")
+        }
         self.client = client
         activeSession = session
         remember(rooms)
@@ -925,7 +1265,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         await client.startContinuousSync()
     }
 
-    private func administratorClient() throws -> MatrixSynapseAdminClient {
+    private func currentAdministratorBinding() throws -> AdministratorSessionBinding {
         guard client != nil, let activeSession else {
             throw MatrixChatServiceError.sessionExpired
         }
@@ -933,13 +1273,33 @@ public actor MatrixRustSDKChatService: MatrixChatService {
             activeSession.homeserverURL,
             configured: configuration.homeserver
         ) else {
-            throw MatrixChatServiceError.unavailable(reason: "Administrator session belongs to another homeserver")
+            throw MatrixChatServiceError.unavailable(reason: "Active session belongs to another homeserver")
         }
+        return AdministratorSessionBinding(
+            accountKey: activeSession.accountKey,
+            userID: activeSession.userId,
+            deviceID: activeSession.deviceId,
+            homeserverURL: activeSession.homeserverURL
+        )
+    }
+
+    private func primarySessionClient() throws -> MatrixSynapseAdminClient {
+        _ = try currentAdministratorBinding()
+        guard let activeSession else { throw MatrixChatServiceError.sessionExpired }
         return MatrixSynapseAdminClient(
             homeserver: configuration.homeserver,
             currentUserID: activeSession.userId,
             accessToken: activeSession.accessToken
         )
+    }
+
+    private func authorizedAdministratorClient() throws -> any MatrixAdminClient {
+        guard let scopedAdministratorClient,
+              let authorizedAdministratorBinding,
+              authorizedAdministratorBinding == (try? currentAdministratorBinding()) else {
+            throw MatrixAdminClientError.notAdministrator
+        }
+        return scopedAdministratorClient
     }
 
     private func remember(_ rooms: [MatrixRoomSummary]) {
