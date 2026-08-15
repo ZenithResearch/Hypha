@@ -195,6 +195,8 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
 
         let cancellationConfirmed = await service.cancelAdministratorAuthorization(requestID: request.id)
         XCTAssertFalse(cancellationConfirmed)
+        let repeatedCancellationConfirmed = await service.cancelAdministratorAuthorization(requestID: request.id)
+        XCTAssertFalse(repeatedCancellationConfirmed)
 
         await authorizer.resumeCompletion()
         await XCTAssertThrowsMatrixError(
