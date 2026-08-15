@@ -953,7 +953,11 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         guard MatrixRustAdministratorOAuthAuthorizer.validCallback(callbackURL) else {
             throw MatrixChatServiceError.unavailable(reason: "Administrator OAuth callback is invalid")
         }
-        administratorOAuthCompletionsInFlight.insert(requestID)
+        guard administratorOAuthCompletionsInFlight.insert(requestID).inserted else {
+            throw MatrixChatServiceError.unavailable(
+                reason: "Administrator authorization callback is already being completed"
+            )
+        }
         defer { administratorOAuthCompletionsInFlight.remove(requestID) }
         do {
             let credential = try await authorizer.complete(callbackURL: callbackURL)

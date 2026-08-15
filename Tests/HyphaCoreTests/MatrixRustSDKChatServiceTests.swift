@@ -205,6 +205,53 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertTrue(finalEnd)
     }
 
+    func testAdministratorOAuthRejectsDuplicateInFlightCallbackWithoutReportingQuiescence() async throws {
+        let authorizer = SuspendingAdministratorOAuthAuthorizer(credential: .init(
+            accessToken: "scoped-admin-token",
+            userID: "@alice:example.org",
+            deviceID: "TEMPADMINDEVICE",
+            homeserverURL: "https://synapse.zenith-research.ca"
+        ))
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
+            administratorOAuthAuthorizerFactory: { authorizer },
+            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let request = try await service.beginAdministratorAuthorization()
+        let callbackURL = URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+        let firstCompletion = Task {
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: callbackURL
+            )
+        }
+        await authorizer.waitUntilCompletionStarts()
+
+        await XCTAssertThrowsMatrixError(
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: callbackURL
+            ),
+            expected: .unavailable(
+                reason: "Administrator authorization callback is already being completed"
+            )
+        )
+        let endedWhileFirstCallbackInFlight = await service.endAdministratorAuthorization()
+        XCTAssertFalse(endedWhileFirstCallbackInFlight)
+
+        await authorizer.resumeCompletion()
+        await XCTAssertThrowsMatrixError(
+            try await firstCompletion.value,
+            expected: .unavailable(reason: "Administrator authorization identity changed")
+        )
+        let finalEnd = await service.endAdministratorAuthorization()
+        XCTAssertTrue(finalEnd)
+    }
+
     func testAdministratorOAuthRevokesCredentialWhenAdminAPIRejectsAuthority() async throws {
         let authorizer = FakeAdministratorOAuthAuthorizer(credential: .init(
             accessToken: "scoped-but-denied-token",
