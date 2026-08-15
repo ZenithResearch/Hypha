@@ -168,6 +168,43 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(revokeCount, 2)
     }
 
+    func testAdministratorOAuthCancellationReportsInFlightCallbackRevocationAsUnconfirmed() async throws {
+        let authorizer = SuspendingAdministratorOAuthAuthorizer(credential: .init(
+            accessToken: "scoped-admin-token",
+            userID: "@alice:example.org",
+            deviceID: "TEMPADMINDEVICE",
+            homeserverURL: "https://synapse.zenith-research.ca"
+        ))
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
+            administratorOAuthAuthorizerFactory: { authorizer },
+            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let request = try await service.beginAdministratorAuthorization()
+        let completion = Task {
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+            )
+        }
+        await authorizer.waitUntilCompletionStarts()
+
+        let cancellationConfirmed = await service.cancelAdministratorAuthorization(requestID: request.id)
+        XCTAssertFalse(cancellationConfirmed)
+
+        await authorizer.resumeCompletion()
+        await XCTAssertThrowsMatrixError(
+            try await completion.value,
+            expected: .unavailable(reason: "Administrator authorization identity changed")
+        )
+        let finalEnd = await service.endAdministratorAuthorization()
+        XCTAssertTrue(finalEnd)
+    }
+
     func testAdministratorOAuthRevokesCredentialWhenAdminAPIRejectsAuthority() async throws {
         let authorizer = FakeAdministratorOAuthAuthorizer(credential: .init(
             accessToken: "scoped-but-denied-token",

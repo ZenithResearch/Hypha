@@ -489,7 +489,8 @@ public protocol MatrixChatService: Sendable {
     func completeHomeserverPasswordResetRequest() async throws
     func beginAdministratorAuthorization() async throws -> MatrixAdminOAuthRequest
     func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws
-    func cancelAdministratorAuthorization(requestID: UUID?) async
+    @discardableResult
+    func cancelAdministratorAuthorization(requestID: UUID?) async -> Bool
     @discardableResult
     func endAdministratorAuthorization() async -> Bool
     func isHomeserverAdministrator() async throws -> Bool
@@ -600,7 +601,8 @@ public extension MatrixChatService {
         throw MatrixChatServiceError.unavailable(reason: "Homeserver administrator authorization is unavailable")
     }
 
-    func cancelAdministratorAuthorization(requestID: UUID?) async {}
+    @discardableResult
+    func cancelAdministratorAuthorization(requestID: UUID?) async -> Bool { true }
 
     @discardableResult
     func endAdministratorAuthorization() async -> Bool { true }
@@ -942,7 +944,8 @@ public final class MatrixChatCoordinator {
         try await service.completeAdministratorAuthorization(requestID: requestID, callbackURL: callbackURL)
     }
 
-    public func cancelAdministratorAuthorization(requestID: UUID?) async {
+    @discardableResult
+    public func cancelAdministratorAuthorization(requestID: UUID?) async -> Bool {
         await service.cancelAdministratorAuthorization(requestID: requestID)
     }
 

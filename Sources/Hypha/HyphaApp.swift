@@ -1193,11 +1193,12 @@ final class MatrixAppModel: ObservableObject {
             adminAccessState = .authorized
             await refreshAdministratorSnapshot()
         } catch {
-            await coordinator.cancelAdministratorAuthorization(requestID: requestID)
+            let cancellationConfirmed = await coordinator.cancelAdministratorAuthorization(requestID: requestID)
             guard coordinator === self.coordinator else { return }
             adminAccessState = .denied
             adminSnapshot = nil
-            if error as? MatrixChatServiceError == .administratorRevocationUnconfirmed {
+            if !cancellationConfirmed
+                || error as? MatrixChatServiceError == .administratorRevocationUnconfirmed {
                 hasUnconfirmedAdminRevocation = true
                 adminMessage = "Administrator authority was denied locally, but the homeserver could not confirm revocation. Check your connection and retry before closing."
             } else {

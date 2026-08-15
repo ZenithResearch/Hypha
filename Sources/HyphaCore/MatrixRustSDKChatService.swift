@@ -998,13 +998,23 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         }
     }
 
-    public func cancelAdministratorAuthorization(requestID: UUID?) async {
-        guard requestID == nil || pendingAdministratorRequestID == requestID else { return }
+    @discardableResult
+    public func cancelAdministratorAuthorization(requestID: UUID?) async -> Bool {
+        guard requestID == nil || pendingAdministratorRequestID == requestID else { return true }
+        let completionInFlight = requestID.map(administratorOAuthCompletionsInFlight.contains)
+            ?? !administratorOAuthCompletionsInFlight.isEmpty
         let authorizer = pendingAdministratorOAuthAuthorizer
         pendingAdministratorOAuthAuthorizer = nil
         pendingAdministratorRequestID = nil
         pendingAdministratorBinding = nil
+        if completionInFlight {
+            if let authorizer {
+                _ = await queueAdministratorRevocation(authorizer)
+            }
+            return false
+        }
         await authorizer?.cancel()
+        return true
     }
 
     @discardableResult
