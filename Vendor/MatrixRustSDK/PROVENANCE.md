@@ -1,12 +1,13 @@
-# Zenith MatrixSDKFFI 26.08.06-zenith.11
+# Zenith MatrixSDKFFI 26.08.15-zenith.12
 
-Purpose: universal Apple Matrix Rust SDK artifact for Hypha on macOS 26.4 arm64, iOS 18 arm64, and the Apple Silicon iOS 18 Simulator. This fork-only integration preserves the existing authoritative device-trust surface while adding password-change UIAA, atomic custom room initial state with exact reconciliation, and non-destructive first-device cross-signing bootstrap.
+Purpose: universal Apple Matrix Rust SDK artifact for Hypha on macOS 26.4 arm64, iOS 18 arm64, and the Apple Silicon iOS 18 Simulator. This fork-only integration preserves the existing authoritative device-trust surface while adding password-change UIAA, atomic custom room initial state with exact reconciliation, non-destructive first-device cross-signing bootstrap, and a session-bound fail-closed lost-recovery identity reset.
 
 ## Source
 
 - Fork: `bananawalnut/matrix-rust-sdk`
-- Integration branch: `zenith/macos-first-client-sdk-integration-20260723`
-- Exact source commit: `f4889ec898e77d8b8c9013adadd77f3d0901fc2d`
+- Integration branch: `fix/hypha-identity-reset-uiaa`
+- Exact source commit: `d28c164ef37cd67723aa565bf5aec9c0cefc3bb8`
+- Identity-reset authorization base: `f4889ec898e77d8b8c9013adadd77f3d0901fc2d`
 - Password-change UIAA head (#6783): `533973cb7d918108fa111214575382bfbe30f765`
 - Atomic room-state/reconciliation head (#6784): `2ee2199867bb28b723d80b1c6f80315301058c57`
 - First-device bootstrap head (#6785): `94f7106f93016e212fe69e9cc6f6d098f6dc71b6`
@@ -52,12 +53,14 @@ The archive was packaged from `bindings/apple/generated` with `COPYFILE_DISABLE=
 
 ## Verification
 
-- `matrix-sdk` library: 602 passed, 0 failed
-- `matrix-sdk-ffi` library: 42 passed, 0 failed
+- `matrix-sdk` library: 612 passed, 0 failed
+- `matrix-sdk-ffi` library: 43 passed, 0 failed
+- password-authenticated identity-reset integration test: 1 passed, 0 failed
 - authoritative own-device integration classifications: 4 passed, 0 failed
 - password UIAA tests include typed challenge continuation and password non-disclosure
 - room-state tests include object validation, collision rejection, tuple uniqueness, and joined/stripped exact lookup
 - first-device bootstrap tests include existing-identity no-op, retained UIAA requests, transient retry, concurrent continuation serialization, and interrupted-signature reconciliation
+- identity-reset tests include retained-session/current-user authority, updated wrong-password challenges, password and OAuth cancellation races, OAuth single-flight terminal behavior, compatibility for generic Rust callers, drop-safe FFI password zeroization, and single-flight backup finalization
 - strict `matrix-sdk-ffi` Clippy passed with only the known unrelated `widget/mod.rs:133` unfulfilled-lint expectation explicitly allowed
 - signature diagnostic `Debug` output omits the upload request and signature material
 - artifact architecture, deployment target, package linkage, generated bindings, Swift tests, app packaging, and code signature are verified below or by the consuming repository gates
@@ -65,8 +68,8 @@ The archive was packaged from `bindings/apple/generated` with `COPYFILE_DISABLE=
 ## Artifact
 
 - `MatrixSDKFFI.xcframework.zip`
-- SHA-256 / SwiftPM checksum: `7b55c8972456b30f61e26a7cb8745b262288172c07be6aafd014a472940a3658`
-- generated `matrix_sdk_ffi.swift` SHA-256: `7d823dda5f112ebc60887fc0ff238129b49e0173870ad616978f17b3ace5bdbc`
+- SHA-256 / SwiftPM checksum: `9b853f98352f088ae0939e28d4d739349c396f9b57f6af815c0a7957156fe4c8`
+- generated `matrix_sdk_ffi.swift` SHA-256: `8bcdf75446e97cf1cfca82529aa223c0c3ccca6e4e58113c8df038cc41c87f17`
 
 ## License
 
@@ -84,4 +87,4 @@ cargo about generate \
   /path/to/Hypha/Vendor/MatrixRustSDK/third-party-licenses.hbs
 ```
 
-The generated file’s SHA-256 is `f1e427b7af156b275595b0dbc78c0dcf1c85aee0240a9b92f856e07d5f55ed61`.
+The generated file’s SHA-256 is `fcaea90f82dc3aa6f0ab1761310e19c554ae771829e7a77d167c84128f9e42f2`.

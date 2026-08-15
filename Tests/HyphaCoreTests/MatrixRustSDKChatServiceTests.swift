@@ -4,6 +4,126 @@ import XCTest
 @testable import HyphaCore
 
 final class MatrixRustSDKChatServiceTests: XCTestCase {
+    func testRecoveryIdentityResetLifecycleNeverRestartsAfterIdentityCommitment() {
+        var lifecycle = MatrixRecoveryIdentityResetLifecycle()
+
+        XCTAssertEqual(lifecycle.begin(), .startIdentityReset)
+        lifecycle.didBegin(requiring: .password)
+        XCTAssertEqual(lifecycle.begin(), .reuseAuthorization(.password))
+        XCTAssertTrue(lifecycle.canContinueWithPassword)
+        XCTAssertFalse(lifecycle.canContinueAfterOAuth)
+
+        lifecycle.didCommitIdentityReset()
+
+        XCTAssertEqual(lifecycle.begin(), .identityResetAlreadyCommitted)
+        XCTAssertFalse(lifecycle.canContinueWithPassword)
+        XCTAssertFalse(lifecycle.canContinueAfterOAuth)
+        XCTAssertTrue(lifecycle.canCreateReplacementRecoveryKey)
+    }
+
+    func testRecoveryIdentityResetLifecycleDoesNotRestartAfterBlockedAuthorization() {
+        var lifecycle = MatrixRecoveryIdentityResetLifecycle()
+
+        XCTAssertEqual(lifecycle.begin(), .startIdentityReset)
+        lifecycle.didBlockAuthorization()
+
+        XCTAssertEqual(lifecycle.begin(), .authorizationBlocked)
+        XCTAssertFalse(lifecycle.canContinueWithPassword)
+        XCTAssertFalse(lifecycle.canContinueAfterOAuth)
+        XCTAssertFalse(lifecycle.canCreateReplacementRecoveryKey)
+    }
+
+    func testRecoveryIdentityResetLifecycleDoesNotRestartAfterAmbiguousInvocationFailure() {
+        var lifecycle = MatrixRecoveryIdentityResetLifecycle()
+
+        XCTAssertEqual(lifecycle.begin(), .startIdentityReset)
+        lifecycle.didFailAfterDestructiveInvocation()
+
+        XCTAssertEqual(lifecycle.begin(), .identityResetIndeterminate)
+        XCTAssertFalse(lifecycle.canContinueWithPassword)
+        XCTAssertFalse(lifecycle.canContinueAfterOAuth)
+        XCTAssertFalse(lifecycle.canCreateReplacementRecoveryKey)
+    }
+
+    func testRecoveryIdentityResetLifecycleSerializesPasswordContinuations() {
+        var lifecycle = MatrixRecoveryIdentityResetLifecycle()
+        XCTAssertEqual(lifecycle.begin(), .startIdentityReset)
+        lifecycle.didBegin(requiring: .password)
+
+        XCTAssertTrue(lifecycle.beginPasswordContinuation())
+        XCTAssertFalse(lifecycle.beginPasswordContinuation())
+        XCTAssertFalse(lifecycle.canContinueWithPassword)
+
+        lifecycle.didRejectPasswordContinuation()
+
+        XCTAssertTrue(lifecycle.canContinueWithPassword)
+        XCTAssertTrue(lifecycle.beginPasswordContinuation())
+        lifecycle.didCommitIdentityReset()
+        XCTAssertFalse(lifecycle.beginPasswordContinuation())
+    }
+
+    func testRecoveryIdentityResetLifecycleSerializesOAuthContinuations() {
+        var lifecycle = MatrixRecoveryIdentityResetLifecycle()
+        let approvalURL = URL(string: "https://auth.example.org/approve")!
+        XCTAssertEqual(lifecycle.begin(), .startIdentityReset)
+        lifecycle.didBegin(requiring: .oauth(approvalURL: approvalURL))
+
+        XCTAssertTrue(lifecycle.beginOAuthContinuation())
+        XCTAssertFalse(lifecycle.beginOAuthContinuation())
+        XCTAssertFalse(lifecycle.canContinueAfterOAuth)
+
+        lifecycle.didRejectOAuthContinuation()
+
+        XCTAssertTrue(lifecycle.canContinueAfterOAuth)
+        XCTAssertTrue(lifecycle.beginOAuthContinuation())
+        lifecycle.didCommitIdentityReset()
+        XCTAssertFalse(lifecycle.beginOAuthContinuation())
+    }
+
+    func testRecoveryIdentityResetLifecycleSerializesReplacementKeyCreation() {
+        var lifecycle = MatrixRecoveryIdentityResetLifecycle()
+        XCTAssertEqual(lifecycle.begin(), .startIdentityReset)
+        lifecycle.didBegin(requiring: .completed)
+
+        XCTAssertTrue(lifecycle.beginReplacementKeyCreation())
+        XCTAssertFalse(lifecycle.beginReplacementKeyCreation())
+
+        lifecycle.didFailReplacementKeyCreation()
+        XCTAssertTrue(lifecycle.beginReplacementKeyCreation())
+        lifecycle.didCreateReplacementKey()
+
+        XCTAssertFalse(lifecycle.beginReplacementKeyCreation())
+        XCTAssertFalse(lifecycle.canCreateReplacementRecoveryKey)
+    }
+
+    func testRecoveryIdentityResetKeepsTheOrdinarySessionAndReturnsAReplacementKey() async throws {
+        let liveClient = FakeLiveClient()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+
+        let authorization = try await service.beginEncryptionIdentityReset()
+        let resetCompleted = try await service.continueEncryptionIdentityReset(password: "not-recorded")
+        let key = try await service.createReplacementEncryptionRecoveryKey()
+
+        let loginCount = await liveClient.loginCount()
+        let resetBeginCount = await liveClient.recoveryIdentityResetBeginCount()
+        let resetContinuationCount = await liveClient.recoveryIdentityResetContinuationCount()
+        let replacementKeyCount = await liveClient.replacementRecoveryKeyCount()
+
+        XCTAssertEqual(authorization, .password)
+        XCTAssertTrue(resetCompleted)
+        XCTAssertEqual(key, "not-a-real-replacement-key")
+        XCTAssertEqual(loginCount, 1)
+        XCTAssertEqual(resetBeginCount, 1)
+        XCTAssertEqual(resetContinuationCount, 1)
+        XCTAssertEqual(replacementKeyCount, 1)
+    }
+
     func testAdministratorOAuthUsesSeparateMemoryOnlyCredentialAndRevokesAtEnd() async throws {
         let vault = MemorySessionVault()
         let liveClient = FakeLiveClient()
@@ -1576,6 +1696,9 @@ private actor FakeLiveClient: MatrixLiveClient {
     private var bootstraps = 0
     private var bootstrapContinuations = 0
     private var recoverySetups = 0
+    private var recoveryIdentityResetBegins = 0
+    private var recoveryIdentityResetContinuations = 0
+    private var replacementRecoveryKeys = 0
     private var recoveryKeys: [String] = []
     private var passwordChange: PasswordChangeRequest?
     private var restored: [MatrixSDKSessionRecord] = []
@@ -1714,6 +1837,19 @@ private actor FakeLiveClient: MatrixLiveClient {
         return "not-a-real-generated-key"
     }
     func restoreEncryption(recoveryKey: String) async throws { recoveryKeys.append(recoveryKey) }
+    func beginEncryptionIdentityReset() async throws -> MatrixRecoveryIdentityResetAuthorization {
+        recoveryIdentityResetBegins += 1
+        return .password
+    }
+    func continueEncryptionIdentityReset(password: String) async throws -> Bool {
+        recoveryIdentityResetContinuations += 1
+        return true
+    }
+    func continueEncryptionIdentityResetAfterOAuth() async throws {}
+    func createReplacementEncryptionRecoveryKey() async throws -> String {
+        replacementRecoveryKeys += 1
+        return "not-a-real-replacement-key"
+    }
     func changePassword(
         currentPassword: String,
         newPassword: String,
@@ -1773,6 +1909,9 @@ private actor FakeLiveClient: MatrixLiveClient {
     }
     func bootstrapContinuationCount() -> Int { bootstrapContinuations }
     func recoverySetupCount() -> Int { recoverySetups }
+    func recoveryIdentityResetBeginCount() -> Int { recoveryIdentityResetBegins }
+    func recoveryIdentityResetContinuationCount() -> Int { recoveryIdentityResetContinuations }
+    func replacementRecoveryKeyCount() -> Int { replacementRecoveryKeys }
     func observedRecoveryKeys() -> [String] { recoveryKeys }
     func observedPasswordChange() -> PasswordChangeRequest? { passwordChange }
     func observedRoomCreationRequests() -> [MatrixRoomCreationRequest] { roomCreationRequests }

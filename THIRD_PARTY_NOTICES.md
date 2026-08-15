@@ -7,8 +7,8 @@ Hypha is licensed under GNU AGPL v3 or later. The notices below apply to third-p
 - Component: Matrix Rust SDK FFI for macOS arm64, iOS arm64, and Apple Silicon iOS Simulator arm64
 - Upstream: https://github.com/matrix-org/matrix-rust-sdk
 - Zenith fork: https://github.com/bananawalnut/matrix-rust-sdk
-- Exact source commit: https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d
-- Artifact checksum: `7b55c8972456b30f61e26a7cb8745b262288172c07be6aafd014a472940a3658`
+- Exact source commit: https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8
+- Artifact checksum: `9b853f98352f088ae0939e28d4d739349c396f9b57f6af815c0a7957156fe4c8`
 - Matrix Rust SDK code and fork modifications: Apache-2.0
 
 The fork modifications and artifact build/verification boundary are documented in `Vendor/MatrixRustSDK/PROVENANCE.md`. The binary incorporates dependencies under the license families and attributions listed below and in `THIRD_PARTY_LICENSES.html`. No upstream `NOTICE` file was present at the exact source commit.
@@ -269,20 +269,20 @@ Canonical license and exception texts included by this repository:
 | `matchers` | `0.2.0` | `MIT` | `MIT` | Eliza Weisman <eliza@buoyant.io> | [source](https://crates.io/api/v1/crates/matchers/0.2.0/download) |
 | `matrix-pickle` | `0.2.3` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://crates.io/api/v1/crates/matrix-pickle/0.2.3/download) |
 | `matrix-pickle-derive` | `0.2.3` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://crates.io/api/v1/crates/matrix-pickle-derive/0.2.3/download) |
-| `matrix-sdk` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Damir Jelić <poljar@termina.org.uk> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-base` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Damir Jelić <poljar@termina.org.uk> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-common` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Damir Jelić <poljar@termina.org.uk> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-contentscanner` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Jorge Martín Espinosa <jorgem@element.io> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-crypto` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Damir Jelić <poljar@termina.org.uk> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-ffi` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-ffi-macros` | `0.7.0` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-search` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Shrey Patel <shreyrg14@gmail.com> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-sqlite` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-store-encryption` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-test` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Damir Jelić <poljar@termina.org.uk> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-test-macros` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | stoically <stoically@protonmail.com> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-test-utils` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
-| `matrix-sdk-ui` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/f4889ec898e77d8b8c9013adadd77f3d0901fc2d) |
+| `matrix-sdk` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Damir Jelić <poljar@termina.org.uk> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-base` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Damir Jelić <poljar@termina.org.uk> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-common` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Damir Jelić <poljar@termina.org.uk> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-contentscanner` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Jorge Martín Espinosa <jorgem@element.io> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-crypto` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Damir Jelić <poljar@termina.org.uk> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-ffi` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-ffi-macros` | `0.7.0` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-search` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Shrey Patel <shreyrg14@gmail.com> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-sqlite` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-store-encryption` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-test` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Damir Jelić <poljar@termina.org.uk> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-test-macros` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | stoically <stoically@protonmail.com> | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-test-utils` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
+| `matrix-sdk-ui` | `0.18.0` | `Apache-2.0` | `Apache-2.0` | Upstream project contributors; see immutable source | [source](https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8) |
 | `measure_time` | `0.9.0` | `MIT` | `MIT` | Pascal Seitz <pascal.seitz@gmail.com> | [source](https://crates.io/api/v1/crates/measure_time/0.9.0/download) |
 | `memchr` | `2.7.4` | `Unlicense OR MIT` | `Unlicense OR MIT` | Andrew Gallant <jamslam@gmail.com>; bluss | [source](https://crates.io/api/v1/crates/memchr/2.7.4/download) |
 | `memmap2` | `0.9.7` | `MIT OR Apache-2.0` | `MIT OR Apache-2.0` | Dan Burkert <dan@danburkert.com>; Yevhenii Reizner <razrfalcon@gmail.com> | [source](https://crates.io/api/v1/crates/memmap2/0.9.7/download) |

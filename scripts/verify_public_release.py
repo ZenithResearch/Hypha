@@ -14,10 +14,10 @@ from zipfile import BadZipFile, ZipFile
 ROOT = Path(__file__).resolve().parents[1]
 SECURITY_URL = "https://github.com/ZenithResearch/Hypha/security/advisories/new"
 AGPL_SHA256 = "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
-SDK_SHA256 = "7b55c8972456b30f61e26a7cb8745b262288172c07be6aafd014a472940a3658"
-THIRD_PARTY_LICENSES_SHA256 = "f1e427b7af156b275595b0dbc78c0dcf1c85aee0240a9b92f856e07d5f55ed61"
-LICENSE_INVENTORY_SHA256 = "898a66bde0576256aaec51d98f517484bed57e32600f676d7169f37944f68309"
-THIRD_PARTY_NOTICES_SHA256 = "f75dcd4f232b51cbdd34d4e47e0bb4226d78fb4dd8714d94f3e3a54789c4d72a"
+SDK_SHA256 = "9b853f98352f088ae0939e28d4d739349c396f9b57f6af815c0a7957156fe4c8"
+THIRD_PARTY_LICENSES_SHA256 = "fcaea90f82dc3aa6f0ab1761310e19c554ae771829e7a77d167c84128f9e42f2"
+LICENSE_INVENTORY_SHA256 = "66887660cc784b7d6cb4c4e425ba4a8d164ad1c9854a903a9af792576816216a"
+THIRD_PARTY_NOTICES_SHA256 = "e09cc55f6c0279876b459f03a91f28363b2be859736eef97ac269c4e7da5c86f"
 PRIVATE_PATH_PREFIXES = ("/" + "Users/", "/" + "Volumes/" + "home/", "/" + "home/")
 LICENSE_HASHES = {
     "0BSD": "e3f18c71e10d673590eb9856c1d79dd3b4b0d65404efb5e8584dbede7edd608b",
@@ -48,7 +48,7 @@ CRITICAL_POLICY_HASHES = {
     "project.yml": "24dfe46d130050ee80d0f236cd6f6a2eb6bdacc7ad08114c22c1bd7f1dbbb477",
     "Resources/iOS/Info.plist": "f684655642e476f10aa8b909f0bf62fecb65e9d91f2bcdf3ef7f60666625b2f6",
     "HyphaMobile.xcodeproj/project.pbxproj": "94b4fef7dd2c2cc6441ca876dd304dd5d1b90bab205617d2c96e1e16c8662b87",
-    ".github/workflows/ci.yml": "0294f8bbe209080af2c89cccb1c9fc8f64ce444c6ace61468c815341287b12e0",
+    ".github/workflows/ci.yml": "eace30fded6bace98c7408dadac3bc55642b8eed6b76492d3e9c61a78d519c63",
     ".github/workflows/release.yml": "a471607fe5e1ccd41d810433ee0a927fa25db4218306f2626176777d09dd58bf",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
     "build-app.sh": "6f1b7ba44241e52439fe024922b9b266f2a866ca19fa3f58b131ccd98d1ebee4",
@@ -232,7 +232,7 @@ require(sha256("Vendor/MatrixRustSDK/license-inventory.json") == LICENSE_INVENTO
 require(sha256("THIRD_PARTY_NOTICES.md") == THIRD_PARTY_NOTICES_SHA256, "third-party notices changed without inventory regeneration")
 inventory = json.loads(text("Vendor/MatrixRustSDK/license-inventory.json"))
 require(inventory.get("schema_version") == 1, "unsupported license inventory schema")
-require(inventory.get("matrix_sdk_source_commit") == "f4889ec898e77d8b8c9013adadd77f3d0901fc2d", "license inventory source drift")
+require(inventory.get("matrix_sdk_source_commit") == "d28c164ef37cd67723aa565bf5aec9c0cefc3bb8", "license inventory source drift")
 require(inventory.get("cargo_about_version") == "0.9.1", "license inventory generator drift")
 require(inventory.get("target") == "aarch64-apple-darwin", "license inventory target drift")
 expected_packages = inventory.get("packages")

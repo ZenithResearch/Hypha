@@ -159,6 +159,10 @@ public protocol MatrixLiveClient: Sendable {
     func encryptionRecoveryState(trustState: MatrixDeviceTrustState) async throws -> MatrixRecoveryState
     func setupEncryptionRecovery() async throws -> String
     func restoreEncryption(recoveryKey: String) async throws
+    func beginEncryptionIdentityReset() async throws -> MatrixRecoveryIdentityResetAuthorization
+    func continueEncryptionIdentityReset(password: String) async throws -> Bool
+    func continueEncryptionIdentityResetAfterOAuth() async throws
+    func createReplacementEncryptionRecoveryKey() async throws -> String
     func deviceTrustState() async throws -> MatrixDeviceTrustState
     func peerVerificationEligibility() async throws -> MatrixPeerVerificationEligibility
     func bootstrapFirstDeviceTrust() async throws -> MatrixFirstDeviceTrustBootstrapState
@@ -171,6 +175,128 @@ public protocol MatrixLiveClient: Sendable {
         _ handler: (@Sendable (MatrixVerificationFlowState) -> Void)?
     ) async throws
     func logout() async throws
+}
+
+struct MatrixRecoveryIdentityResetLifecycle {
+    enum BeginAction: Equatable {
+        case startIdentityReset
+        case reuseAuthorization(MatrixRecoveryIdentityResetAuthorization)
+        case identityResetAlreadyCommitted
+        case authorizationBlocked
+        case identityResetIndeterminate
+        case operationInFlight
+    }
+
+    private enum Phase: Equatable {
+        case idle
+        case beginning
+        case authorizationRequired(MatrixRecoveryIdentityResetAuthorization)
+        case continuingPassword
+        case continuingOAuth(URL)
+        case identityResetCommitted
+        case creatingReplacementKey
+        case replacementKeyCreated
+        case authorizationBlocked
+        case identityResetIndeterminate
+    }
+
+    private var phase: Phase = .idle
+
+    mutating func begin() -> BeginAction {
+        switch phase {
+        case .idle:
+            phase = .beginning
+            return .startIdentityReset
+        case .beginning:
+            return .operationInFlight
+        case .continuingPassword, .continuingOAuth:
+            return .operationInFlight
+        case let .authorizationRequired(authorization):
+            return .reuseAuthorization(authorization)
+        case .identityResetCommitted:
+            return .identityResetAlreadyCommitted
+        case .creatingReplacementKey, .replacementKeyCreated:
+            return .identityResetAlreadyCommitted
+        case .authorizationBlocked:
+            return .authorizationBlocked
+        case .identityResetIndeterminate:
+            return .identityResetIndeterminate
+        }
+    }
+
+    mutating func didBegin(requiring authorization: MatrixRecoveryIdentityResetAuthorization) {
+        if authorization == .completed {
+            phase = .identityResetCommitted
+        } else {
+            phase = .authorizationRequired(authorization)
+        }
+    }
+
+    mutating func didFailAfterDestructiveInvocation() {
+        if phase == .beginning { phase = .identityResetIndeterminate }
+    }
+
+    mutating func didCommitIdentityReset() {
+        phase = .identityResetCommitted
+    }
+
+    mutating func didBlockAuthorization() {
+        phase = .authorizationBlocked
+    }
+
+    mutating func beginPasswordContinuation() -> Bool {
+        guard phase == .authorizationRequired(.password) else { return false }
+        phase = .continuingPassword
+        return true
+    }
+
+    mutating func didRejectPasswordContinuation() {
+        if phase == .continuingPassword {
+            phase = .authorizationRequired(.password)
+        }
+    }
+
+    mutating func beginOAuthContinuation() -> Bool {
+        guard case let .authorizationRequired(.oauth(approvalURL)) = phase else { return false }
+        phase = .continuingOAuth(approvalURL)
+        return true
+    }
+
+    mutating func didRejectOAuthContinuation() {
+        guard case let .continuingOAuth(approvalURL) = phase else { return }
+        phase = .authorizationRequired(.oauth(approvalURL: approvalURL))
+    }
+
+    mutating func beginReplacementKeyCreation() -> Bool {
+        guard phase == .identityResetCommitted else { return false }
+        phase = .creatingReplacementKey
+        return true
+    }
+
+    mutating func didFailReplacementKeyCreation() {
+        if phase == .creatingReplacementKey {
+            phase = .identityResetCommitted
+        }
+    }
+
+    mutating func didCreateReplacementKey() {
+        if phase == .creatingReplacementKey {
+            phase = .replacementKeyCreated
+        }
+    }
+
+    var canCreateReplacementRecoveryKey: Bool {
+        phase == .identityResetCommitted
+    }
+
+    var canContinueWithPassword: Bool {
+        phase == .authorizationRequired(.password)
+    }
+
+    var canContinueAfterOAuth: Bool {
+        if case .authorizationRequired(.oauth) = phase { return true }
+        return false
+    }
 }
 
 public extension MatrixLiveClient {
@@ -232,6 +358,18 @@ public extension MatrixLiveClient {
     }
     func restoreEncryption(recoveryKey: String) async throws {
         throw MatrixChatServiceError.unavailable(reason: "Matrix Rust SDK client is unavailable")
+    }
+    func beginEncryptionIdentityReset() async throws -> MatrixRecoveryIdentityResetAuthorization {
+        throw MatrixChatServiceError.unavailable(reason: "Encryption identity reset is unavailable")
+    }
+    func continueEncryptionIdentityReset(password: String) async throws -> Bool {
+        throw MatrixChatServiceError.unavailable(reason: "Encryption identity reset is unavailable")
+    }
+    func continueEncryptionIdentityResetAfterOAuth() async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Encryption identity reset is unavailable")
+    }
+    func createReplacementEncryptionRecoveryKey() async throws -> String {
+        throw MatrixChatServiceError.unavailable(reason: "Replacement recovery-key creation is unavailable")
     }
     func deviceTrustState() async throws -> MatrixDeviceTrustState { .unavailable }
     func peerVerificationEligibility() async throws -> MatrixPeerVerificationEligibility { .unavailable }
@@ -874,6 +1012,26 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         } catch {
             throw mapRuntimeError(error, fallbackReason: "Encryption recovery failed")
         }
+    }
+
+    public func beginEncryptionIdentityReset() async throws -> MatrixRecoveryIdentityResetAuthorization {
+        guard let client else { throw MatrixChatServiceError.sessionExpired }
+        return try await client.beginEncryptionIdentityReset()
+    }
+
+    public func continueEncryptionIdentityReset(password: String) async throws -> Bool {
+        guard let client else { throw MatrixChatServiceError.sessionExpired }
+        return try await client.continueEncryptionIdentityReset(password: password)
+    }
+
+    public func continueEncryptionIdentityResetAfterOAuth() async throws {
+        guard let client else { throw MatrixChatServiceError.sessionExpired }
+        try await client.continueEncryptionIdentityResetAfterOAuth()
+    }
+
+    public func createReplacementEncryptionRecoveryKey() async throws -> String {
+        guard let client else { throw MatrixChatServiceError.sessionExpired }
+        return try await client.createReplacementEncryptionRecoveryKey()
     }
 
     public func changePassword(
@@ -2338,6 +2496,8 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
     private var syncListener: MatrixSyncListener?
     private var verificationSession: MatrixSASVerificationSession?
     private var crossSigningBootstrapHandle: CrossSigningBootstrapHandle?
+    private var recoveryIdentityResetHandle: IdentityResetHandle?
+    private var recoveryIdentityResetLifecycle = MatrixRecoveryIdentityResetLifecycle()
     private var qrLoginTask: Task<Void, Error>?
     private var qrGrantListener: MatrixGrantGeneratedQrLoginListener?
     private var firstDeviceBootstrapInFlight = false
@@ -2908,6 +3068,110 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
         )
         guard receipt.postUploadServerSignaturePresent, receipt.backupRepair == .completed else {
             throw MatrixChatServiceError.recoveryDiagnostic(receipt: receipt)
+        }
+    }
+
+    public func beginEncryptionIdentityReset() async throws -> MatrixRecoveryIdentityResetAuthorization {
+        switch recoveryIdentityResetLifecycle.begin() {
+        case let .reuseAuthorization(authorization):
+            return authorization
+        case .identityResetAlreadyCommitted:
+            return .completed
+        case .authorizationBlocked:
+            throw MatrixChatServiceError.unavailable(
+                reason: "Matrix returned an invalid identity-reset authorization URL"
+            )
+        case .identityResetIndeterminate:
+            throw MatrixChatServiceError.unavailable(
+                reason: "Encryption identity reset may have changed server state and cannot be repeated safely"
+            )
+        case .operationInFlight:
+            throw MatrixChatServiceError.unavailable(reason: "Encryption identity reset is already in progress")
+        case .startIdentityReset:
+            break
+        }
+
+        do {
+            let encryption = client.encryption()
+            guard let handle = try await encryption.resetIdentity() else {
+                recoveryIdentityResetLifecycle.didBegin(requiring: .completed)
+                return .completed
+            }
+            recoveryIdentityResetHandle = handle
+            let authorization: MatrixRecoveryIdentityResetAuthorization
+            switch handle.authType() {
+            case .uiaa:
+                authorization = .password
+            case let .oAuth(info):
+                guard let approvalURL = URL(string: info.approvalUrl),
+                      approvalURL.scheme?.lowercased() == "https",
+                      approvalURL.host != nil,
+                      approvalURL.user == nil,
+                      approvalURL.password == nil else {
+                    recoveryIdentityResetLifecycle.didBlockAuthorization()
+                    throw MatrixChatServiceError.unavailable(
+                        reason: "Matrix returned an invalid identity-reset authorization URL"
+                    )
+                }
+                authorization = .oauth(approvalURL: approvalURL)
+            }
+            recoveryIdentityResetLifecycle.didBegin(requiring: authorization)
+            return authorization
+        } catch {
+            if recoveryIdentityResetHandle == nil {
+                recoveryIdentityResetLifecycle.didFailAfterDestructiveInvocation()
+            }
+            throw error
+        }
+    }
+
+    public func continueEncryptionIdentityReset(password: String) async throws -> Bool {
+        guard let handle = recoveryIdentityResetHandle,
+              recoveryIdentityResetLifecycle.beginPasswordContinuation() else {
+            throw MatrixChatServiceError.unavailable(reason: "Password identity-reset authorization is unavailable")
+        }
+        do {
+            guard try await handle.resetWithPassword(password: password) == nil else {
+                recoveryIdentityResetLifecycle.didRejectPasswordContinuation()
+                return false
+            }
+            recoveryIdentityResetHandle = nil
+            recoveryIdentityResetLifecycle.didCommitIdentityReset()
+            return true
+        } catch {
+            recoveryIdentityResetLifecycle.didRejectPasswordContinuation()
+            throw error
+        }
+    }
+
+    public func continueEncryptionIdentityResetAfterOAuth() async throws {
+        guard let handle = recoveryIdentityResetHandle,
+              recoveryIdentityResetLifecycle.beginOAuthContinuation() else {
+            throw MatrixChatServiceError.unavailable(reason: "OAuth identity-reset authorization is unavailable")
+        }
+        do {
+            try await handle.reset(auth: nil)
+            recoveryIdentityResetHandle = nil
+            recoveryIdentityResetLifecycle.didCommitIdentityReset()
+        } catch {
+            recoveryIdentityResetLifecycle.didRejectOAuthContinuation()
+            throw error
+        }
+    }
+
+    public func createReplacementEncryptionRecoveryKey() async throws -> String {
+        guard recoveryIdentityResetLifecycle.beginReplacementKeyCreation() else {
+            throw MatrixChatServiceError.unavailable(
+                reason: "Replacement recovery-key creation is not ready"
+            )
+        }
+        do {
+            let recoveryKey = try await client.encryption().resetRecoveryKey()
+            recoveryIdentityResetLifecycle.didCreateReplacementKey()
+            return recoveryKey
+        } catch {
+            recoveryIdentityResetLifecycle.didFailReplacementKeyCreation()
+            throw error
         }
     }
 
