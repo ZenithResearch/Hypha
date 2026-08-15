@@ -303,7 +303,7 @@ public struct MatrixAdministratorOAuthCredential: Equatable, Sendable {
     }
 }
 
-public protocol MatrixAdministratorOAuthAuthorizing: Sendable {
+public protocol MatrixAdministratorOAuthAuthorizing: AnyObject, Sendable {
     func authorizationURL() async throws -> URL
     func complete(callbackURL: URL) async throws -> MatrixAdministratorOAuthCredential
     func cancel() async
@@ -444,8 +444,9 @@ public actor MatrixRustSDKChatService: MatrixChatService {
     private var authorizedAdministratorOAuthAuthorizer: (any MatrixAdministratorOAuthAuthorizing)?
     private var authorizedAdministratorBinding: AdministratorSessionBinding?
     private var scopedAdministratorClient: (any MatrixAdminClient)?
-    private var administratorAuthorizersAwaitingRevocation: [UUID: any MatrixAdministratorOAuthAuthorizing] = [:]
-    private var administratorRevocationsInFlight: Set<UUID> = []
+    private var administratorAuthorizersAwaitingRevocation: [ObjectIdentifier: any MatrixAdministratorOAuthAuthorizing] = [:]
+    private var administratorRevocationsInFlight: Set<ObjectIdentifier> = []
+    private var administratorOAuthCompletionsInFlight: Set<UUID> = []
 
     public init(
         configuration: MatrixProductConfiguration,
@@ -946,10 +947,14 @@ public actor MatrixRustSDKChatService: MatrixChatService {
     public func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws {
         guard pendingAdministratorRequestID == requestID,
               let binding = pendingAdministratorBinding,
-              let authorizer = pendingAdministratorOAuthAuthorizer,
-              MatrixRustAdministratorOAuthAuthorizer.validCallback(callbackURL) else {
+              let authorizer = pendingAdministratorOAuthAuthorizer else {
             throw MatrixChatServiceError.unavailable(reason: "Administrator authorization request is stale or invalid")
         }
+        guard MatrixRustAdministratorOAuthAuthorizer.validCallback(callbackURL) else {
+            throw MatrixChatServiceError.unavailable(reason: "Administrator OAuth callback is invalid")
+        }
+        administratorOAuthCompletionsInFlight.insert(requestID)
+        defer { administratorOAuthCompletionsInFlight.remove(requestID) }
         do {
             let credential = try await authorizer.complete(callbackURL: callbackURL)
             guard pendingAdministratorRequestID == requestID,
@@ -1012,9 +1017,11 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         authorizedAdministratorOAuthAuthorizer = nil
         authorizedAdministratorBinding = nil
         scopedAdministratorClient = nil
-        await pending?.cancel()
+        if let pending {
+            administratorAuthorizersAwaitingRevocation[ObjectIdentifier(pending)] = pending
+        }
         if let authorized {
-            administratorAuthorizersAwaitingRevocation[UUID()] = authorized
+            administratorAuthorizersAwaitingRevocation[ObjectIdentifier(authorized)] = authorized
         }
         let revocations = administratorAuthorizersAwaitingRevocation.filter {
             !administratorRevocationsInFlight.contains($0.key)
@@ -1028,11 +1035,12 @@ public actor MatrixRustSDKChatService: MatrixChatService {
             }
         }
         return administratorAuthorizersAwaitingRevocation.isEmpty
+            && administratorOAuthCompletionsInFlight.isEmpty
     }
 
     @discardableResult
     private func queueAdministratorRevocation(_ authorizer: any MatrixAdministratorOAuthAuthorizing) async -> Bool {
-        let id = UUID()
+        let id = ObjectIdentifier(authorizer)
         administratorAuthorizersAwaitingRevocation[id] = authorizer
         administratorRevocationsInFlight.insert(id)
         let revoked = await authorizer.revoke()

@@ -129,6 +129,45 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(cancelCount, 1)
     }
 
+    func testAdministratorOAuthEndWaitsForInFlightCallbackCredentialRevocation() async throws {
+        let authorizer = SuspendingAdministratorOAuthAuthorizer(credential: .init(
+            accessToken: "scoped-admin-token",
+            userID: "@alice:example.org",
+            deviceID: "TEMPADMINDEVICE",
+            homeserverURL: "https://synapse.zenith-research.ca"
+        ))
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
+            administratorOAuthAuthorizerFactory: { authorizer },
+            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let request = try await service.beginAdministratorAuthorization()
+        let completion = Task {
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+            )
+        }
+        await authorizer.waitUntilCompletionStarts()
+
+        let endedWhileCallbackInFlight = await service.endAdministratorAuthorization()
+        XCTAssertFalse(endedWhileCallbackInFlight)
+
+        await authorizer.resumeCompletion()
+        await XCTAssertThrowsMatrixError(
+            try await completion.value,
+            expected: .unavailable(reason: "Administrator authorization identity changed")
+        )
+        let finalEnd = await service.endAdministratorAuthorization()
+        let revokeCount = await authorizer.revokeCount()
+        XCTAssertTrue(finalEnd)
+        XCTAssertEqual(revokeCount, 2)
+    }
+
     func testAdministratorOAuthRevokesCredentialWhenAdminAPIRejectsAuthority() async throws {
         let authorizer = FakeAdministratorOAuthAuthorizer(credential: .init(
             accessToken: "scoped-but-denied-token",
@@ -1661,6 +1700,54 @@ private actor FakeAdministratorOAuthAuthorizer: MatrixAdministratorOAuthAuthoriz
     }
     func revokeCount() -> Int { revokes }
     func cancelCount() -> Int { cancels }
+}
+
+private actor SuspendingAdministratorOAuthAuthorizer: MatrixAdministratorOAuthAuthorizing {
+    private let credential: MatrixAdministratorOAuthCredential
+    private var completionStarted = false
+    private var completionWaiters: [CheckedContinuation<Void, Never>] = []
+    private var completionContinuation: CheckedContinuation<Void, Never>?
+    private var revokes = 0
+
+    init(credential: MatrixAdministratorOAuthCredential) {
+        self.credential = credential
+    }
+
+    func authorizationURL() async throws -> URL {
+        URL(string: "https://auth.example.org/authorize")!
+    }
+
+    func complete(callbackURL: URL) async throws -> MatrixAdministratorOAuthCredential {
+        completionStarted = true
+        let waiters = completionWaiters
+        completionWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+        await withCheckedContinuation { continuation in
+            completionContinuation = continuation
+        }
+        return credential
+    }
+
+    func waitUntilCompletionStarts() async {
+        guard !completionStarted else { return }
+        await withCheckedContinuation { continuation in
+            completionWaiters.append(continuation)
+        }
+    }
+
+    func resumeCompletion() {
+        completionContinuation?.resume()
+        completionContinuation = nil
+    }
+
+    func cancel() async {}
+
+    func revoke() async -> Bool {
+        revokes += 1
+        return true
+    }
+
+    func revokeCount() -> Int { revokes }
 }
 
 private actor FakeMatrixAdminClient: MatrixAdminClient {
