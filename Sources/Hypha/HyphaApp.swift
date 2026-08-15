@@ -1247,10 +1247,10 @@ final class MatrixAppModel: ObservableObject {
                 adminPasswordResetRequests = try await coordinator.administratorPasswordResetRequests(users: snapshot.users)
             } catch {
                 adminPasswordResetRequests = []
-                adminMessage = "Accounts loaded, but password reset requests could not be refreshed."
+                await applyAdministratorError(error)
             }
         } catch {
-            applyAdministratorError(error)
+            await applyAdministratorError(error)
         }
     }
 
@@ -1278,7 +1278,7 @@ final class MatrixAppModel: ObservableObject {
             )
             return true
         } catch {
-            applyAdministratorError(error)
+            await applyAdministratorError(error)
             return false
         }
     }
@@ -1304,7 +1304,7 @@ final class MatrixAppModel: ObservableObject {
             adminMessage = "Issued a temporary password for \(request.userID), logged out existing devices, and preserved the account role. The authenticated request remains visible but cannot be reset again in this administrator session while the user completes replacement."
             return true
         } catch {
-            applyAdministratorError(error)
+            await applyAdministratorError(error)
             return false
         }
     }
@@ -1320,7 +1320,7 @@ final class MatrixAppModel: ObservableObject {
             await publishAdministratorMutationSuccess("Created \(asSpace ? "space" : "encrypted room") \(room.name).", coordinator: coordinator)
             return true
         } catch {
-            applyAdministratorError(error)
+            await applyAdministratorError(error)
             return false
         }
     }
@@ -1340,7 +1340,7 @@ final class MatrixAppModel: ObservableObject {
             } else {
                 await publishAdministratorMutationSuccess("Logged out every device for \(user.userID).", coordinator: coordinator)
             }
-        } catch { applyAdministratorError(error) }
+        } catch { await applyAdministratorError(error) }
     }
 
     private func clearLocalSessions(for userID: String) {
@@ -1369,7 +1369,7 @@ final class MatrixAppModel: ObservableObject {
                 coordinator: coordinator
             )
         } catch {
-            applyAdministratorError(error)
+            await applyAdministratorError(error)
         }
     }
 
@@ -1398,7 +1398,7 @@ final class MatrixAppModel: ObservableObject {
                 coordinator: coordinator
             )
         } catch {
-            applyAdministratorError(error)
+            await applyAdministratorError(error)
         }
     }
 
@@ -1412,16 +1412,26 @@ final class MatrixAppModel: ObservableObject {
             guard coordinator === self.coordinator else { return }
             adminSnapshot = snapshot
         } catch {
-            adminMessage = message + " The administrator list could not be refreshed."
+            await applyAdministratorError(error)
         }
     }
 
-    private func applyAdministratorError(_ error: Error) {
+    private func applyAdministratorError(_ error: Error) async {
         switch error as? MatrixAdminClientError {
         case .notAdministrator:
             adminAccessState = .denied
             adminSnapshot = nil
-            adminMessage = "Administrator access is no longer available for this account."
+            guard let coordinator else {
+                hasUnconfirmedAdminRevocation = false
+                adminMessage = "Administrator access is no longer available for this account."
+                return
+            }
+            let revoked = await coordinator.endAdministratorAuthorization()
+            guard coordinator === self.coordinator else { return }
+            hasUnconfirmedAdminRevocation = !revoked
+            adminMessage = revoked
+                ? "Administrator access is no longer available for this account."
+                : "Administrator access was denied locally, but the homeserver could not confirm revocation. Check your connection and retry before closing."
         case .sessionExpired:
             adminMessage = "The Matrix session expired. Sign in again before using administration."
         case .offline:

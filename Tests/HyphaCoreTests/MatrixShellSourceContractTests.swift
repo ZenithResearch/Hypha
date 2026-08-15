@@ -144,6 +144,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "endAdministratorAuthorization()",
             "Retry revocation",
             "administratorRevocationUnconfirmed",
+            "await applyAdministratorError(error)",
             ".interactiveDismissDisabled(",
             "model.isAdminOperationInFlight",
             "MatrixAdminSheet",
