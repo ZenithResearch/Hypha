@@ -450,7 +450,7 @@ public protocol MatrixAdministratorOAuthAuthorizing: AnyObject, Sendable {
 }
 
 public actor MatrixRustAdministratorOAuthAuthorizer: MatrixAdministratorOAuthAuthorizing {
-    public static let callbackScheme = "ca.zenithresearch.hypha"
+    public static let callbackScheme = "ca.zenith-research.hypha"
     public static let callbackPath = "/oauth"
     public static let requiredScopes = ["urn:synapse:admin:*"]
 

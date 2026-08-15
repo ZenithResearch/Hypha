@@ -5,7 +5,14 @@ import XCTest
 final class MatrixSynapseAdminClientTests: XCTestCase {
     func testAdministratorAccessRequiresAuthoritativeTrueResponse() async throws {
         let deniedTransport = RecordingAdminTransport(responses: [
-            .json(status: 200, body: ["admin": false]),
+            .json(status: 200, body: [
+                "name": "@operator:example.org",
+                "admin": false,
+                "deactivated": false,
+                "locked": false,
+                "approved": true,
+                "user_type": NSNull(),
+            ]),
         ])
         let denied = MatrixSynapseAdminClient(
             homeserver: URL(string: "https://synapse.example.org")!,
@@ -17,7 +24,14 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
         XCTAssertFalse(deniedResult)
 
         let allowedTransport = RecordingAdminTransport(responses: [
-            .json(status: 200, body: ["admin": true]),
+            .json(status: 200, body: [
+                "name": "@operator:example.org",
+                "admin": true,
+                "deactivated": false,
+                "locked": false,
+                "approved": true,
+                "user_type": NSNull(),
+            ]),
         ])
         let allowed = MatrixSynapseAdminClient(
             homeserver: URL(string: "https://synapse.example.org")!,
@@ -27,15 +41,25 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
         )
         let allowedResult = try await allowed.isAdministrator()
         XCTAssertTrue(allowedResult)
+        let deniedRequests = await deniedTransport.requests()
+        let allowedRequests = await allowedTransport.requests()
+        XCTAssertEqual(deniedRequests.map(\.url?.path), [
+            "/_synapse/admin/v2/users/@operator:example.org",
+        ])
+        XCTAssertEqual(allowedRequests.map(\.url?.path), [
+            "/_synapse/admin/v2/users/@operator:example.org",
+        ])
     }
 
-    func testAdministratorAccessFallsBackToAuthoritativeUserDetailWhenLegacyEndpointIsUnavailable() async throws {
+    func testAdministratorAccessUsesSingleAuthoritativeUserDetailProbe() async throws {
         let transport = RecordingAdminTransport(responses: [
-            .json(status: 404, body: ["errcode": "M_UNRECOGNIZED"]),
             .json(status: 200, body: [
                 "name": "@operator:example.org",
-                "admin": false,
+                "admin": true,
                 "deactivated": false,
+                "locked": false,
+                "approved": true,
+                "user_type": NSNull(),
             ]),
         ])
         let client = MatrixSynapseAdminClient(
@@ -49,14 +73,12 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
         XCTAssertTrue(authorized)
         let requests = await transport.requests()
         XCTAssertEqual(requests.map(\.url?.path), [
-            "/_synapse/admin/v1/users/@operator:example.org/admin",
             "/_synapse/admin/v2/users/@operator:example.org",
         ])
     }
 
-    func testAdministratorFallbackRejectsMalformedUserDetail() async throws {
+    func testAdministratorAccessRejectsMalformedUserDetail() async throws {
         let transport = RecordingAdminTransport(responses: [
-            .json(status: 404, body: ["errcode": "M_UNRECOGNIZED"]),
             .json(status: 200, body: ["name": "@operator:example.org"]),
         ])
         let client = MatrixSynapseAdminClient(
@@ -70,6 +92,43 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
             try await client.isAdministrator(),
             expected: .invalidResponse
         )
+    }
+
+    func testAdministratorAccessRejectsUnsafeUserLifecycleStates() async {
+        let unsafeBodies: [[String: Any]] = [
+            [
+                "name": "@other:example.org", "admin": true, "deactivated": false,
+                "locked": false, "approved": true, "user_type": NSNull(),
+            ],
+            [
+                "name": "@operator:example.org", "admin": true, "deactivated": true,
+                "locked": false, "approved": true, "user_type": NSNull(),
+            ],
+            [
+                "name": "@operator:example.org", "admin": true, "deactivated": false,
+                "locked": true, "approved": true, "user_type": NSNull(),
+            ],
+            [
+                "name": "@operator:example.org", "admin": true, "deactivated": false,
+                "locked": false, "approved": false, "user_type": NSNull(),
+            ],
+            [
+                "name": "@operator:example.org", "admin": true, "deactivated": false,
+                "locked": false, "approved": true, "user_type": "support",
+            ],
+        ]
+        for body in unsafeBodies {
+            let client = MatrixSynapseAdminClient(
+                homeserver: URL(string: "https://synapse.example.org")!,
+                currentUserID: "@operator:example.org",
+                accessToken: "secret-token-material",
+                transport: RecordingAdminTransport(responses: [.json(status: 200, body: body)])
+            )
+            await XCTAssertThrowsAdminError(
+                try await client.isAdministrator(),
+                expected: .invalidResponse
+            )
+        }
     }
 
     func testAccountCreationUsesCurrentServerNameAndRequestedAdministratorRole() async throws {
@@ -337,7 +396,14 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
             MatrixAdminUserSummary(userID: "@completed:example.org", isAdministrator: false, isDeactivated: false, isGuest: false, userType: nil),
         ]
         let transport = RecordingAdminTransport(responses: [
-            .json(status: 200, body: ["admin": true]),
+            .json(status: 200, body: [
+                "name": "@operator:example.org",
+                "admin": true,
+                "deactivated": false,
+                "locked": false,
+                "approved": true,
+                "user_type": NSNull(),
+            ]),
             .json(status: 200, body: [
                 "status": "pending",
                 "request_id": "01234567-89AB-CDEF-0123-456789ABCDEF",
@@ -377,7 +443,14 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
         var verified = account
         verified["password_hash"] = "new-hash-redacted"
         let transport = RecordingAdminTransport(responses: [
-            .json(status: 200, body: ["admin": true]),
+            .json(status: 200, body: [
+                "name": "@operator:example.org",
+                "admin": true,
+                "deactivated": false,
+                "locked": false,
+                "approved": true,
+                "user_type": NSNull(),
+            ]),
             .json(status: 200, body: [
                 "status": "pending", "request_id": requestID, "requested_at_ms": 1_786_000_000_000,
             ]),
