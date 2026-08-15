@@ -1145,10 +1145,26 @@ final class MatrixAppModel: ObservableObject {
             return
         }
         adminAccessState = .checking
-        let authorized = await coordinator.isHomeserverAdministrator()
-        guard coordinator === self.coordinator else { return }
-        adminAccessState = authorized ? .authorized : .denied
-        if !authorized { adminSnapshot = nil }
+        do {
+            let authorized = try await coordinator.isHomeserverAdministrator()
+            guard coordinator === self.coordinator else { return }
+            adminAccessState = authorized ? .authorized : .denied
+            if !authorized {
+                adminSnapshot = nil
+                let revoked = await coordinator.endAdministratorAuthorization()
+                guard coordinator === self.coordinator else { return }
+                hasUnconfirmedAdminRevocation = !revoked
+                if !revoked {
+                    adminMessage = "Administrator authority is unavailable, but the homeserver could not confirm revocation. Check your connection and retry before closing."
+                }
+            }
+        } catch {
+            guard coordinator === self.coordinator else { return }
+            adminAccessState = .denied
+            adminSnapshot = nil
+            hasUnconfirmedAdminRevocation = true
+            adminMessage = "Administrator authority could not be reverified. Use Done to revoke it before closing."
+        }
     }
 
     func authorizeAdministratorAccess() async {
@@ -1181,9 +1197,14 @@ final class MatrixAppModel: ObservableObject {
             guard coordinator === self.coordinator else { return }
             adminAccessState = .denied
             adminSnapshot = nil
-            adminMessage = error is CancellationError
-                ? "Administrator authorization was cancelled."
-                : "The homeserver did not grant administrator authority to this account."
+            if error as? MatrixChatServiceError == .administratorRevocationUnconfirmed {
+                hasUnconfirmedAdminRevocation = true
+                adminMessage = "Administrator authority was denied locally, but the homeserver could not confirm revocation. Check your connection and retry before closing."
+            } else {
+                adminMessage = error is CancellationError
+                    ? "Administrator authorization was cancelled."
+                    : "The homeserver did not grant administrator authority to this account."
+            }
         }
     }
 

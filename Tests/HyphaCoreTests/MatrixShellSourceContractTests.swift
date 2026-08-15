@@ -143,6 +143,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "prefersEphemeralWebBrowserSession = true",
             "endAdministratorAuthorization()",
             "Retry revocation",
+            "administratorRevocationUnconfirmed",
             ".interactiveDismissDisabled(",
             "model.isAdminOperationInFlight",
             "MatrixAdminSheet",

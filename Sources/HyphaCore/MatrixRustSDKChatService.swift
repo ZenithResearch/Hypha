@@ -985,7 +985,10 @@ public actor MatrixRustSDKChatService: MatrixChatService {
                 pendingAdministratorRequestID = nil
                 pendingAdministratorBinding = nil
             }
-            await queueAdministratorRevocation(authorizer)
+            let revoked = await queueAdministratorRevocation(authorizer)
+            if !revoked {
+                throw MatrixChatServiceError.administratorRevocationUnconfirmed
+            }
             throw error
         }
     }
@@ -1027,7 +1030,8 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         return administratorAuthorizersAwaitingRevocation.isEmpty
     }
 
-    private func queueAdministratorRevocation(_ authorizer: any MatrixAdministratorOAuthAuthorizing) async {
+    @discardableResult
+    private func queueAdministratorRevocation(_ authorizer: any MatrixAdministratorOAuthAuthorizing) async -> Bool {
         let id = UUID()
         administratorAuthorizersAwaitingRevocation[id] = authorizer
         administratorRevocationsInFlight.insert(id)
@@ -1036,6 +1040,7 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         if revoked {
             administratorAuthorizersAwaitingRevocation.removeValue(forKey: id)
         }
+        return revoked
     }
 
     public func isHomeserverAdministrator() async throws -> Bool {

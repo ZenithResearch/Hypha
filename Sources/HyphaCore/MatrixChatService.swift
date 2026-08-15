@@ -458,6 +458,7 @@ public enum MatrixChatServiceError: Error, Equatable, Sendable {
     case recoveryFailed(stage: MatrixRecoveryFailureStage)
     case recoveryDiagnostic(receipt: MatrixCrossSigningDiagnosticReceipt)
     case noSavedSession
+    case administratorRevocationUnconfirmed
     case unavailable(reason: String)
 }
 
@@ -950,12 +951,8 @@ public final class MatrixChatCoordinator {
         await service.endAdministratorAuthorization()
     }
 
-    public func isHomeserverAdministrator() async -> Bool {
-        do {
-            return try await service.isHomeserverAdministrator()
-        } catch {
-            return false
-        }
+    public func isHomeserverAdministrator() async throws -> Bool {
+        try await service.isHomeserverAdministrator()
     }
 
     public func administratorSnapshot() async throws -> MatrixAdminSnapshot {
@@ -1440,6 +1437,8 @@ public final class MatrixChatCoordinator {
             return .unavailable(reason: receipt.stableCode)
         case .noSavedSession:
             return .signedOut(message: nil)
+        case .administratorRevocationUnconfirmed:
+            return .unavailable(reason: "Administrator authorization revocation is unconfirmed")
         case let .unavailable(reason):
             return .unavailable(reason: reason)
         }

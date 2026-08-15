@@ -160,6 +160,41 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(revokeCount, 1)
     }
 
+    func testAdministratorOAuthReportsUnconfirmedRevocationWhenAuthorityAndLogoutFail() async throws {
+        let authorizer = FakeAdministratorOAuthAuthorizer(
+            credential: .init(
+                accessToken: "scoped-but-denied-token",
+                userID: "@alice:example.org",
+                deviceID: "TEMPADMINDEVICE",
+                homeserverURL: "https://synapse.zenith-research.ca"
+            ),
+            revocationResults: [false, true]
+        )
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
+            administratorOAuthAuthorizerFactory: { authorizer },
+            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: false) },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let request = try await service.beginAdministratorAuthorization()
+
+        await XCTAssertThrowsMatrixError(
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+            ),
+            expected: .administratorRevocationUnconfirmed
+        )
+
+        let revocationConfirmed = await service.endAdministratorAuthorization()
+        let revokeCount = await authorizer.revokeCount()
+        XCTAssertTrue(revocationConfirmed)
+        XCTAssertEqual(revokeCount, 2)
+    }
+
     func testAdministratorOAuthCallbackValidationIsExact() {
         XCTAssertTrue(MatrixRustAdministratorOAuthAuthorizer.validCallback(
             URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
