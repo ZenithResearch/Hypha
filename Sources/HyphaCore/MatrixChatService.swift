@@ -508,6 +508,7 @@ public protocol MatrixChatService: Sendable {
         temporaryPassword: String,
         administrator: Bool
     ) async throws -> MatrixAdminUserSummary
+    func setAdministratorManagedAccount(userID: String, administrator: Bool) async throws -> MatrixAdminUserSummary
     func createAdministratorManagedRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility) async throws -> MatrixAdminRoomSummary
     func logoutAdministratorManagedAccount(userID: String) async throws
     func deactivateAdministratorManagedAccount(userID: String) async throws
@@ -637,6 +638,10 @@ public extension MatrixChatService {
         administrator: Bool
     ) async throws -> MatrixAdminUserSummary {
         throw MatrixChatServiceError.unavailable(reason: "Account administration is unavailable")
+    }
+
+    func setAdministratorManagedAccount(userID: String, administrator: Bool) async throws -> MatrixAdminUserSummary {
+        throw MatrixChatServiceError.unavailable(reason: "Account role administration is unavailable")
     }
 
     func deactivateAdministratorManagedAccount(userID: String) async throws {
@@ -1020,6 +1025,19 @@ public final class MatrixChatCoordinator {
         return try await service.createAdministratorManagedAccount(
             localpart: localpart,
             temporaryPassword: temporaryPassword,
+            administrator: administrator
+        )
+    }
+
+    public func setAdministratorManagedAccount(
+        userID: String,
+        administrator: Bool
+    ) async throws -> MatrixAdminUserSummary {
+        guard try await service.isHomeserverAdministrator() else {
+            throw MatrixAdminClientError.notAdministrator
+        }
+        return try await service.setAdministratorManagedAccount(
+            userID: userID,
             administrator: administrator
         )
     }

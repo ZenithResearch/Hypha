@@ -122,6 +122,73 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
         XCTAssertEqual(requests.last?.url?.path, "/_synapse/admin/v2/users/@new.user:example.org")
     }
 
+    func testExistingAccountPromotionUsesRoleOnlyEndpointAndVerifiesExactUser() async throws {
+        let transport = RecordingAdminTransport(responses: [
+            .json(status: 200, body: [:]),
+            .json(status: 200, body: [
+                "name": "@banana-admin:example.org",
+                "admin": true,
+                "deactivated": false,
+                "is_guest": false,
+                "user_type": NSNull(),
+                "approved": true,
+            ]),
+        ])
+        let client = MatrixSynapseAdminClient(
+            homeserver: URL(string: "https://synapse.example.org")!,
+            currentUserID: "@beaver:example.org",
+            accessToken: "secret-token-material",
+            transport: transport
+        )
+
+        let user = try await client.setAdministrator(
+            userID: "@banana-admin:example.org",
+            administrator: true
+        )
+
+        XCTAssertEqual(user.userID, "@banana-admin:example.org")
+        XCTAssertTrue(user.isAdministrator)
+        let requests = await transport.requests()
+        XCTAssertEqual(requests.map(\.httpMethod), ["PUT", "GET"])
+        XCTAssertEqual(requests.map(\.url?.path), [
+            "/_synapse/admin/v1/users/@banana-admin:example.org/admin",
+            "/_synapse/admin/v2/users/@banana-admin:example.org",
+        ])
+        let body = try XCTUnwrap(requests.first?.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(json.count, 1)
+        XCTAssertEqual(json["admin"] as? Bool, true)
+        XCTAssertNil(json["password"])
+        XCTAssertFalse(String(data: body, encoding: .utf8)?.contains("secret-token-material") == true)
+    }
+
+    func testExistingAccountPromotionFailsClosedWhenExactRoleIsNotConfirmed() async {
+        let transport = RecordingAdminTransport(responses: [
+            .json(status: 200, body: [:]),
+            .json(status: 200, body: [
+                "name": "@banana-admin:example.org",
+                "admin": false,
+                "deactivated": false,
+                "is_guest": false,
+                "user_type": NSNull(),
+            ]),
+        ])
+        let client = MatrixSynapseAdminClient(
+            homeserver: URL(string: "https://synapse.example.org")!,
+            currentUserID: "@beaver:example.org",
+            accessToken: "secret-token-material",
+            transport: transport
+        )
+
+        await XCTAssertThrowsAdminError(
+            try await client.setAdministrator(
+                userID: "@banana-admin:example.org",
+                administrator: true
+            ),
+            expected: .invalidResponse
+        )
+    }
+
     func testAccountCreationFailsClosedWhenSynapseDoesNotConfirmStoredLocalPassword() async {
         let account = [
             "name": "@new.user:example.org",

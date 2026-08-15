@@ -1425,6 +1425,31 @@ final class MatrixAppModel: ObservableObject {
         }
     }
 
+    func promoteAdministratorManagedAccount(_ user: MatrixAdminUserSummary) async {
+        guard adminAccessState == .authorized,
+              !user.isAdministrator,
+              let coordinator,
+              !isAdminOperationInFlight else { return }
+        isAdminOperationInFlight = true
+        adminMessage = nil
+        defer { isAdminOperationInFlight = false }
+        do {
+            let promoted = try await coordinator.setAdministratorManagedAccount(
+                userID: user.userID,
+                administrator: true
+            )
+            guard coordinator === self.coordinator,
+                  promoted.userID == user.userID,
+                  promoted.isAdministrator else { return }
+            await publishAdministratorMutationSuccess(
+                "Promoted \(promoted.userID) to administrator without changing its password.",
+                coordinator: coordinator
+            )
+        } catch {
+            await applyAdministratorError(error)
+        }
+    }
+
     func resetAdministratorManagedPassword(
         for request: MatrixPasswordResetRequest,
         temporaryPassword: String
