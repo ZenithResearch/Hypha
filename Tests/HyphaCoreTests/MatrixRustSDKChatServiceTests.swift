@@ -148,7 +148,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let request = try await service.beginAdministratorAuthorization()
         try await service.completeAdministratorAuthorization(
             requestID: request.id,
-            callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+            callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
         )
 
         let authorizedBeforeEnd = try await service.isHomeserverAdministrator()
@@ -184,7 +184,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         await XCTAssertThrowsMatrixError(
             try await service.completeAdministratorAuthorization(
                 requestID: request.id,
-                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
             ),
             expected: .unavailable(reason: "Administrator authorization identity changed")
         )
@@ -241,7 +241,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         await XCTAssertThrowsMatrixError(
             try await service.completeAdministratorAuthorization(
                 requestID: request.id,
-                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
             ),
             expected: .unavailable(reason: "Administrator authorization request is stale or invalid")
         )
@@ -269,7 +269,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let completion = Task {
             try await service.completeAdministratorAuthorization(
                 requestID: request.id,
-                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
             )
         }
         await authorizer.waitUntilCompletionStarts()
@@ -308,7 +308,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let completion = Task {
             try await service.completeAdministratorAuthorization(
                 requestID: request.id,
-                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
             )
         }
         await authorizer.waitUntilCompletionStarts()
@@ -344,7 +344,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         )
         _ = try await service.signIn(username: "alice", password: "not-recorded")
         let request = try await service.beginAdministratorAuthorization()
-        let callbackURL = URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+        let callbackURL = URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
         let firstCompletion = Task {
             try await service.completeAdministratorAuthorization(
                 requestID: request.id,
@@ -397,7 +397,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let completion = Task {
             try await service.completeAdministratorAuthorization(
                 requestID: request.id,
-                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
             )
         }
         await authorizer.waitUntilCompletionStarts()
@@ -440,7 +440,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         do {
             try await service.completeAdministratorAuthorization(
                 requestID: request.id,
-                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
             )
             XCTFail("Expected administrator authority rejection")
         } catch {
@@ -474,7 +474,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         await XCTAssertThrowsMatrixError(
             try await service.completeAdministratorAuthorization(
                 requestID: request.id,
-                callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
             ),
             expected: .administratorRevocationUnconfirmed
         )
@@ -486,14 +486,19 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
     }
 
     func testAdministratorOAuthCallbackValidationIsExact() {
+        XCTAssertEqual(
+            MatrixRustAdministratorOAuthAuthorizer.callbackScheme,
+            "ca.zenith-research.hypha"
+        )
         XCTAssertTrue(MatrixRustAdministratorOAuthAuthorizer.validCallback(
-            URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+            URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
         ))
         for invalid in [
-            "https://ca.zenithresearch.hypha/oauth",
-            "ca.zenithresearch.hypha://attacker.example/oauth",
-            "ca.zenithresearch.hypha:/oauth/extra",
-            "ca.zenithresearch.hypha:/oauth#fragment",
+            "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque",
+            "https://ca.zenith-research.hypha/oauth",
+            "ca.zenith-research.hypha://attacker.example/oauth",
+            "ca.zenith-research.hypha:/oauth/extra",
+            "ca.zenith-research.hypha:/oauth#fragment",
         ] {
             XCTAssertFalse(MatrixRustAdministratorOAuthAuthorizer.validCallback(URL(string: invalid)!))
         }
@@ -521,7 +526,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let request = try await service.beginAdministratorAuthorization()
         try await service.completeAdministratorAuthorization(
             requestID: request.id,
-            callbackURL: URL(string: "ca.zenithresearch.hypha:/oauth?code=opaque&state=opaque")!
+            callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
         )
 
         let firstRevocation = await service.endAdministratorAuthorization()
