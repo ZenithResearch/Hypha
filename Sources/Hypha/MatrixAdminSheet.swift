@@ -38,14 +38,14 @@ struct MatrixAdminSheet: View {
                 case .checking, .unknown:
                     ProgressView("Checking administrator authority…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .denied:
+                case .upgradeRequired:
                     VStack(spacing: ZenithDesign.Space.x4) {
                         ContentUnavailableView(
-                            "Administrator authorization required",
+                            "Administrator capability required",
                             systemImage: "person.badge.shield.checkmark",
-                            description: Text("Authorize this Matrix account with the homeserver before using temporary administrator controls.")
+                            description: Text("Upgrade this saved Matrix session once to include homeserver administrator capability.")
                         )
-                        Button("Authorize with homeserver…") {
+                        Button("Upgrade primary session…") {
                             Task { await model.authorizeAdministratorAccess() }
                         }
                         .buttonStyle(HyphaButtonStyle(.primary))
@@ -58,12 +58,19 @@ struct MatrixAdminSheet: View {
                         }
                     }
                     .padding(ZenithDesign.Space.x5)
+                case .denied:
+                    ContentUnavailableView(
+                        "Administrator authority unavailable",
+                        systemImage: "person.badge.shield.checkmark",
+                        description: Text(model.adminMessage ?? "This Matrix account is not a homeserver administrator.")
+                    )
+                    .padding(ZenithDesign.Space.x5)
                 }
             }
             .navigationTitle("Homeserver Administration")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(model.hasUnconfirmedAdminRevocation ? "Retry revocation" : "Done") {
+                    Button("Done") {
                         clearSecrets()
                         Task {
                             if await model.endAdministratorAccess() {
@@ -74,7 +81,6 @@ struct MatrixAdminSheet: View {
                     .disabled(
                         model.isAdminOperationInFlight
                             || model.isAdminAuthorizationInFlight
-                            || model.isAdminRevocationInFlight
                     )
                 }
             }
@@ -83,10 +89,8 @@ struct MatrixAdminSheet: View {
         .hyphaMobileSheetPresentation()
         .interactiveDismissDisabled(
             model.adminAccessState == .authorized
-                || model.hasUnconfirmedAdminRevocation
                 || model.isAdminOperationInFlight
                 || model.isAdminAuthorizationInFlight
-                || model.isAdminRevocationInFlight
         )
         .task {
             await model.refreshAdministratorAccess()
@@ -203,7 +207,7 @@ struct MatrixAdminSheet: View {
             Label("Administrator authority confirmed by the homeserver", systemImage: "checkmark.shield.fill")
                 .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
                 .foregroundStyle(ZenithDesign.Palette.success)
-            Text("These controls use temporary homeserver authorization for the active Matrix account. Hypha does not contain or accept the Synapse registration shared secret.")
+            Text("These controls use the active primary Matrix session after the homeserver confirms its administrator authority. Hypha does not contain or accept the Synapse registration shared secret.")
                 .font(ZenithDesign.Typography.corporate(.callout))
                 .foregroundStyle(ZenithDesign.Palette.muted)
             if let message = validationMessage ?? model.adminMessage {

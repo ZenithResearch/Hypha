@@ -124,26 +124,138 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(replacementKeyCount, 1)
     }
 
-    func testAdministratorOAuthUsesSeparateMemoryOnlyCredentialAndRevokesAtEnd() async throws {
+    func testPrimarySessionProvidesAdministratorAuthorityWithoutSecondLogin() async throws {
+        let observedTokens = LockedValues<String>()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
+            administratorClientFactory: { _, _, token in
+                observedTokens.append(token)
+                return FakeMatrixAdminClient(isAdministrator: true)
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+
+        let authorized = try await service.isHomeserverAdministrator()
+        XCTAssertTrue(authorized)
+        XCTAssertEqual(observedTokens.values(), ["fixture-token"])
+    }
+
+    func testAdministratorUpgradeDoesNotStartForAlreadyAuthorizedPrimarySession() async throws {
+        let liveClient = FakeLiveClient()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+
+        await XCTAssertThrowsMatrixError(
+            try await service.beginAdministratorAuthorization(),
+            expected: .unavailable(reason: "The primary Matrix session already has administrator capability")
+        )
+        let authorizedInvocations = await liveClient.oauthUpgradeInvocations()
+        XCTAssertEqual(authorizedInvocations.count, 0)
+    }
+
+    func testAdministratorUpgradeDoesNotStartForRoleDeniedPrimarySession() async throws {
+        let liveClient = FakeLiveClient()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: false) },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+
+        do {
+            _ = try await service.beginAdministratorAuthorization()
+            XCTFail("Expected role denial")
+        } catch {
+            XCTAssertEqual(error as? MatrixAdminClientError, .notAdministrator)
+        }
+        let deniedInvocations = await liveClient.oauthUpgradeInvocations()
+        XCTAssertEqual(deniedInvocations.count, 0)
+    }
+
+    func testAdministratorUpgradeDoesNotStartForNonExactProbeFailures() async throws {
+        let rejectedErrors: [MatrixAdminClientError] = [
+            .insufficientScope(required: ["urn:matrix:client:unrelated"]),
+            .insufficientScope(required: ["urn:synapse:admin:*", "urn:matrix:client:extra"]),
+            .sessionExpired,
+            .offline,
+            .invalidResponse,
+            .serverRejected,
+        ]
+
+        for rejectedError in rejectedErrors {
+            let liveClient = FakeLiveClient()
+            let service = MatrixRustSDKChatService(
+                configuration: .production,
+                vault: MemorySessionVault(),
+                clientFactory: FakeLiveClientFactory(client: liveClient),
+                administratorClientFactory: { _, _, _ in
+                    FakeMatrixAdminClient(
+                        isAdministrator: false,
+                        administratorError: rejectedError
+                    )
+                },
+                randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+            )
+            _ = try await service.signIn(username: "alice", password: "not-recorded")
+
+            do {
+                _ = try await service.beginAdministratorAuthorization()
+                XCTFail("Expected \(rejectedError) to remain outside the OAuth migration gate")
+            } catch {
+                XCTAssertEqual(error as? MatrixAdminClientError, rejectedError)
+            }
+
+            let invocations = await liveClient.oauthUpgradeInvocations()
+            let syncStops = await liveClient.continuousSyncStopCount()
+            let syncStarts = await liveClient.continuousSyncStartCount()
+            XCTAssertEqual(invocations.count, 0)
+            XCTAssertEqual(syncStops, 1)
+            XCTAssertEqual(syncStarts, 2)
+        }
+    }
+
+    func testAdministratorUpgradeUsesActiveDeviceAndPersistsRefreshedPrimarySession() async throws {
         let vault = MemorySessionVault()
         let liveClient = FakeLiveClient()
-        let authorizer = FakeAdministratorOAuthAuthorizer(credential: .init(
-            accessToken: "scoped-admin-token",
-            userID: "@alice:example.org",
-            deviceID: "TEMPADMINDEVICE",
-            homeserverURL: "https://synapse.zenith-research.ca"
-        ))
-        let adminClient = FakeMatrixAdminClient(isAdministrator: true)
+        let observedTokens = LockedValues<String>()
         let service = MatrixRustSDKChatService(
             configuration: .production,
             vault: vault,
             clientFactory: FakeLiveClientFactory(client: liveClient),
-            administratorOAuthAuthorizerFactory: { authorizer },
-            administratorClientFactory: { _, _, _ in adminClient },
+            administratorClientFactory: { _, _, token in
+                observedTokens.append(token)
+                return observedTokens.values().count == 1
+                    ? FakeMatrixAdminClient(
+                        isAdministrator: false,
+                        administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                    )
+                    : FakeMatrixAdminClient(isAdministrator: true)
+            },
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
         )
         _ = try await service.signIn(username: "alice", password: "not-recorded")
-        let primarySession = try XCTUnwrap(vault.loadSession())
+        let original = try XCTUnwrap(vault.loadSession())
+        await liveClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "refreshed-primary-token",
+            refreshToken: "refreshed-primary-refresh-token",
+            userID: original.userId,
+            deviceID: original.deviceId,
+            oauthData: "refreshed-oauth-metadata",
+            slidingSyncVersion: "refreshed-native",
+            storeNamespace: "replacement-store-must-not-win"
+        ))
 
         let request = try await service.beginAdministratorAuthorization()
         try await service.completeAdministratorAuthorization(
@@ -151,34 +263,106 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
             callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
         )
 
-        let authorizedBeforeEnd = try await service.isHomeserverAdministrator()
-        XCTAssertTrue(authorizedBeforeEnd)
-        XCTAssertEqual(try vault.loadSession(), primarySession)
-        XCTAssertNotEqual(try vault.loadSession()?.accessToken, "scoped-admin-token")
-        await service.endAdministratorAuthorization()
+        let invocations = await liveClient.oauthUpgradeInvocations()
+        let invocation = try XCTUnwrap(invocations.first)
+        XCTAssertEqual(invocation.deviceID, original.deviceId)
+        XCTAssertEqual(invocation.loginHint, "mxid:\(original.userId)")
+        XCTAssertEqual(invocation.additionalScopes, ["urn:synapse:admin:*"])
+        let syncStops = await liveClient.continuousSyncStopCount()
+        let syncStarts = await liveClient.continuousSyncStartCount()
+        XCTAssertEqual(syncStops, 1)
+        XCTAssertEqual(syncStarts, 2)
+        XCTAssertEqual(
+            try vault.loadSession(),
+            MatrixSDKSessionRecord(
+                accessToken: "refreshed-primary-token",
+                refreshToken: "refreshed-primary-refresh-token",
+                userId: original.userId,
+                deviceId: original.deviceId,
+                homeserverURL: original.homeserverURL,
+                oauthData: "refreshed-oauth-metadata",
+                slidingSyncVersion: "refreshed-native",
+                accountKey: original.accountKey,
+                storeNamespace: original.storeNamespace
+            )
+        )
+        XCTAssertNil(try vault.loadProvisionalSession(accountKey: original.accountKey))
+        let authorizedAfterUpgrade = try await service.isHomeserverAdministrator()
+        XCTAssertTrue(authorizedAfterUpgrade)
+        XCTAssertEqual(observedTokens.values().last, "refreshed-primary-token")
+
+        let ended = await service.endAdministratorAuthorization()
+        XCTAssertTrue(ended)
         let authorizedAfterEnd = try await service.isHomeserverAdministrator()
-        let revokeCount = await authorizer.revokeCount()
-        XCTAssertFalse(authorizedAfterEnd)
-        XCTAssertEqual(revokeCount, 1)
+        XCTAssertTrue(authorizedAfterEnd)
+        let logoutCount = await liveClient.logoutCount()
+        XCTAssertEqual(logoutCount, 0)
     }
 
-    func testAdministratorOAuthRejectsIdentityMismatchAndRevokesTemporarySession() async throws {
+    func testAdministratorUpgradeConfirmsCandidateAuthorityBeforePersistence() async throws {
         let vault = MemorySessionVault()
-        let authorizer = FakeAdministratorOAuthAuthorizer(credential: .init(
-            accessToken: "scoped-admin-token",
-            userID: "@mallory:example.org",
-            deviceID: "TEMPADMINDEVICE",
-            homeserverURL: "https://synapse.zenith-research.ca"
-        ))
+        let liveClient = FakeLiveClient()
+        let persistedTokensAtProbe = LockedValues<String>()
+        let probeCount = LockedValues<Int>()
         let service = MatrixRustSDKChatService(
             configuration: .production,
             vault: vault,
-            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
-            administratorOAuthAuthorizerFactory: { authorizer },
-            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                persistedTokensAtProbe.append((try? vault.loadSession()?.accessToken) ?? "missing")
+                let count = probeCount.values().count + 1
+                probeCount.append(count)
+                return count == 1
+                    ? FakeMatrixAdminClient(
+                        isAdministrator: false,
+                        administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                    )
+                    : FakeMatrixAdminClient(isAdministrator: true)
+            },
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
         )
         _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let original = try XCTUnwrap(vault.loadSession())
+        await liveClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "confirmed-before-persistence-token",
+            userID: original.userId,
+            deviceID: original.deviceId
+        ))
+        let request = try await service.beginAdministratorAuthorization()
+
+        try await service.completeAdministratorAuthorization(
+            requestID: request.id,
+            callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
+        )
+
+        XCTAssertEqual(persistedTokensAtProbe.values(), [original.accessToken, original.accessToken])
+        XCTAssertEqual(try vault.loadSession()?.accessToken, "confirmed-before-persistence-token")
+    }
+
+    func testAdministratorUpgradeRejectsIdentityDriftAndRestoresOriginalPrimarySession() async throws {
+        let vault = MemorySessionVault()
+        let liveClient = FakeLiveClient()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                FakeMatrixAdminClient(
+                    isAdministrator: false,
+                    administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                )
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let original = try XCTUnwrap(vault.loadSession())
+        await liveClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "wrong-identity-token",
+            userID: "@mallory:synapse.zenith-research.ca",
+            deviceID: original.deviceId
+        ))
         let request = try await service.beginAdministratorAuthorization()
 
         await XCTAssertThrowsMatrixError(
@@ -189,252 +373,183 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
             expected: .unavailable(reason: "Administrator authorization identity changed")
         )
 
-        let authorized = try await service.isHomeserverAdministrator()
-        let revokeCount = await authorizer.revokeCount()
-        XCTAssertFalse(authorized)
-        XCTAssertEqual(revokeCount, 1)
+        XCTAssertEqual(try vault.loadSession(), original)
+        let restoredSessions = await liveClient.restoredSessions()
+        XCTAssertEqual(restoredSessions.last, original)
     }
 
-    func testAdministratorOAuthRequiresAnActivePrimarySessionBeforeCreatingAttempt() async {
-        let factoryCalls = LockedCounter()
+    func testAdministratorUpgradeRejectsEquivalentButNonidenticalHomeserverRecord() async throws {
+        let vault = MemorySessionVault()
+        let liveClient = FakeLiveClient()
         let service = MatrixRustSDKChatService(
             configuration: .production,
-            vault: MemorySessionVault(),
-            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
-            administratorOAuthAuthorizerFactory: {
-                factoryCalls.increment()
-                return FakeAdministratorOAuthAuthorizer(credential: .init(
-                    accessToken: "unused",
-                    userID: "@alice:example.org",
-                    deviceID: "UNUSED",
-                    homeserverURL: "https://synapse.zenith-research.ca"
-                ))
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                FakeMatrixAdminClient(
+                    isAdministrator: false,
+                    administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                )
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let original = try XCTUnwrap(vault.loadSession())
+        await liveClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "representation-drift-token",
+            homeserverURL: "https://synapse.zenith-research.ca:443",
+            userID: original.userId,
+            deviceID: original.deviceId
+        ))
+        let request = try await service.beginAdministratorAuthorization()
+
+        await XCTAssertThrowsMatrixError(
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
+            ),
+            expected: .unavailable(reason: "Administrator authorization identity changed")
+        )
+
+        XCTAssertEqual(try vault.loadSession(), original)
+        let restoredSessions = await liveClient.restoredSessions()
+        XCTAssertEqual(restoredSessions.last, original)
+    }
+
+    func testAdministratorUpgradeRollsBackWhenRefreshedSessionCannotBePersisted() async throws {
+        let vault = MemorySessionVault()
+        let liveClient = FakeLiveClient()
+        let probeCount = LockedValues<Int>()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                let count = probeCount.values().count + 1
+                probeCount.append(count)
+                return count == 1
+                    ? FakeMatrixAdminClient(
+                        isAdministrator: false,
+                        administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                    )
+                    : FakeMatrixAdminClient(isAdministrator: true)
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let original = try XCTUnwrap(vault.loadSession())
+        await liveClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "refreshed-primary-token",
+            userID: original.userId,
+            deviceID: original.deviceId
+        ))
+        vault.failNextSessionSave(with: FixtureSDKError("simulated persistence failure"))
+        let request = try await service.beginAdministratorAuthorization()
+
+        await XCTAssertThrowsMatrixError(
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
+            ),
+            expected: .unavailable(reason: "Refreshed Matrix session could not be saved")
+        )
+
+        XCTAssertEqual(try vault.loadSession(), original)
+        let restoredSessions = await liveClient.restoredSessions()
+        XCTAssertEqual(restoredSessions.last, original)
+        let syncStarts = await liveClient.continuousSyncStartCount()
+        XCTAssertEqual(syncStarts, 2)
+    }
+
+    func testAdministratorUpgradeRollsBackWhenFinalAuthorityProbeIsNotConfirmed() async throws {
+        let outcomes: [(Result<Bool, MatrixAdminClientError>, MatrixAdminClientError)] = [
+            (.success(false), .notAdministrator),
+            (.failure(.offline), .offline),
+        ]
+
+        for (outcome, expectedError) in outcomes {
+            let vault = MemorySessionVault()
+            let liveClient = FakeLiveClient()
+            let probeCount = LockedValues<Int>()
+            let service = MatrixRustSDKChatService(
+                configuration: .production,
+                vault: vault,
+                clientFactory: FakeLiveClientFactory(client: liveClient),
+                administratorClientFactory: { _, _, _ in
+                    let count = probeCount.values().count + 1
+                    probeCount.append(count)
+                    if count == 1 {
+                        return FakeMatrixAdminClient(
+                            isAdministrator: false,
+                            administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                        )
+                    }
+                    switch outcome {
+                    case let .success(isAdministrator):
+                        return FakeMatrixAdminClient(isAdministrator: isAdministrator)
+                    case let .failure(error):
+                        return FakeMatrixAdminClient(isAdministrator: false, administratorError: error)
+                    }
+                },
+                randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+            )
+            _ = try await service.signIn(username: "alice", password: "not-recorded")
+            let original = try XCTUnwrap(vault.loadSession())
+            await liveClient.setOAuthCompletionSession(.fixture(
+                accountKey: original.accountKey,
+                accessToken: "unconfirmed-refreshed-token",
+                userID: original.userId,
+                deviceID: original.deviceId
+            ))
+            let request = try await service.beginAdministratorAuthorization()
+
+            do {
+                try await service.completeAdministratorAuthorization(
+                    requestID: request.id,
+                    callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
+                )
+                XCTFail("Expected final administrator authority to remain unconfirmed")
+            } catch {
+                XCTAssertEqual(error as? MatrixAdminClientError, expectedError)
             }
-        )
 
-        await XCTAssertThrowsMatrixError(
-            try await service.beginAdministratorAuthorization(),
-            expected: .sessionExpired
-        )
-        XCTAssertEqual(factoryCalls.value(), 0)
-    }
-
-    func testAdministratorOAuthCancellationInvalidatesRequestAndAbortsAttempt() async throws {
-        let authorizer = FakeAdministratorOAuthAuthorizer(credential: .init(
-            accessToken: "unused",
-            userID: "@alice:example.org",
-            deviceID: "UNUSED",
-            homeserverURL: "https://synapse.zenith-research.ca"
-        ))
-        let service = MatrixRustSDKChatService(
-            configuration: .production,
-            vault: MemorySessionVault(),
-            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
-            administratorOAuthAuthorizerFactory: { authorizer },
-            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
-        )
-        _ = try await service.signIn(username: "alice", password: "not-recorded")
-        let request = try await service.beginAdministratorAuthorization()
-
-        await service.cancelAdministratorAuthorization(requestID: request.id)
-
-        await XCTAssertThrowsMatrixError(
-            try await service.completeAdministratorAuthorization(
-                requestID: request.id,
-                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
-            ),
-            expected: .unavailable(reason: "Administrator authorization request is stale or invalid")
-        )
-        let cancelCount = await authorizer.cancelCount()
-        XCTAssertEqual(cancelCount, 1)
-    }
-
-    func testAdministratorOAuthEndWaitsForInFlightCallbackCredentialRevocation() async throws {
-        let authorizer = SuspendingAdministratorOAuthAuthorizer(credential: .init(
-            accessToken: "scoped-admin-token",
-            userID: "@alice:example.org",
-            deviceID: "TEMPADMINDEVICE",
-            homeserverURL: "https://synapse.zenith-research.ca"
-        ))
-        let service = MatrixRustSDKChatService(
-            configuration: .production,
-            vault: MemorySessionVault(),
-            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
-            administratorOAuthAuthorizerFactory: { authorizer },
-            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
-            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
-        )
-        _ = try await service.signIn(username: "alice", password: "not-recorded")
-        let request = try await service.beginAdministratorAuthorization()
-        let completion = Task {
-            try await service.completeAdministratorAuthorization(
-                requestID: request.id,
-                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
-            )
+            XCTAssertEqual(try vault.loadSession(), original)
+            XCTAssertNil(try vault.loadProvisionalSession(accountKey: original.accountKey))
+            let restoredSessions = await liveClient.restoredSessions()
+            XCTAssertEqual(restoredSessions.last, original)
+            let syncStarts = await liveClient.continuousSyncStartCount()
+            XCTAssertEqual(syncStarts, 2)
         }
-        await authorizer.waitUntilCompletionStarts()
-
-        let endedWhileCallbackInFlight = await service.endAdministratorAuthorization()
-        XCTAssertFalse(endedWhileCallbackInFlight)
-
-        await authorizer.resumeCompletion()
-        await XCTAssertThrowsMatrixError(
-            try await completion.value,
-            expected: .unavailable(reason: "Administrator authorization identity changed")
-        )
-        let finalEnd = await service.endAdministratorAuthorization()
-        let revokeCount = await authorizer.revokeCount()
-        XCTAssertTrue(finalEnd)
-        XCTAssertEqual(revokeCount, 2)
     }
 
-    func testAdministratorOAuthCancellationReportsInFlightCallbackRevocationAsUnconfirmed() async throws {
-        let authorizer = SuspendingAdministratorOAuthAuthorizer(credential: .init(
-            accessToken: "scoped-admin-token",
-            userID: "@alice:example.org",
-            deviceID: "TEMPADMINDEVICE",
-            homeserverURL: "https://synapse.zenith-research.ca"
+    func testAdministratorUpgradeRollsBackWhenSDKMutatesSessionThenThrows() async throws {
+        let vault = MemorySessionVault()
+        let liveClient = FakeLiveClient()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                FakeMatrixAdminClient(
+                    isAdministrator: false,
+                    administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                )
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let original = try XCTUnwrap(vault.loadSession())
+        await liveClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "partially-committed-sdk-token",
+            userID: original.userId,
+            deviceID: original.deviceId
         ))
-        let service = MatrixRustSDKChatService(
-            configuration: .production,
-            vault: MemorySessionVault(),
-            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
-            administratorOAuthAuthorizerFactory: { authorizer },
-            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
-            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        await liveClient.setOAuthCompletionErrorAfterMutation(
+            FixtureSDKError("simulated callback failure after SDK mutation")
         )
-        _ = try await service.signIn(username: "alice", password: "not-recorded")
-        let request = try await service.beginAdministratorAuthorization()
-        let completion = Task {
-            try await service.completeAdministratorAuthorization(
-                requestID: request.id,
-                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
-            )
-        }
-        await authorizer.waitUntilCompletionStarts()
-
-        let cancellationConfirmed = await service.cancelAdministratorAuthorization(requestID: request.id)
-        XCTAssertFalse(cancellationConfirmed)
-        let repeatedCancellationConfirmed = await service.cancelAdministratorAuthorization(requestID: request.id)
-        XCTAssertFalse(repeatedCancellationConfirmed)
-
-        await authorizer.resumeCompletion()
-        await XCTAssertThrowsMatrixError(
-            try await completion.value,
-            expected: .unavailable(reason: "Administrator authorization identity changed")
-        )
-        let finalEnd = await service.endAdministratorAuthorization()
-        XCTAssertTrue(finalEnd)
-    }
-
-    func testAdministratorOAuthRejectsDuplicateInFlightCallbackWithoutReportingQuiescence() async throws {
-        let authorizer = SuspendingAdministratorOAuthAuthorizer(credential: .init(
-            accessToken: "scoped-admin-token",
-            userID: "@alice:example.org",
-            deviceID: "TEMPADMINDEVICE",
-            homeserverURL: "https://synapse.zenith-research.ca"
-        ))
-        let service = MatrixRustSDKChatService(
-            configuration: .production,
-            vault: MemorySessionVault(),
-            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
-            administratorOAuthAuthorizerFactory: { authorizer },
-            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
-            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
-        )
-        _ = try await service.signIn(username: "alice", password: "not-recorded")
-        let request = try await service.beginAdministratorAuthorization()
-        let callbackURL = URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
-        let firstCompletion = Task {
-            try await service.completeAdministratorAuthorization(
-                requestID: request.id,
-                callbackURL: callbackURL
-            )
-        }
-        await authorizer.waitUntilCompletionStarts()
-
-        await XCTAssertThrowsMatrixError(
-            try await service.completeAdministratorAuthorization(
-                requestID: request.id,
-                callbackURL: callbackURL
-            ),
-            expected: .unavailable(
-                reason: "Administrator authorization callback is already being completed"
-            )
-        )
-        let endedWhileFirstCallbackInFlight = await service.endAdministratorAuthorization()
-        XCTAssertFalse(endedWhileFirstCallbackInFlight)
-
-        await authorizer.resumeCompletion()
-        await XCTAssertThrowsMatrixError(
-            try await firstCompletion.value,
-            expected: .unavailable(reason: "Administrator authorization identity changed")
-        )
-        let finalEnd = await service.endAdministratorAuthorization()
-        XCTAssertTrue(finalEnd)
-    }
-
-    func testAdministratorOAuthRequeueDuringRevocationRequiresAnotherConfirmedLogout() async throws {
-        let authorizer = SuspendingAdministratorOAuthAuthorizer(
-            credential: .init(
-                accessToken: "scoped-admin-token",
-                userID: "@alice:example.org",
-                deviceID: "TEMPADMINDEVICE",
-                homeserverURL: "https://synapse.zenith-research.ca"
-            ),
-            suspendFirstRevocation: true
-        )
-        let service = MatrixRustSDKChatService(
-            configuration: .production,
-            vault: MemorySessionVault(),
-            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
-            administratorOAuthAuthorizerFactory: { authorizer },
-            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
-            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
-        )
-        _ = try await service.signIn(username: "alice", password: "not-recorded")
-        let request = try await service.beginAdministratorAuthorization()
-        let completion = Task {
-            try await service.completeAdministratorAuthorization(
-                requestID: request.id,
-                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
-            )
-        }
-        await authorizer.waitUntilCompletionStarts()
-        let firstEnd = Task { await service.endAdministratorAuthorization() }
-        await authorizer.waitUntilFirstRevocationStarts()
-
-        await authorizer.resumeCompletion()
-        await XCTAssertThrowsMatrixError(
-            try await completion.value,
-            expected: .administratorRevocationUnconfirmed
-        )
-        await authorizer.resumeFirstRevocation()
-        let firstEndResult = await firstEnd.value
-        XCTAssertFalse(firstEndResult)
-
-        let finalEnd = await service.endAdministratorAuthorization()
-        let revokeCount = await authorizer.revokeCount()
-        XCTAssertTrue(finalEnd)
-        XCTAssertEqual(revokeCount, 2)
-    }
-
-    func testAdministratorOAuthRevokesCredentialWhenAdminAPIRejectsAuthority() async throws {
-        let authorizer = FakeAdministratorOAuthAuthorizer(credential: .init(
-            accessToken: "scoped-but-denied-token",
-            userID: "@alice:example.org",
-            deviceID: "TEMPADMINDEVICE",
-            homeserverURL: "https://synapse.zenith-research.ca"
-        ))
-        let service = MatrixRustSDKChatService(
-            configuration: .production,
-            vault: MemorySessionVault(),
-            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
-            administratorOAuthAuthorizerFactory: { authorizer },
-            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: false) },
-            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
-        )
-        _ = try await service.signIn(username: "alice", password: "not-recorded")
         let request = try await service.beginAdministratorAuthorization()
 
         do {
@@ -442,33 +557,207 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
                 requestID: request.id,
                 callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
             )
-            XCTFail("Expected administrator authority rejection")
+            XCTFail("Expected callback completion failure")
         } catch {
-            XCTAssertEqual(error as? MatrixAdminClientError, .notAdministrator)
+            XCTAssertTrue(error is FixtureSDKError)
         }
-        let revokeCount = await authorizer.revokeCount()
-        XCTAssertEqual(revokeCount, 1)
+
+        XCTAssertEqual(try vault.loadSession(), original)
+        let restoredSessions = await liveClient.restoredSessions()
+        XCTAssertEqual(restoredSessions.last, original)
+        let syncStarts = await liveClient.continuousSyncStartCount()
+        XCTAssertEqual(syncStarts, 2)
     }
 
-    func testAdministratorOAuthReportsUnconfirmedRevocationWhenAuthorityAndLogoutFail() async throws {
-        let authorizer = FakeAdministratorOAuthAuthorizer(
-            credential: .init(
-                accessToken: "scoped-but-denied-token",
-                userID: "@alice:example.org",
-                deviceID: "TEMPADMINDEVICE",
-                homeserverURL: "https://synapse.zenith-research.ca"
-            ),
-            revocationResults: [false, true]
+    func testRestoredUpgradedPrimarySessionProvidesAuthorityWithoutOAuth() async throws {
+        let vault = MemorySessionVault()
+        let initialClient = FakeLiveClient()
+        let initialProbeCount = LockedValues<Int>()
+        let initialService = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: initialClient),
+            administratorClientFactory: { _, _, _ in
+                let count = initialProbeCount.values().count + 1
+                initialProbeCount.append(count)
+                return count == 1
+                    ? FakeMatrixAdminClient(
+                        isAdministrator: false,
+                        administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                    )
+                    : FakeMatrixAdminClient(isAdministrator: true)
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
         )
+        _ = try await initialService.signIn(username: "alice", password: "not-recorded")
+        let original = try XCTUnwrap(vault.loadSession())
+        await initialClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "restorable-administrator-token",
+            refreshToken: "restorable-refresh-token",
+            homeserverURL: original.homeserverURL,
+            userID: original.userId,
+            deviceID: original.deviceId,
+            oauthData: "restorable-oauth-metadata",
+            slidingSyncVersion: original.slidingSyncVersion
+        ))
+        let request = try await initialService.beginAdministratorAuthorization()
+        try await initialService.completeAdministratorAuthorization(
+            requestID: request.id,
+            callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
+        )
+        _ = await initialService.suspend()
+
+        let restoredClient = FakeLiveClient()
+        let restoredTokens = LockedValues<String>()
+        let restoredService = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: restoredClient),
+            administratorClientFactory: { _, _, token in
+                restoredTokens.append(token)
+                return FakeMatrixAdminClient(isAdministrator: true)
+            },
+            randomStoreKey: { Data(repeating: 0x00, count: 32) }
+        )
+
+        _ = try await restoredService.restore()
+        let restoredAuthority = try await restoredService.isHomeserverAdministrator()
+        XCTAssertTrue(restoredAuthority)
+        XCTAssertEqual(restoredTokens.values(), ["restorable-administrator-token"])
+        let oauthInvocations = await restoredClient.oauthUpgradeInvocations()
+        XCTAssertEqual(oauthInvocations.count, 0)
+    }
+
+    func testSuspendDoesNotClearSessionWhileAdministratorOAuthCompletionIsInFlight() async throws {
+        let vault = MemorySessionVault()
+        let liveClient = FakeLiveClient()
+        let probeCount = LockedValues<Int>()
         let service = MatrixRustSDKChatService(
             configuration: .production,
-            vault: MemorySessionVault(),
-            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
-            administratorOAuthAuthorizerFactory: { authorizer },
-            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: false) },
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                let count = probeCount.values().count + 1
+                probeCount.append(count)
+                return count == 1
+                    ? FakeMatrixAdminClient(
+                        isAdministrator: false,
+                        administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                    )
+                    : FakeMatrixAdminClient(isAdministrator: true)
+            },
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
         )
         _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let original = try XCTUnwrap(vault.loadSession())
+        await liveClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "serialized-completion-token",
+            userID: original.userId,
+            deviceID: original.deviceId
+        ))
+        await liveClient.suspendOAuthCompletion()
+        let request = try await service.beginAdministratorAuthorization()
+        let completion = Task {
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
+            )
+        }
+        await liveClient.waitUntilOAuthCompletionStarted()
+
+        _ = await service.suspend()
+        await liveClient.resumeOAuthCompletion()
+        try await completion.value
+
+        XCTAssertEqual(try vault.loadSession()?.accessToken, "serialized-completion-token")
+        let authority = try await service.isHomeserverAdministrator()
+        XCTAssertTrue(authority)
+    }
+
+    func testRoomRefreshCannotSyncWhileAdministratorOAuthCompletionIsInFlight() async throws {
+        let vault = MemorySessionVault()
+        let liveClient = FakeLiveClient()
+        let probeCount = LockedValues<Int>()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                let count = probeCount.values().count + 1
+                probeCount.append(count)
+                return count == 1
+                    ? FakeMatrixAdminClient(
+                        isAdministrator: false,
+                        administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                    )
+                    : FakeMatrixAdminClient(isAdministrator: true)
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let original = try XCTUnwrap(vault.loadSession())
+        await liveClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "sync-isolated-completion-token",
+            userID: original.userId,
+            deviceID: original.deviceId
+        ))
+        await liveClient.suspendOAuthCompletion()
+        let request = try await service.beginAdministratorAuthorization()
+        let completion = Task {
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
+            )
+        }
+        await liveClient.waitUntilOAuthCompletionStarted()
+
+        await XCTAssertThrowsMatrixError(
+            try await service.refreshRooms(),
+            expected: .unavailable(reason: "Administrator authorization is still completing")
+        )
+        let syncsWhileSuspended = await liveClient.syncCount()
+        let stopsWhileSuspended = await liveClient.continuousSyncStopCount()
+        let startsWhileSuspended = await liveClient.continuousSyncStartCount()
+        XCTAssertEqual(syncsWhileSuspended, 1)
+        XCTAssertEqual(stopsWhileSuspended, 1)
+        XCTAssertEqual(startsWhileSuspended, 1)
+
+        await liveClient.resumeOAuthCompletion()
+        try await completion.value
+        let startsAfterCompletion = await liveClient.continuousSyncStartCount()
+        XCTAssertEqual(startsAfterCompletion, 2)
+    }
+
+    func testRollbackFailureQuarantinesSessionWithoutRestartingSync() async throws {
+        let vault = MemorySessionVault()
+        let liveClient = FakeLiveClient()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                FakeMatrixAdminClient(
+                    isAdministrator: false,
+                    administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                )
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let original = try XCTUnwrap(vault.loadSession())
+        await liveClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "rollback-failure-token",
+            userID: original.userId,
+            deviceID: original.deviceId
+        ))
+        await liveClient.setOAuthCompletionErrorAfterMutation(
+            FixtureSDKError("simulated callback failure after SDK mutation")
+        )
+        vault.failNextSessionSave(with: FixtureSDKError("simulated rollback persistence failure"))
         let request = try await service.beginAdministratorAuthorization()
 
         await XCTAssertThrowsMatrixError(
@@ -476,21 +765,415 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
                 requestID: request.id,
                 callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
             ),
-            expected: .administratorRevocationUnconfirmed
+            expected: .recoveryRequired
         )
 
-        let revocationConfirmed = await service.endAdministratorAuthorization()
-        let revokeCount = await authorizer.revokeCount()
-        XCTAssertTrue(revocationConfirmed)
-        XCTAssertEqual(revokeCount, 2)
+        let syncStarts = await liveClient.continuousSyncStartCount()
+        XCTAssertEqual(syncStarts, 1)
+        do {
+            _ = try await service.isHomeserverAdministrator()
+            XCTFail("Expected quarantined session")
+        } catch {
+            XCTAssertEqual(error as? MatrixChatServiceError, .sessionExpired)
+        }
+        XCTAssertEqual(try vault.loadSession(), original)
+    }
+
+    func testConcurrentAdministratorAuthorizationBeginReservesOneLifecycleBeforeAwait() async throws {
+        let vault = MemorySessionVault()
+        let liveClient = FakeLiveClient()
+        let suspendedProbe = FakeMatrixAdminClient(
+            isAdministrator: false,
+            administratorError: .insufficientScope(required: ["urn:synapse:admin:*"]),
+            suspendAdministratorProbe: true
+        )
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in suspendedProbe },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let firstBegin = Task { try await service.beginAdministratorAuthorization() }
+        await suspendedProbe.waitUntilAdministratorProbeStarted()
+
+        await XCTAssertThrowsMatrixError(
+            try await service.beginAdministratorAuthorization(),
+            expected: .unavailable(reason: "Administrator authorization is already in progress")
+        )
+
+        await suspendedProbe.resumeAdministratorProbe()
+        let request = try await firstBegin.value
+        let invocations = await liveClient.oauthUpgradeInvocations()
+        XCTAssertEqual(invocations.count, 1)
+        let cancelled = await service.cancelAdministratorAuthorization(requestID: request.id)
+        XCTAssertTrue(cancelled)
+    }
+
+    func testCancellationDuringSuspendedAdministratorPreflightReleasesOwnership() async throws {
+        let liveClient = FakeLiveClient()
+        let suspendedProbe = FakeMatrixAdminClient(
+            isAdministrator: false,
+            administratorError: .insufficientScope(required: ["urn:synapse:admin:*"]),
+            suspendAdministratorProbe: true
+        )
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in suspendedProbe },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let firstBegin = Task { try await service.beginAdministratorAuthorization() }
+        await suspendedProbe.waitUntilAdministratorProbeStarted()
+        let stopsDuringPreflight = await liveClient.continuousSyncStopCount()
+        let startsDuringPreflight = await liveClient.continuousSyncStartCount()
+        XCTAssertEqual(stopsDuringPreflight, 1)
+        XCTAssertEqual(startsDuringPreflight, 1)
+
+        let cancellationFinishedSynchronously = await service.cancelAdministratorAuthorization(requestID: nil)
+        XCTAssertFalse(cancellationFinishedSynchronously)
+        do {
+            _ = try await firstBegin.value
+            XCTFail("Expected cancelled administrator preflight")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+
+        await suspendedProbe.resumeAdministratorProbe()
+        var secondRequest: MatrixAdminOAuthRequest?
+        for _ in 0..<100 {
+            do {
+                secondRequest = try await service.beginAdministratorAuthorization()
+                break
+            } catch MatrixChatServiceError.unavailable {
+                await Task.yield()
+            }
+        }
+        let resumedRequest = try XCTUnwrap(secondRequest)
+        let cancelled = await service.cancelAdministratorAuthorization(requestID: resumedRequest.id)
+        XCTAssertTrue(cancelled)
+        let invocations = await liveClient.oauthUpgradeInvocations()
+        XCTAssertEqual(invocations.count, 1)
+    }
+
+    func testAdministratorAuthorizationCannotOverlapSuspendedOrdinaryClientOperation() async throws {
+        let liveClient = FakeLiveClient()
+        await liveClient.setRooms([
+            MatrixRoomSummary(
+                id: "!encrypted:example.org",
+                name: "Encrypted",
+                isEncrypted: true,
+                hasInvite: false
+            )
+        ])
+        await liveClient.suspendSend()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                FakeMatrixAdminClient(
+                    isAdministrator: false,
+                    administratorError: .insufficientScope(required: MatrixPrimarySessionOAuth.requiredScopes)
+                )
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+
+        let send = Task { try await service.sendText("in flight", to: "!encrypted:example.org") }
+        await liveClient.waitUntilSendStarted()
+        await XCTAssertThrowsMatrixError(
+            try await service.beginAdministratorAuthorization(),
+            expected: .unavailable(reason: "A primary Matrix operation is still in progress")
+        )
+        let invocationsWhileSendSuspended = await liveClient.oauthUpgradeInvocations()
+        XCTAssertEqual(invocationsWhileSendSuspended.count, 0)
+
+        await liveClient.resumeSend()
+        try await send.value
+        _ = try await service.beginAdministratorAuthorization()
+        let invocationsAfterSend = await liveClient.oauthUpgradeInvocations()
+        XCTAssertEqual(invocationsAfterSend.count, 1)
+    }
+
+    func testCancellationDuringSuspendedOAuthURLCreationRetainsBarrierUntilLateResult() async throws {
+        let liveClient = FakeLiveClient()
+        await liveClient.suspendOAuthBegin()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                FakeMatrixAdminClient(
+                    isAdministrator: false,
+                    administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                )
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let begin = Task { try await service.beginAdministratorAuthorization() }
+        await liveClient.waitUntilOAuthBeginStarted()
+
+        let cancelledSynchronously = await service.cancelAdministratorAuthorization(requestID: nil)
+        XCTAssertFalse(cancelledSynchronously)
+        do {
+            _ = try await begin.value
+            XCTFail("Expected OAuth URL creation cancellation")
+        } catch {
+            XCTAssertTrue(error is CancellationError)
+        }
+        await XCTAssertThrowsMatrixError(
+            try await service.refreshRooms(),
+            expected: .unavailable(reason: "Administrator authorization is still completing")
+        )
+
+        await liveClient.resumeOAuthBegin()
+        await liveClient.waitUntilOAuthBeginFinished()
+        var refreshSucceeded = false
+        for _ in 0..<100 {
+            do {
+                _ = try await service.refreshRooms()
+                refreshSucceeded = true
+                break
+            } catch MatrixChatServiceError.unavailable {
+                await Task.yield()
+            }
+        }
+        XCTAssertTrue(refreshSucceeded)
+    }
+
+    func testPrimarySessionTransitionPreventsAdministratorOAuthFromStarting() async throws {
+        let liveClient = FakeLiveClient()
+        await liveClient.suspendSync()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        let signIn = Task {
+            try await service.signIn(username: "alice", password: "not-recorded")
+        }
+        await liveClient.waitUntilSyncStarted()
+
+        await XCTAssertThrowsMatrixError(
+            try await service.beginAdministratorAuthorization(),
+            expected: .unavailable(reason: "Administrator authorization is already in progress")
+        )
+
+        await liveClient.resumeSync()
+        _ = try await signIn.value
+        let oauthInvocations = await liveClient.oauthUpgradeInvocations()
+        XCTAssertTrue(oauthInvocations.isEmpty)
+    }
+
+    func testOrdinaryAndProtectedAPIsCannotUseUncommittedOAuthSession() async throws {
+        let vault = MemorySessionVault()
+        let liveClient = FakeLiveClient()
+        let probeCount = LockedValues<Int>()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                let count = probeCount.values().count + 1
+                probeCount.append(count)
+                return count == 1
+                    ? FakeMatrixAdminClient(
+                        isAdministrator: false,
+                        administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                    )
+                    : FakeMatrixAdminClient(isAdministrator: true)
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let original = try XCTUnwrap(vault.loadSession())
+        await liveClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "uncommitted-session-token",
+            userID: original.userId,
+            deviceID: original.deviceId
+        ))
+        await liveClient.suspendOAuthCompletion()
+        let request = try await service.beginAdministratorAuthorization()
+        let completion = Task {
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
+            )
+        }
+        await liveClient.waitUntilOAuthCompletionStarted()
+
+        XCTAssertTrue(try vault.hasPendingOAuthCompletion(accountKey: original.accountKey))
+        XCTAssertNil(try vault.loadProvisionalSession(accountKey: original.accountKey))
+
+        await XCTAssertThrowsMatrixError(
+            try await service.sendText("must-not-send", to: "!encrypted:example.org"),
+            expected: .unavailable(reason: "Administrator authorization is still completing")
+        )
+        await XCTAssertThrowsMatrixError(
+            try await service.administratorSnapshot(),
+            expected: .unavailable(reason: "Administrator authorization is still completing")
+        )
+        await XCTAssertThrowsMatrixError(
+            try await service.restore(),
+            expected: .unavailable(reason: "Administrator authorization is still completing")
+        )
+        await XCTAssertThrowsMatrixError(
+            try await service.signIn(username: "alice", password: "must-not-run"),
+            expected: .unavailable(reason: "Administrator authorization is still completing")
+        )
+        let sentBodies = await liveClient.sentBodies()
+        XCTAssertTrue(sentBodies.isEmpty)
+
+        await liveClient.resumeOAuthCompletion()
+        try await completion.value
+    }
+
+    func testRollbackSlidingSyncDriftQuarantinesSession() async throws {
+        let vault = MemorySessionVault()
+        let liveClient = FakeLiveClient()
+        let probeCount = LockedValues<Int>()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                let count = probeCount.values().count + 1
+                probeCount.append(count)
+                return count == 1
+                    ? FakeMatrixAdminClient(
+                        isAdministrator: false,
+                        administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                    )
+                    : FakeMatrixAdminClient(isAdministrator: false)
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let original = try XCTUnwrap(vault.loadSession())
+        await liveClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "rollback-drift-token",
+            userID: original.userId,
+            deviceID: original.deviceId
+        ))
+        await liveClient.setRestoredSlidingSyncVersionOverride("unexpected-session-mode")
+        let request = try await service.beginAdministratorAuthorization()
+
+        await XCTAssertThrowsMatrixError(
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
+            ),
+            expected: .recoveryRequired
+        )
+        let starts = await liveClient.continuousSyncStartCount()
+        XCTAssertEqual(starts, 1)
+        do {
+            _ = try await service.isHomeserverAdministrator()
+            XCTFail("Expected quarantined session")
+        } catch {
+            XCTAssertEqual(error as? MatrixChatServiceError, .sessionExpired)
+        }
+    }
+
+    func testQRStoreNamespaceRollbackNormalizesSDKSessionExport() async throws {
+        let vault = MemorySessionVault()
+        let original = MatrixSDKSessionRecord.fixture(
+            accountKey: "qr-origin-account",
+            accessToken: "qr-origin-token",
+            storeNamespace: "qr-origin-store-namespace"
+        )
+        try vault.saveSession(original)
+        try vault.saveStoreKey(Data(repeating: 0xA5, count: 32), accountKey: original.accountKey)
+        let liveClient = FakeLiveClient()
+        await liveClient.setOmitRestoredStoreNamespace(true)
+        let probeCount = LockedValues<Int>()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                let count = probeCount.values().count + 1
+                probeCount.append(count)
+                return count == 1
+                    ? FakeMatrixAdminClient(
+                        isAdministrator: false,
+                        administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                    )
+                    : FakeMatrixAdminClient(isAdministrator: false)
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.restore()
+        await liveClient.setOAuthCompletionSession(.fixture(
+            accountKey: original.accountKey,
+            accessToken: "qr-origin-candidate-token",
+            userID: original.userId,
+            deviceID: original.deviceId
+        ))
+        let request = try await service.beginAdministratorAuthorization()
+
+        do {
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
+            )
+            XCTFail("Expected final authority denial")
+        } catch {
+            XCTAssertEqual(error as? MatrixAdminClientError, .notAdministrator)
+        }
+
+        XCTAssertEqual(try vault.loadSession(), original)
+        let starts = await liveClient.continuousSyncStartCount()
+        XCTAssertEqual(starts, 2)
+    }
+
+    func testAdministratorUpgradeCancellationAbortsOnlyPendingActiveClientOAuth() async throws {
+        let liveClient = FakeLiveClient()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            administratorClientFactory: { _, _, _ in
+                FakeMatrixAdminClient(
+                    isAdministrator: false,
+                    administratorError: .insufficientScope(required: ["urn:synapse:admin:*"])
+                )
+            },
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let request = try await service.beginAdministratorAuthorization()
+
+        let cancelled = await service.cancelAdministratorAuthorization(requestID: request.id)
+        let cancellationCount = await liveClient.oauthCancellationCount()
+        let logoutCount = await liveClient.logoutCount()
+        XCTAssertTrue(cancelled)
+        XCTAssertEqual(cancellationCount, 1)
+        XCTAssertEqual(logoutCount, 0)
+        await XCTAssertThrowsMatrixError(
+            try await service.completeAdministratorAuthorization(
+                requestID: request.id,
+                callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
+            ),
+            expected: .unavailable(reason: "Administrator authorization request is stale or invalid")
+        )
     }
 
     func testAdministratorOAuthCallbackValidationIsExact() {
         XCTAssertEqual(
-            MatrixRustAdministratorOAuthAuthorizer.callbackScheme,
+            MatrixPrimarySessionOAuth.callbackScheme,
             "ca.zenith-research.hypha"
         )
-        XCTAssertTrue(MatrixRustAdministratorOAuthAuthorizer.validCallback(
+        XCTAssertTrue(MatrixPrimarySessionOAuth.validCallback(
             URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
         ))
         for invalid in [
@@ -500,45 +1183,10 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
             "ca.zenith-research.hypha:/oauth/extra",
             "ca.zenith-research.hypha:/oauth#fragment",
         ] {
-            XCTAssertFalse(MatrixRustAdministratorOAuthAuthorizer.validCallback(URL(string: invalid)!))
+            XCTAssertFalse(MatrixPrimarySessionOAuth.validCallback(URL(string: invalid)!))
         }
     }
 
-    func testAdministratorOAuthRetainsFailedRevocationForRetryWhileDisablingLocalAuthority() async throws {
-        let authorizer = FakeAdministratorOAuthAuthorizer(
-            credential: .init(
-                accessToken: "scoped-admin-token",
-                userID: "@alice:example.org",
-                deviceID: "TEMPADMINDEVICE",
-                homeserverURL: "https://synapse.zenith-research.ca"
-            ),
-            revocationResults: [false, true]
-        )
-        let service = MatrixRustSDKChatService(
-            configuration: .production,
-            vault: MemorySessionVault(),
-            clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
-            administratorOAuthAuthorizerFactory: { authorizer },
-            administratorClientFactory: { _, _, _ in FakeMatrixAdminClient(isAdministrator: true) },
-            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
-        )
-        _ = try await service.signIn(username: "alice", password: "not-recorded")
-        let request = try await service.beginAdministratorAuthorization()
-        try await service.completeAdministratorAuthorization(
-            requestID: request.id,
-            callbackURL: URL(string: "ca.zenith-research.hypha:/oauth?code=opaque&state=opaque")!
-        )
-
-        let firstRevocation = await service.endAdministratorAuthorization()
-        let authorizedAfterFailure = try await service.isHomeserverAdministrator()
-        let secondRevocation = await service.endAdministratorAuthorization()
-        let revokeCount = await authorizer.revokeCount()
-
-        XCTAssertFalse(firstRevocation)
-        XCTAssertFalse(authorizedAfterFailure)
-        XCTAssertTrue(secondRevocation)
-        XCTAssertEqual(revokeCount, 2)
-    }
 
     func testPasswordSignInReauthenticatesExistingDeviceAndRestoresItsSDKStore() async throws {
         let accountKey = MatrixRustSDKChatService.accountKey(
@@ -974,6 +1622,67 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         }
     }
 
+    func testRestoreQuarantinesIncompleteAdministratorOAuthJournalBeforeOpeningSDKStore() async throws {
+        let vault = MemorySessionVault()
+        let original = MatrixSDKSessionRecord.fixture()
+        let provisional = MatrixSDKSessionRecord.fixture(
+            accountKey: original.accountKey,
+            accessToken: "provisional-primary-token",
+            refreshToken: "provisional-primary-refresh",
+            userID: original.userId,
+            deviceID: original.deviceId,
+            oauthData: "provisional-oauth-metadata",
+            slidingSyncVersion: original.slidingSyncVersion,
+            storeNamespace: original.storeNamespace
+        )
+        try vault.saveSession(original)
+        try vault.saveStoreKey(Data(repeating: 0xA5, count: 32), accountKey: original.accountKey)
+        try vault.saveProvisionalSession(provisional)
+        try vault.markPendingOAuthCompletion(accountKey: original.accountKey)
+        let liveClient = FakeLiveClient()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+
+        do {
+            _ = try await service.restore()
+            XCTFail("Expected incomplete OAuth transaction to require recovery")
+        } catch {
+            XCTAssertEqual(error as? MatrixChatServiceError, .recoveryRequired)
+        }
+        let restoredSessions = await liveClient.restoredSessions()
+        XCTAssertTrue(restoredSessions.isEmpty)
+        XCTAssertEqual(try vault.loadSession(), original)
+        XCTAssertEqual(try vault.loadProvisionalSession(accountKey: original.accountKey), provisional)
+    }
+
+    func testRestoreReconcilesCanonicalPromotionCompletedBeforeJournalCleanup() async throws {
+        let vault = MemorySessionVault()
+        let promoted = MatrixSDKSessionRecord.fixture(accessToken: "promoted-primary-token")
+        try vault.saveSession(promoted)
+        try vault.saveStoreKey(Data(repeating: 0xA5, count: 32), accountKey: promoted.accountKey)
+        try vault.saveProvisionalSession(promoted)
+        try vault.markPendingOAuthCompletion(accountKey: promoted.accountKey)
+        let liveClient = FakeLiveClient()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: vault,
+            clientFactory: FakeLiveClientFactory(client: liveClient),
+            randomStoreKey: { Data(repeating: 0xA5, count: 32) }
+        )
+
+        _ = try await service.restore()
+
+        XCTAssertFalse(try vault.hasPendingOAuthCompletion(accountKey: promoted.accountKey))
+        XCTAssertNil(try vault.loadProvisionalSession(accountKey: promoted.accountKey))
+        XCTAssertEqual(try vault.loadSession(), promoted)
+        let restoredSessions = await liveClient.restoredSessions()
+        XCTAssertEqual(restoredSessions.last, promoted)
+    }
+
     func testServiceForwardsDeviceVerificationLifecycleToLiveClient() async throws {
         let challenge = MatrixVerificationChallenge.emojis([
             MatrixVerificationEmoji(symbol: "🐶", description: "Dog")
@@ -1406,11 +2115,49 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         _ = try await service.signIn(username: "alice", password: "not-recorded")
         let savedBeforeSuspend = try vault.loadSession()
 
-        await service.suspend()
+        _ = await service.suspend()
         let stopCount = await client.continuousSyncStopCount()
 
         XCTAssertEqual(stopCount, 1)
         XCTAssertEqual(try vault.loadSession(), savedBeforeSuspend)
+    }
+
+    func testSuspendDoesNotClearPrimarySessionWhileOrdinaryOperationIsInFlight() async throws {
+        let client = FakeLiveClient(trustState: .verifiedByCurrentSelfSigningKey)
+        await client.setRooms([
+            MatrixRoomSummary(
+                id: "!encrypted:example.org",
+                name: "Encrypted",
+                isEncrypted: true,
+                hasInvite: false
+            )
+        ])
+        await client.suspendSend()
+        let service = MatrixRustSDKChatService(
+            configuration: .production,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: client),
+            randomStoreKey: { Data(repeating: 2, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "not-recorded")
+        let send = Task { try await service.sendText("in flight", to: "!encrypted:example.org") }
+        await client.waitUntilSendStarted()
+
+        let suspendedWhileSendIsInFlight = await service.suspend()
+        XCTAssertFalse(suspendedWhileSendIsInFlight)
+        let stopsWhileSendIsInFlight = await client.continuousSyncStopCount()
+        XCTAssertEqual(stopsWhileSendIsInFlight, 0)
+
+        await client.resumeSend()
+        try await send.value
+        let suspendedAfterSendSettles = await service.suspend()
+        XCTAssertTrue(suspendedAfterSendSettles)
+        let stopsAfterSendSettles = await client.continuousSyncStopCount()
+        XCTAssertEqual(stopsAfterSendSettles, 1)
+        await XCTAssertThrowsMatrixError(
+            try await service.deviceTrustState(),
+            expected: .sessionExpired
+        )
     }
 
     func testSendUsesLiveClientAndRejectsUnencryptedRooms() async throws {
@@ -1523,6 +2270,14 @@ private final class LockedVerificationStates: @unchecked Sendable {
     func waitUntilContains(_ state: MatrixVerificationFlowState) async {
         while !lock.withLock({ values.contains(state) }) { await Task.yield() }
     }
+}
+
+private final class LockedValues<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [Value] = []
+
+    func append(_ value: Value) { lock.withLock { stored.append(value) } }
+    func values() -> [Value] { lock.withLock { stored } }
 }
 
 private final class VerificationStageRecorder: @unchecked Sendable {
@@ -1661,8 +2416,11 @@ private final class LockedQrProgress: @unchecked Sendable {
 private final class MemorySessionVault: MatrixSDKSessionVault, @unchecked Sendable {
     private let lock = NSLock()
     private var session: MatrixSDKSessionRecord?
+    private var provisionalSession: MatrixSDKSessionRecord?
+    private var pendingOAuthCompletionAccountKey: String?
     private var storeKey: Data?
     private let saveSessionError: Error?
+    private var nextSaveSessionError: Error?
 
     init(saveSessionError: Error? = nil) {
         self.saveSessionError = saveSessionError
@@ -1674,7 +2432,38 @@ private final class MemorySessionVault: MatrixSDKSessionVault, @unchecked Sendab
     }
     func saveSession(_ value: MatrixSDKSessionRecord) throws {
         if let saveSessionError { throw saveSessionError }
-        lock.withLock { session = value }
+        try lock.withLock {
+            if let nextSaveSessionError {
+                self.nextSaveSessionError = nil
+                throw nextSaveSessionError
+            }
+            session = value
+        }
+    }
+    func loadProvisionalSession(accountKey: String) throws -> MatrixSDKSessionRecord? {
+        lock.withLock { provisionalSession?.accountKey == accountKey ? provisionalSession : nil }
+    }
+    func saveProvisionalSession(_ value: MatrixSDKSessionRecord) throws {
+        lock.withLock { provisionalSession = value }
+    }
+    func deleteProvisionalSession(accountKey: String) throws {
+        lock.withLock {
+            if provisionalSession?.accountKey == accountKey { provisionalSession = nil }
+        }
+    }
+    func hasPendingOAuthCompletion(accountKey: String) throws -> Bool {
+        lock.withLock { pendingOAuthCompletionAccountKey == accountKey }
+    }
+    func markPendingOAuthCompletion(accountKey: String) throws {
+        lock.withLock { pendingOAuthCompletionAccountKey = accountKey }
+    }
+    func clearPendingOAuthCompletion(accountKey: String) throws {
+        lock.withLock {
+            if pendingOAuthCompletionAccountKey == accountKey { pendingOAuthCompletionAccountKey = nil }
+        }
+    }
+    func failNextSessionSave(with error: Error) {
+        lock.withLock { nextSaveSessionError = error }
     }
     func deleteSession() throws { lock.withLock { session = nil } }
     func loadStoreKey(accountKey: String) throws -> Data? { lock.withLock { storeKey } }
@@ -1684,6 +2473,12 @@ private final class MemorySessionVault: MatrixSDKSessionVault, @unchecked Sendab
 }
 
 private actor FakeLiveClient: MatrixLiveClient {
+    struct OAuthUpgradeInvocation: Equatable, Sendable {
+        let deviceID: String
+        let loginHint: String
+        let additionalScopes: [String]
+    }
+
     struct PasswordChangeRequest: Sendable {
         let currentPassword: String
         let newPassword: String
@@ -1707,11 +2502,37 @@ private actor FakeLiveClient: MatrixLiveClient {
     private var recoveryKeys: [String] = []
     private var passwordChange: PasswordChangeRequest?
     private var restored: [MatrixSDKSessionRecord] = []
+    private var currentSession: MatrixSDKSessionRecord?
+    private var oauthCompletionSession: MatrixSDKSessionRecord?
+    private var oauthCompletionErrorAfterMutation: Error?
+    private var restoredSlidingSyncVersionOverride: String?
+    private var omitRestoredStoreNamespace = false
+    private var shouldSuspendOAuthCompletion = false
+    private var oauthCompletionStarted = false
+    private var oauthCompletionStartWaiters: [CheckedContinuation<Void, Never>] = []
+    private var oauthCompletionWaiters: [CheckedContinuation<Void, Never>] = []
+    private var shouldSuspendSync = false
+    private var syncStarted = false
+    private var syncStartWaiters: [CheckedContinuation<Void, Never>] = []
+    private var syncWaiters: [CheckedContinuation<Void, Never>] = []
+    private var oauthInvocations: [OAuthUpgradeInvocation] = []
+    private var shouldSuspendOAuthBegin = false
+    private var oauthBeginStarted = false
+    private var oauthBeginFinished = false
+    private var oauthBeginStartWaiters: [CheckedContinuation<Void, Never>] = []
+    private var oauthBeginWaiters: [CheckedContinuation<Void, Never>] = []
+    private var oauthBeginFinishWaiters: [CheckedContinuation<Void, Never>] = []
+    private var oauthCancellations = 0
+    private var logouts = 0
     private var roomCreationRequests: [MatrixRoomCreationRequest] = []
     private var roomInviteRequests: [MatrixRoomInviteRequest] = []
     private var userLookupRequests: [String] = []
     private var roomRemovalRequests: [String] = []
     private var sends: [String] = []
+    private var shouldSuspendSend = false
+    private var sendStarted = false
+    private var sendStartWaiters: [CheckedContinuation<Void, Never>] = []
+    private var sendWaiters: [CheckedContinuation<Void, Never>] = []
     private var repositoryAttachment: MatrixRoomRepositoryAttachment?
     private var repositoryAttachmentWrites: [MatrixRoomRepositoryAttachment] = []
     private let trustState: MatrixDeviceTrustState
@@ -1778,24 +2599,144 @@ private actor FakeLiveClient: MatrixLiveClient {
     }
 
     func setRooms(_ value: [MatrixRoomSummary]) { rooms = value }
+    func setOAuthCompletionSession(_ value: MatrixSDKSessionRecord) {
+        oauthCompletionSession = value
+    }
+    func setOAuthCompletionErrorAfterMutation(_ error: Error) {
+        oauthCompletionErrorAfterMutation = error
+    }
+    func setRestoredSlidingSyncVersionOverride(_ value: String) {
+        restoredSlidingSyncVersionOverride = value
+    }
+    func setOmitRestoredStoreNamespace(_ value: Bool) {
+        omitRestoredStoreNamespace = value
+    }
+    func suspendOAuthCompletion() {
+        shouldSuspendOAuthCompletion = true
+    }
+    func waitUntilOAuthCompletionStarted() async {
+        if oauthCompletionStarted { return }
+        await withCheckedContinuation { oauthCompletionStartWaiters.append($0) }
+    }
+    func resumeOAuthCompletion() {
+        shouldSuspendOAuthCompletion = false
+        let waiters = oauthCompletionWaiters
+        oauthCompletionWaiters = []
+        waiters.forEach { $0.resume() }
+    }
+    func suspendOAuthBegin() { shouldSuspendOAuthBegin = true }
+    func waitUntilOAuthBeginStarted() async {
+        if oauthBeginStarted { return }
+        await withCheckedContinuation { oauthBeginStartWaiters.append($0) }
+    }
+    func resumeOAuthBegin() {
+        shouldSuspendOAuthBegin = false
+        let waiters = oauthBeginWaiters
+        oauthBeginWaiters = []
+        waiters.forEach { $0.resume() }
+    }
+    func waitUntilOAuthBeginFinished() async {
+        if oauthBeginFinished { return }
+        await withCheckedContinuation { oauthBeginFinishWaiters.append($0) }
+    }
+    func suspendSync() {
+        shouldSuspendSync = true
+    }
+    func waitUntilSyncStarted() async {
+        if syncStarted { return }
+        await withCheckedContinuation { syncStartWaiters.append($0) }
+    }
+    func resumeSync() {
+        shouldSuspendSync = false
+        let waiters = syncWaiters
+        syncWaiters = []
+        waiters.forEach { $0.resume() }
+    }
+    func suspendSend() { shouldSuspendSend = true }
+    func waitUntilSendStarted() async {
+        if sendStarted { return }
+        await withCheckedContinuation { sendStartWaiters.append($0) }
+    }
+    func resumeSend() {
+        shouldSuspendSend = false
+        let waiters = sendWaiters
+        sendWaiters = []
+        waiters.forEach { $0.resume() }
+    }
     func login(username: String, password: String) async throws {
         if let loginError { throw loginError }
         logins += 1
     }
+    func beginOAuthReauthorization(
+        deviceID: String,
+        loginHint: String,
+        additionalScopes: [String]
+    ) async throws -> URL {
+        oauthInvocations.append(.init(
+            deviceID: deviceID,
+            loginHint: loginHint,
+            additionalScopes: additionalScopes
+        ))
+        oauthBeginStarted = true
+        let startWaiters = oauthBeginStartWaiters
+        oauthBeginStartWaiters = []
+        startWaiters.forEach { $0.resume() }
+        if shouldSuspendOAuthBegin {
+            await withCheckedContinuation { oauthBeginWaiters.append($0) }
+        }
+        oauthBeginFinished = true
+        let finishWaiters = oauthBeginFinishWaiters
+        oauthBeginFinishWaiters = []
+        finishWaiters.forEach { $0.resume() }
+        return URL(string: "https://auth.example.org/authorize")!
+    }
+    func completeOAuthReauthorization(callbackURL: URL) async throws {
+        currentSession = oauthCompletionSession
+        oauthCompletionStarted = true
+        let startWaiters = oauthCompletionStartWaiters
+        oauthCompletionStartWaiters = []
+        startWaiters.forEach { $0.resume() }
+        if shouldSuspendOAuthCompletion {
+            await withCheckedContinuation { oauthCompletionWaiters.append($0) }
+        }
+        if let oauthCompletionErrorAfterMutation { throw oauthCompletionErrorAfterMutation }
+    }
+    func cancelOAuthReauthorization() async { oauthCancellations += 1 }
     func signInWithQrCode(
         _ qrCodeData: Data,
         progress: @escaping MatrixQrLoginProgressHandler
     ) async throws {
         qrLoginUpdates.forEach(progress)
     }
-    func restore(session: MatrixSDKSessionRecord) async throws { restored.append(session) }
+    func restore(session: MatrixSDKSessionRecord) async throws {
+        restored.append(session)
+        currentSession = MatrixSDKSessionRecord(
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken,
+            userId: session.userId,
+            deviceId: session.deviceId,
+            homeserverURL: session.homeserverURL,
+            oauthData: session.oauthData,
+            slidingSyncVersion: restoredSlidingSyncVersionOverride ?? session.slidingSyncVersion,
+            accountKey: session.accountKey,
+            storeNamespace: omitRestoredStoreNamespace ? nil : session.storeNamespace
+        )
+    }
     func sessionRecord(accountKey: String) async throws -> MatrixSDKSessionRecord {
         if let sessionError { throw sessionError }
+        if let currentSession { return currentSession }
         return .fixture(accountKey: accountKey, homeserverURL: sessionHomeserverURL, userID: sessionUserID)
     }
     func syncOnce() async throws {
         if let syncError { throw syncError }
         syncs += 1
+        syncStarted = true
+        let startWaiters = syncStartWaiters
+        syncStartWaiters = []
+        startWaiters.forEach { $0.resume() }
+        if shouldSuspendSync {
+            await withCheckedContinuation { syncWaiters.append($0) }
+        }
     }
     func startContinuousSync() async { continuousSyncStarts += 1 }
     func stopContinuousSync() async { continuousSyncStops += 1 }
@@ -1804,7 +2745,16 @@ private actor FakeLiveClient: MatrixLiveClient {
         return rooms
     }
     func timeline(roomID: String) async throws -> [MatrixTimelineEvent] { [] }
-    func sendText(_ body: String, roomID: String) async throws { sends.append(body) }
+    func sendText(_ body: String, roomID: String) async throws {
+        sendStarted = true
+        let startWaiters = sendStartWaiters
+        sendStartWaiters = []
+        startWaiters.forEach { $0.resume() }
+        if shouldSuspendSend {
+            await withCheckedContinuation { sendWaiters.append($0) }
+        }
+        sends.append(body)
+    }
     func roomRepositoryAttachment(roomID: String) async throws -> MatrixRoomRepositoryAttachment? {
         repositoryAttachment
     }
@@ -1893,9 +2843,12 @@ private actor FakeLiveClient: MatrixLiveClient {
     }
     func approveDeviceVerification() async throws { verificationApprovals += 1 }
     func declineDeviceVerification() async { verificationDeclines += 1 }
-    func logout() async throws {}
+    func logout() async throws { logouts += 1 }
     func loginCount() -> Int { logins }
     func restoredSessions() -> [MatrixSDKSessionRecord] { restored }
+    func oauthUpgradeInvocations() -> [OAuthUpgradeInvocation] { oauthInvocations }
+    func oauthCancellationCount() -> Int { oauthCancellations }
+    func logoutCount() -> Int { logouts }
     func syncCount() -> Int { syncs }
     func continuousSyncStartCount() -> Int { continuousSyncStarts }
     func continuousSyncStopCount() -> Int { continuousSyncStops }
@@ -1929,137 +2882,45 @@ private actor FakeLiveClient: MatrixLiveClient {
     }
 }
 
-private final class LockedCounter: @unchecked Sendable {
-    private let lock = NSLock()
-    private var count = 0
-
-    func increment() {
-        lock.lock()
-        count += 1
-        lock.unlock()
-    }
-
-    func value() -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return count
-    }
-}
-
-private actor FakeAdministratorOAuthAuthorizer: MatrixAdministratorOAuthAuthorizing {
-    private let credential: MatrixAdministratorOAuthCredential
-    private var revocationResults: [Bool]
-    private var revokes = 0
-    private var cancels = 0
-
-    init(
-        credential: MatrixAdministratorOAuthCredential,
-        revocationResults: [Bool] = [true]
-    ) {
-        self.credential = credential
-        self.revocationResults = revocationResults
-    }
-
-    func authorizationURL() async throws -> URL {
-        URL(string: "https://auth.example.org/authorize")!
-    }
-
-    func complete(callbackURL: URL) async throws -> MatrixAdministratorOAuthCredential {
-        credential
-    }
-
-    func cancel() async { cancels += 1 }
-    func revoke() async -> Bool {
-        revokes += 1
-        return revocationResults.isEmpty ? true : revocationResults.removeFirst()
-    }
-    func revokeCount() -> Int { revokes }
-    func cancelCount() -> Int { cancels }
-}
-
-private actor SuspendingAdministratorOAuthAuthorizer: MatrixAdministratorOAuthAuthorizing {
-    private let credential: MatrixAdministratorOAuthCredential
-    private let suspendFirstRevocation: Bool
-    private var completionStarted = false
-    private var completionWaiters: [CheckedContinuation<Void, Never>] = []
-    private var completionContinuation: CheckedContinuation<Void, Never>?
-    private var firstRevocationStarted = false
-    private var firstRevocationWaiters: [CheckedContinuation<Void, Never>] = []
-    private var firstRevocationContinuation: CheckedContinuation<Void, Never>?
-    private var revokes = 0
-
-    init(
-        credential: MatrixAdministratorOAuthCredential,
-        suspendFirstRevocation: Bool = false
-    ) {
-        self.credential = credential
-        self.suspendFirstRevocation = suspendFirstRevocation
-    }
-
-    func authorizationURL() async throws -> URL {
-        URL(string: "https://auth.example.org/authorize")!
-    }
-
-    func complete(callbackURL: URL) async throws -> MatrixAdministratorOAuthCredential {
-        completionStarted = true
-        let waiters = completionWaiters
-        completionWaiters.removeAll()
-        waiters.forEach { $0.resume() }
-        await withCheckedContinuation { continuation in
-            completionContinuation = continuation
-        }
-        return credential
-    }
-
-    func waitUntilCompletionStarts() async {
-        guard !completionStarted else { return }
-        await withCheckedContinuation { continuation in
-            completionWaiters.append(continuation)
-        }
-    }
-
-    func resumeCompletion() {
-        completionContinuation?.resume()
-        completionContinuation = nil
-    }
-
-    func cancel() async {}
-
-    func revoke() async -> Bool {
-        revokes += 1
-        if suspendFirstRevocation, revokes == 1 {
-            firstRevocationStarted = true
-            let waiters = firstRevocationWaiters
-            firstRevocationWaiters.removeAll()
-            waiters.forEach { $0.resume() }
-            await withCheckedContinuation { continuation in
-                firstRevocationContinuation = continuation
-            }
-        }
-        return true
-    }
-
-    func waitUntilFirstRevocationStarts() async {
-        guard !firstRevocationStarted else { return }
-        await withCheckedContinuation { continuation in
-            firstRevocationWaiters.append(continuation)
-        }
-    }
-
-    func resumeFirstRevocation() {
-        firstRevocationContinuation?.resume()
-        firstRevocationContinuation = nil
-    }
-
-    func revokeCount() -> Int { revokes }
-}
-
 private actor FakeMatrixAdminClient: MatrixAdminClient {
     private let administrator: Bool
+    private let administratorError: MatrixAdminClientError?
+    private var shouldSuspendAdministratorProbe: Bool
+    private var administratorProbeStarted = false
+    private var administratorProbeStartWaiters: [CheckedContinuation<Void, Never>] = []
+    private var administratorProbeWaiters: [CheckedContinuation<Void, Never>] = []
 
-    init(isAdministrator: Bool) { self.administrator = isAdministrator }
+    init(
+        isAdministrator: Bool,
+        administratorError: MatrixAdminClientError? = nil,
+        suspendAdministratorProbe: Bool = false
+    ) {
+        self.administrator = isAdministrator
+        self.administratorError = administratorError
+        self.shouldSuspendAdministratorProbe = suspendAdministratorProbe
+    }
 
-    func isAdministrator() async throws -> Bool { administrator }
+    func isAdministrator() async throws -> Bool {
+        administratorProbeStarted = true
+        let startWaiters = administratorProbeStartWaiters
+        administratorProbeStartWaiters = []
+        startWaiters.forEach { $0.resume() }
+        if shouldSuspendAdministratorProbe {
+            await withCheckedContinuation { administratorProbeWaiters.append($0) }
+        }
+        if let administratorError { throw administratorError }
+        return administrator
+    }
+    func waitUntilAdministratorProbeStarted() async {
+        if administratorProbeStarted { return }
+        await withCheckedContinuation { administratorProbeStartWaiters.append($0) }
+    }
+    func resumeAdministratorProbe() {
+        shouldSuspendAdministratorProbe = false
+        let waiters = administratorProbeWaiters
+        administratorProbeWaiters = []
+        waiters.forEach { $0.resume() }
+    }
     func snapshot() async throws -> MatrixAdminSnapshot { .init(users: [], rooms: []) }
     func createAccount(localpart: String, temporaryPassword: String, administrator: Bool) async throws -> MatrixAdminUserSummary {
         .init(userID: "@\(localpart):example.org", isAdministrator: administrator, isDeactivated: false, isGuest: false, userType: nil)
@@ -2137,18 +2998,22 @@ private extension MatrixSDKSessionRecord {
     static func fixture(
         accountKey: String = "fixture-account",
         accessToken: String = "fixture-token",
+        refreshToken: String? = nil,
         homeserverURL: String = "https://synapse.zenith-research.ca",
         userID: String = "@alice:example.org",
         deviceID: String = "FIXTURE",
+        oauthData: String? = nil,
+        slidingSyncVersion: String = "native",
         storeNamespace: String? = nil
     ) -> Self {
         .init(
             accessToken: accessToken,
-            refreshToken: nil,
+            refreshToken: refreshToken,
             userId: userID,
             deviceId: deviceID,
             homeserverURL: homeserverURL,
-            slidingSyncVersion: "native",
+            oauthData: oauthData,
+            slidingSyncVersion: slidingSyncVersion,
             accountKey: accountKey,
             storeNamespace: storeNamespace
         )

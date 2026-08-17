@@ -30,6 +30,44 @@ final class MatrixEncryptedSessionVaultTests: XCTestCase {
         XCTAssertEqual(keychain.readCount(service: service, account: "matrix-vault-key-v1"), 1)
     }
 
+    func testProvisionalOAuthSessionPersistsEncryptedAcrossRestartAndCanBeFinalized() throws {
+        let keychain = CountingMemoryKeychainStorage()
+        let directory = temporaryDirectory()
+        let firstProcess = makeVault(storage: keychain, directory: directory)
+        let canonical = fixtureRecord(accountKey: "oauth-account", userID: "@alice:example.org")
+        let provisional = MatrixSDKSessionRecord(
+            accessToken: "provisional-access-token-marker",
+            refreshToken: "provisional-refresh-token-marker",
+            userId: canonical.userId,
+            deviceId: canonical.deviceId,
+            homeserverURL: canonical.homeserverURL,
+            oauthData: "provisional-oauth-data-marker",
+            slidingSyncVersion: canonical.slidingSyncVersion,
+            accountKey: canonical.accountKey,
+            storeNamespace: canonical.storeNamespace
+        )
+        try firstProcess.saveSession(canonical)
+        try firstProcess.saveProvisionalSession(provisional)
+        try firstProcess.markPendingOAuthCompletion(accountKey: canonical.accountKey)
+
+        let bytes = try allRegularFileData(in: directory)
+        XCTAssertNil(bytes.range(of: Data(provisional.accessToken.utf8)))
+        XCTAssertNil(bytes.range(of: Data((provisional.refreshToken ?? "").utf8)))
+        let secondProcess = makeVault(storage: keychain, directory: directory)
+        XCTAssertEqual(try secondProcess.loadSession(), canonical)
+        XCTAssertEqual(
+            try secondProcess.loadProvisionalSession(accountKey: canonical.accountKey),
+            provisional
+        )
+        XCTAssertTrue(try secondProcess.hasPendingOAuthCompletion(accountKey: canonical.accountKey))
+
+        try secondProcess.clearPendingOAuthCompletion(accountKey: canonical.accountKey)
+        try secondProcess.deleteProvisionalSession(accountKey: canonical.accountKey)
+        XCTAssertFalse(try secondProcess.hasPendingOAuthCompletion(accountKey: canonical.accountKey))
+        XCTAssertNil(try secondProcess.loadProvisionalSession(accountKey: canonical.accountKey))
+        XCTAssertEqual(try secondProcess.loadSession(), canonical)
+    }
+
     func testCredentialDeletionDoesNotDeleteMatrixSessionOrStoreKey() throws {
         let keychain = CountingMemoryKeychainStorage()
         let directory = temporaryDirectory()

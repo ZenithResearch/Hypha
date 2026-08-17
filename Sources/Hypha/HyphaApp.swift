@@ -29,7 +29,7 @@ final class MatrixAdminWebAuthorizationSession: NSObject, ASWebAuthenticationPre
                     }
                 }
                 session.presentationContextProvider = self
-                session.prefersEphemeralWebBrowserSession = true
+                session.prefersEphemeralWebBrowserSession = false
                 self.session = session
                 guard session.start() else {
                     finish(
@@ -69,7 +69,7 @@ final class MatrixAdminWebAuthorizationSession: NSObject, ASWebAuthenticationPre
         self.continuation = nil
         session = nil
         if let callbackURL,
-           MatrixRustAdministratorOAuthAuthorizer.validCallback(callbackURL) {
+           MatrixPrimarySessionOAuth.validCallback(callbackURL) {
             continuation.resume(returning: callbackURL)
         } else {
             continuation.resume(throwing: error ?? MatrixChatServiceError.unavailable(
@@ -173,6 +173,7 @@ enum MatrixRecoveryIdentityResetPresentationState: Equatable {
 enum MatrixAppAdminAccessState: Equatable {
     case unknown
     case checking
+    case upgradeRequired
     case authorized
     case denied
 }
@@ -225,8 +226,6 @@ final class MatrixAppModel: ObservableObject {
     @Published private(set) var issuedPasswordResetRequestIDs: Set<String> = []
     @Published private(set) var isAdminOperationInFlight = false
     @Published private(set) var isAdminAuthorizationInFlight = false
-    @Published private(set) var isAdminRevocationInFlight = false
-    @Published private(set) var hasUnconfirmedAdminRevocation = false
     @Published var adminMessage: String?
     @Published private(set) var isPasswordResetRequestInFlight = false
     @Published private(set) var passwordResetRequestMessage: String?
@@ -409,18 +408,23 @@ final class MatrixAppModel: ObservableObject {
     private func suspendCoordinatorForAccountTransition() async -> Bool {
         guard !isRecoveryIdentityResetActive else { return false }
         guard let coordinator else { return true }
-        let revoked = await coordinator.endAdministratorAuthorization()
+        let ended = await coordinator.endAdministratorAuthorization()
         guard coordinator === self.coordinator else { return false }
-        guard revoked else {
-            hasUnconfirmedAdminRevocation = true
+        guard ended else {
             adminAccessState = .denied
             adminSnapshot = nil
-            adminMessage = "The homeserver could not confirm administrator revocation. Check your connection and retry before changing accounts or homeservers."
+            adminMessage = "Administrator authorization is still completing. Wait before changing accounts or homeservers."
             return false
         }
-        hasUnconfirmedAdminRevocation = false
-        await coordinator.suspend()
-        return coordinator === self.coordinator
+        let suspended = await coordinator.suspend()
+        guard coordinator === self.coordinator else { return false }
+        guard suspended else {
+            adminAccessState = .denied
+            adminSnapshot = nil
+            adminMessage = "A Matrix operation is still completing. Wait before changing accounts or homeservers."
+            return false
+        }
+        return true
     }
 
     func createAccount(
@@ -1292,30 +1296,48 @@ final class MatrixAppModel: ObservableObject {
             adminAccessState = authorized ? .authorized : .denied
             if !authorized {
                 adminSnapshot = nil
-                let revoked = await coordinator.endAdministratorAuthorization()
-                guard coordinator === self.coordinator else { return }
-                hasUnconfirmedAdminRevocation = !revoked
-                if !revoked {
-                    adminMessage = "Administrator authority is unavailable, but the homeserver could not confirm revocation. Check your connection and retry before closing."
-                }
+                adminMessage = "This Matrix account is not a homeserver administrator."
             }
+        } catch let error as MatrixAdminClientError
+            where MatrixPrimarySessionOAuth.requiresAdministratorScopeUpgrade(error) {
+            guard coordinator === self.coordinator else { return }
+            adminAccessState = .upgradeRequired
+            adminSnapshot = nil
+            adminMessage = "This saved Matrix session needs administrator capability before the console can open."
         } catch {
             guard coordinator === self.coordinator else { return }
             adminAccessState = .denied
             adminSnapshot = nil
-            hasUnconfirmedAdminRevocation = true
-            adminMessage = "Administrator authority could not be reverified. Use Done to revoke it before closing."
+            await applyAdministratorError(error)
         }
     }
 
     func authorizeAdministratorAccess() async {
-        guard let coordinator, !isAdminAuthorizationInFlight else { return }
+        guard let coordinator,
+              adminAccessState == .upgradeRequired,
+              !isAdminAuthorizationInFlight else { return }
         isAdminAuthorizationInFlight = true
         adminAccessState = .checking
         adminMessage = nil
         var requestID: UUID?
         defer { isAdminAuthorizationInFlight = false }
         do {
+            do {
+                let authorized = try await coordinator.isHomeserverAdministrator()
+                guard coordinator === self.coordinator else { return }
+                if authorized {
+                    adminAccessState = .authorized
+                    await refreshAdministratorSnapshot()
+                    return
+                }
+                adminAccessState = .denied
+                adminSnapshot = nil
+                adminMessage = "This Matrix account is not a homeserver administrator."
+                return
+            } catch let error as MatrixAdminClientError
+                where MatrixPrimarySessionOAuth.requiresAdministratorScopeUpgrade(error) {
+                // The explicit user action below upgrades this same primary session.
+            }
             let request = try await coordinator.beginAdministratorAuthorization()
             requestID = request.id
             guard coordinator === self.coordinator else {
@@ -1336,40 +1358,54 @@ final class MatrixAppModel: ObservableObject {
         } catch {
             let cancellationConfirmed = await coordinator.cancelAdministratorAuthorization(requestID: requestID)
             guard coordinator === self.coordinator else { return }
-            adminAccessState = .denied
-            adminSnapshot = nil
-            if !cancellationConfirmed
-                || error as? MatrixChatServiceError == .administratorRevocationUnconfirmed {
-                hasUnconfirmedAdminRevocation = true
-                adminMessage = "Administrator authority was denied locally, but the homeserver could not confirm revocation. Check your connection and retry before closing."
-            } else {
-                adminMessage = error is CancellationError
-                    ? "Administrator authorization was cancelled."
-                    : "The homeserver did not grant administrator authority to this account."
+            switch error {
+            case MatrixAdminClientError.sessionExpired:
+                state = .sessionExpired
+                adminAccessState = .denied
+                adminSnapshot = nil
+                adminMessage = "The primary Matrix session expired. Restore or sign in again before retrying."
+                return
+            default:
+                break
             }
+            if let serviceError = error as? MatrixChatServiceError {
+                switch serviceError {
+                case .recoveryRequired:
+                    state = .recoveryRequired
+                    adminAccessState = .denied
+                    adminSnapshot = nil
+                    adminMessage = "The primary Matrix session needs recovery before administrator access can continue."
+                    return
+                case .sessionExpired:
+                    state = .sessionExpired
+                    adminAccessState = .denied
+                    adminSnapshot = nil
+                    adminMessage = "The primary Matrix session expired. Restore or sign in again before retrying."
+                    return
+                default:
+                    break
+                }
+            }
+            adminAccessState = .upgradeRequired
+            adminSnapshot = nil
+            adminMessage = error is CancellationError
+                ? "Administrator capability upgrade was cancelled."
+                : cancellationConfirmed
+                    ? "The primary Matrix session was not upgraded."
+                    : "The authorization callback is still completing; wait before retrying."
         }
     }
 
     @discardableResult
     func endAdministratorAccess() async -> Bool {
-        guard !isAdminRevocationInFlight else { return false }
-        isAdminRevocationInFlight = true
-        defer { isAdminRevocationInFlight = false }
         adminWebAuthorizationSession.cancel()
         guard let coordinator else {
             resetAdministratorState()
             return true
         }
-        let revoked = await coordinator.endAdministratorAuthorization()
-        guard coordinator === self.coordinator else { return revoked }
-        guard revoked else {
-            hasUnconfirmedAdminRevocation = true
-            adminAccessState = .denied
-            adminSnapshot = nil
-            adminMessage = "Administrator authority is disabled locally, but the homeserver could not confirm revocation. Check your connection and retry before closing."
-            return false
-        }
-        hasUnconfirmedAdminRevocation = false
+        let ended = await coordinator.endAdministratorAuthorization()
+        guard coordinator === self.coordinator else { return ended }
+        guard ended else { return false }
         resetAdministratorState()
         return true
     }
@@ -1501,7 +1537,7 @@ final class MatrixAppModel: ObservableObject {
             try await coordinator.logoutAdministratorManagedAccount(userID: user.userID)
             clearLocalSessions(for: user.userID)
             if user.userID == adminSnapshot?.currentUserID {
-                await coordinator.suspend()
+                _ = await coordinator.suspend()
                 state = .sessionExpired
                 resetAdministratorState()
             } else {
@@ -1584,22 +1620,19 @@ final class MatrixAppModel: ObservableObject {
     }
 
     private func applyAdministratorError(_ error: Error) async {
-        switch error as? MatrixAdminClientError {
-        case .notAdministrator:
+        switch MatrixAdministratorErrorDisposition.classify(error) {
+        case .unsupportedScope:
             adminAccessState = .denied
             adminSnapshot = nil
-            guard let coordinator else {
-                hasUnconfirmedAdminRevocation = false
-                adminMessage = "Administrator access is no longer available for this account."
-                return
-            }
-            let revoked = await coordinator.endAdministratorAuthorization()
-            guard coordinator === self.coordinator else { return }
-            hasUnconfirmedAdminRevocation = !revoked
-            adminMessage = revoked
-                ? "Administrator access is no longer available for this account."
-                : "Administrator access was denied locally, but the homeserver could not confirm revocation. Check your connection and retry before closing."
-        case .sessionExpired:
+            adminMessage = "The homeserver returned an unsupported administrator-scope challenge. No authorization was started."
+        case .denied:
+            adminAccessState = .denied
+            adminSnapshot = nil
+            adminMessage = "Administrator access is not available for this account."
+        case .primarySessionExpired:
+            state = .sessionExpired
+            adminAccessState = .denied
+            adminSnapshot = nil
             adminMessage = "The Matrix session expired. Sign in again before using administration."
         case .offline:
             adminMessage = "Hypha could not reach the homeserver. No administrative change was made."
@@ -1609,7 +1642,7 @@ final class MatrixAppModel: ObservableObject {
             adminMessage = "Hypha will not deactivate the active administrator account."
         case .credentialNotEstablished:
             adminMessage = "The account record exists, but the homeserver did not confirm a usable local password. Reset or delete the account before handing it off."
-        case .invalidResponse, .serverRejected, nil:
+        case .rejected:
             adminMessage = "The homeserver rejected the administrative operation. No success was assumed."
         }
     }
