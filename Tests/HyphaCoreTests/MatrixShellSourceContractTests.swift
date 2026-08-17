@@ -190,10 +190,21 @@ final class MatrixShellSourceContractTests: XCTestCase {
             ".sheet(isPresented: $showsAdministration)",
             "matrix.admin.authorize",
             "urn:synapse:admin:*",
-            "prefersEphemeralWebBrowserSession = true",
+            "prefersEphemeralWebBrowserSession = false",
+            "case upgradeRequired",
+            "case .insufficientScope:",
+            "case .recoveryRequired:",
+            "state = .recoveryRequired",
+            "case .sessionExpired:",
+            "case MatrixAdminClientError.sessionExpired:",
+            "MatrixAdministratorErrorDisposition.classify(error)",
+            "case .primarySessionExpired:",
+            "state = .sessionExpired",
+            "The primary Matrix session needs recovery before administrator access can continue.",
+            "let authorized = try await coordinator.isHomeserverAdministrator()",
             "endAdministratorAuthorization()",
-            "Retry revocation",
-            "administratorRevocationUnconfirmed",
+            "let suspended = await coordinator.suspend()",
+            "guard suspended else",
             "await applyAdministratorError(error)",
             ".interactiveDismissDisabled(",
             "model.isAdminOperationInFlight",
@@ -216,6 +227,8 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertFalse(source.contains("registration_shared_secret"))
         XCTAssertFalse(source.contains("SYNAPSE_REGISTRATION_SHARED_SECRET"))
         XCTAssertFalse(source.contains("Create normal"))
+        XCTAssertFalse(source.contains("prefersEphemeralWebBrowserSession = true"))
+        XCTAssertFalse(source.contains("Retry revocation"))
     }
 
     func testSidebarUsesCompactCorporateRoomTypographyAndSmallTechnicalSecuritySymbols() throws {

@@ -22,6 +22,19 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .signedOut(message: nil))
     }
 
+    func testSuspendPropagatesServiceRefusalBeforeAccountTransition() async {
+        let service = FakeMatrixChatService()
+        service.suspendResult = false
+        let coordinator = MatrixChatCoordinator(service: service)
+
+        let refused = await coordinator.suspend()
+        XCTAssertFalse(refused)
+
+        service.suspendResult = true
+        let suspended = await coordinator.suspend()
+        XCTAssertTrue(suspended)
+    }
+
     func testPasswordChangeReturnsSuccessWithoutMutatingChatState() async {
         let room = MatrixRoomSummary(id: "room-1", name: "Design", isEncrypted: true, hasInvite: false)
         let service = FakeMatrixChatService(restoredRooms: [room])
@@ -1076,6 +1089,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     var qrLoginUpdates: [MatrixQrLoginProgress]
     var incomingVerificationChallenge: MatrixVerificationChallenge?
     var incomingVerificationHandler: (@Sendable (MatrixVerificationFlowState) -> Void)?
+    var suspendResult = true
 
     init(
         restoredRooms: [MatrixRoomSummary] = [],
@@ -1275,5 +1289,6 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
         return roomsAfterRemoval ?? restoredRooms.filter { $0.id != roomID }
     }
 
+    func suspend() async -> Bool { suspendResult }
     func logout() async throws {}
 }

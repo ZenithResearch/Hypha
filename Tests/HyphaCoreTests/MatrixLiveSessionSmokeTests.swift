@@ -153,7 +153,7 @@ final class MatrixLiveSessionSmokeTests: XCTestCase {
         }
         XCTAssertEqual(value, body)
 
-        await sender.suspend()
+        _ = await sender.suspend()
         sender = nil
         try await Task<Never, Never>.sleep(for: .milliseconds(100))
         let returnBody = "Hypha restored-account sync verification \(UUID().uuidString)"
