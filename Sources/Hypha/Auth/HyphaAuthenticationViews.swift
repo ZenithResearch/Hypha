@@ -408,8 +408,6 @@ struct HyphaMobileLoginView: View {
     @ObservedObject var model: MatrixAppModel
     let message: MatrixSignOutMessage?
 
-    @State private var showsExistingDeviceSetup = false
-
     private var canSubmit: Bool {
         !model.isAuthenticationOperationInFlight
             && !model.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -476,38 +474,12 @@ struct HyphaMobileLoginView: View {
                     }
                     .frame(maxWidth: 440)
 
-                    HStack(spacing: ZenithDesign.Space.x3) {
-                        Rectangle()
-                            .fill(ZenithDesign.Palette.border)
-                            .frame(height: 1)
-                        Text("OR")
-                            .font(ZenithDesign.Typography.technical(.caption2, weight: .semibold))
-                            .foregroundStyle(ZenithDesign.Palette.muted)
-                        Rectangle()
-                            .fill(ZenithDesign.Palette.border)
-                            .frame(height: 1)
-                    }
-                    .frame(maxWidth: 440)
-
-                    HyphaButton(
-                        title: "Set up from another Hypha device",
-                        systemImage: "qrcode.viewfinder",
-                        variant: .secondary,
-                        fillsWidth: true,
-                        action: { showsExistingDeviceSetup = true }
-                    )
-                    .frame(maxWidth: 440)
-                    .accessibilityIdentifier("matrix.login.existing-device")
                 }
                 .padding(.horizontal, ZenithDesign.Space.x4)
                 .padding(.vertical, ZenithDesign.Space.x5)
                 .frame(maxWidth: .infinity)
             }
             .scrollDismissesKeyboard(.interactively)
-        }
-        .sheet(isPresented: $showsExistingDeviceSetup) {
-            HyphaExistingDeviceSetupView(model: model)
-                .hyphaMobileSheetPresentation()
         }
         .onDisappear {
             model.password = ""
@@ -553,137 +525,4 @@ struct HyphaPulsingAppIcon: View {
     }
 }
 
-private struct HyphaExistingDeviceSetupView: View {
-    @ObservedObject var model: MatrixAppModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var isScanning = false
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: ZenithDesign.Space.x5) {
-                    Image(systemName: "qrcode.viewfinder")
-                        .font(.system(size: 48, weight: .medium))
-                        .foregroundStyle(ZenithDesign.Palette.brand)
-                        .frame(maxWidth: .infinity)
-
-                    VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
-                        Text("Set up from another device")
-                            .font(ZenithDesign.Typography.technical(.title2, weight: .semibold))
-                        Text("Hypha will never encode your password or access token in a QR code.")
-                            .font(ZenithDesign.Typography.corporate(.body))
-                            .foregroundStyle(ZenithDesign.Palette.muted)
-                    }
-
-                    switch model.qrLoginAvailability {
-                    case .available:
-                        availableContent
-                    case let .unavailable(reason):
-                        HyphaStatusMessage(message: reason, tone: .warning)
-                        Text("Secure setup requires Matrix OAuth QR login support from this homeserver.")
-                            .font(ZenithDesign.Typography.corporate(.callout))
-                            .foregroundStyle(ZenithDesign.Palette.muted)
-                        HyphaButton(
-                            title: "Check again",
-                            systemImage: "arrow.clockwise",
-                            variant: .secondary,
-                            fillsWidth: true,
-                            action: { Task { await model.refreshQrLoginAvailability() } }
-                        )
-                    }
-                }
-                .padding(ZenithDesign.Space.x5)
-            }
-            .navigationTitle("Existing device setup")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        Task { await model.cancelQrLogin() }
-                        dismiss()
-                    }
-                }
-            }
-        }
-        .task { await model.refreshQrLoginAvailability() }
-        .onChange(of: model.state) { _, state in
-            if case .rooms = state { dismiss() }
-        }
-    }
-
-    @ViewBuilder
-    private var availableContent: some View {
-        VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
-            Text("On your signed-in Hypha device")
-                .font(ZenithDesign.Typography.technical(.headline, weight: .semibold))
-            Label("Open Security.", systemImage: "1.circle.fill")
-            Label("Choose Set Up Another Device.", systemImage: "2.circle.fill")
-            Label("Display the secure QR code, then scan it here.", systemImage: "3.circle.fill")
-        }
-        .font(ZenithDesign.Typography.corporate(.callout))
-
-        if isScanning {
-            HyphaQrScannerView(
-                onPayload: { payload in
-                    isScanning = false
-                    Task { await model.signInWithQrCode(payload) }
-                },
-                onFailure: { message in
-                    isScanning = false
-                    model.qrLoginProgress = .failed(message)
-                }
-            )
-            .frame(height: 360)
-            .clipShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.sheet, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: ZenithDesign.Radius.sheet, style: .continuous)
-                    .stroke(ZenithDesign.Palette.brand, lineWidth: 2)
-            }
-            .accessibilityIdentifier("matrix.qr-login.scanner")
-        } else {
-            progressContent
-        }
-    }
-
-    @ViewBuilder
-    private var progressContent: some View {
-        switch model.qrLoginProgress {
-        case let .checkCodeDisplay(code):
-            VStack(spacing: ZenithDesign.Space.x2) {
-                Text("Confirm this code on the other device")
-                    .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
-                Text(code)
-                    .font(ZenithDesign.Typography.technical(.largeTitle, weight: .bold))
-                    .monospacedDigit()
-                    .accessibilityLabel("Check code \(code)")
-            }
-            .frame(maxWidth: .infinity)
-        case .starting, .waitingForToken, .syncingSecrets:
-            HStack(spacing: ZenithDesign.Space.x3) {
-                ProgressView()
-                Text(model.qrLoginProgress == .syncingSecrets ? "Securing encryption keys…" : "Completing secure sign in…")
-            }
-        case let .failed(message):
-            HyphaStatusMessage(message: message)
-            scanButton
-        case .completed:
-            HyphaStatusMessage(message: "This device is signed in and verified.", tone: .success)
-        default:
-            scanButton
-        }
-    }
-
-    private var scanButton: some View {
-        HyphaButton(
-            title: "Scan secure setup code",
-            systemImage: "camera.viewfinder",
-            variant: .primary,
-            fillsWidth: true,
-            action: {
-                model.qrLoginProgress = nil
-                isScanning = true
-            }
-        )
-        .accessibilityIdentifier("matrix.qr-login.scan")
-    }
-}
 #endif

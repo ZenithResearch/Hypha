@@ -2,7 +2,6 @@ import Foundation
 
 public enum MatrixAdminClientError: Error, Equatable, Sendable {
     case invalidInput
-    case insufficientScope(required: [String])
     case notAdministrator
     case protectedAccount
     case sessionExpired
@@ -13,7 +12,6 @@ public enum MatrixAdminClientError: Error, Equatable, Sendable {
 }
 
 public enum MatrixAdministratorErrorDisposition: Equatable, Sendable {
-    case unsupportedScope
     case denied
     case primarySessionExpired
     case offline
@@ -24,8 +22,6 @@ public enum MatrixAdministratorErrorDisposition: Equatable, Sendable {
 
     public static func classify(_ error: Error) -> Self {
         switch error as? MatrixAdminClientError {
-        case .insufficientScope:
-            return .unsupportedScope
         case .notAdministrator:
             return .denied
         case .sessionExpired:
@@ -752,131 +748,13 @@ public struct MatrixSynapseAdminClient: MatrixAdminClient, Sendable {
     static func mappedAdministratorProbeError(
         for response: MatrixAdminHTTPResponse
     ) -> MatrixAdminClientError {
-        guard response.statusCode == 401,
-              let challenge = response.headers["www-authenticate"]
-                ?? response.headers["WWW-Authenticate"],
-              let parameters = bearerChallengeParameters(challenge),
-              parameters["error"] == "insufficient_scope",
-              parameters["scope"]?.split(whereSeparator: { $0.isWhitespace }).map(String.init)
-                == ["urn:synapse:admin:*"] else {
-            switch response.statusCode {
-            case 401: return .sessionExpired
-            case 403: return .notAdministrator
-            case 400, 404, 409: return .serverRejected
-            default: return .invalidResponse
-            }
-        }
-        return .insufficientScope(required: ["urn:synapse:admin:*"])
-    }
-
-    private static func bearerChallengeParameters(_ challenge: String) -> [String: String]? {
-        var segments: [String] = []
-        var field = ""
-        var insideQuotes = false
-        var escaped = false
-        for character in challenge.trimmingCharacters(in: .whitespacesAndNewlines) {
-            if escaped {
-                guard insideQuotes else { return nil }
-                field.append(character)
-                escaped = false
-            } else if character == "\\" {
-                guard insideQuotes else { return nil }
-                field.append(character)
-                escaped = true
-            } else if character == "\"" {
-                insideQuotes.toggle()
-                field.append(character)
-            } else if character == ",", !insideQuotes {
-                segments.append(field)
-                field = ""
-            } else {
-                field.append(character)
-            }
-        }
-        guard !insideQuotes, !escaped else { return nil }
-        segments.append(field)
-
-        var challenges: [(scheme: String, fields: [String])] = []
-        for rawSegment in segments {
-            let segment = rawSegment.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !segment.isEmpty else { return nil }
-            if let start = authenticationChallengeStart(segment) {
-                challenges.append((start.scheme, start.firstField.map { [$0] } ?? []))
-            } else {
-                guard !challenges.isEmpty else { return nil }
-                challenges[challenges.count - 1].fields.append(segment)
-            }
-        }
-        let bearerChallenges = challenges.filter {
-            $0.scheme.caseInsensitiveCompare("Bearer") == .orderedSame
-        }
-        guard bearerChallenges.count == 1 else { return nil }
-
-        var parameters: [String: String] = [:]
-        for rawField in bearerChallenges[0].fields {
-            let field = rawField.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let separator = field.firstIndex(of: "=") else { return nil }
-            let name = field[..<separator]
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            let rawValue = field[field.index(after: separator)...]
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard validAuthenticationToken(name), parameters[name] == nil,
-                  let value = decodedAuthenticationParameter(rawValue) else { return nil }
-            parameters[name] = value
-        }
-        return parameters
-    }
-
-    private static func authenticationChallengeStart(
-        _ segment: String
-    ) -> (scheme: String, firstField: String?)? {
-        if !segment.contains("="), validAuthenticationToken(segment) {
-            return (segment, nil)
-        }
-        guard let whitespace = segment.firstIndex(where: { $0.isWhitespace }) else { return nil }
-        let scheme = String(segment[..<whitespace])
-        let remainder = segment[whitespace...]
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard validAuthenticationToken(scheme), !remainder.isEmpty,
-              !remainder.hasPrefix("=") else { return nil }
-        return (scheme, remainder)
-    }
-
-    private static func validAuthenticationToken<S: StringProtocol>(_ value: S) -> Bool {
-        let punctuation = "!#$%&'*+-.^_`|~"
-        return !value.isEmpty && value.allSatisfy {
-            $0.isASCII && ($0.isLetter || $0.isNumber || punctuation.contains($0))
+        switch response.statusCode {
+        case 401: return .sessionExpired
+        case 403: return .notAdministrator
+        case 400, 404, 409: return .serverRejected
+        default: return .invalidResponse
         }
     }
 
-    private static func decodedAuthenticationParameter(_ rawValue: String) -> String? {
-        let value: String
-        if rawValue.first == "\"", rawValue.last == "\"", rawValue.count >= 2 {
-            var decoded = ""
-            var escaped = false
-            for character in rawValue.dropFirst().dropLast() {
-                if escaped {
-                    decoded.append(character)
-                    escaped = false
-                } else if character == "\\" {
-                    escaped = true
-                } else if character == "\"" {
-                    return nil
-                } else {
-                    decoded.append(character)
-                }
-            }
-            guard !escaped else { return nil }
-            value = decoded
-        } else {
-            value = rawValue
-            guard !value.contains(where: { $0.isWhitespace || $0 == "\"" }) else { return nil }
-        }
-        guard !value.isEmpty,
-              value.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) else {
-            return nil
-        }
-        return value
-    }
+
 }
