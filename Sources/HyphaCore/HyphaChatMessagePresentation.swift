@@ -58,8 +58,7 @@ public struct HyphaChatMessagePresentation: Equatable, Sendable {
         senderDisplayName = event.senderDisplayName
         isGroupedWithPrevious = Self.canGroup(event, with: previousEvent)
         isGroupedWithNext = Self.canGroup(event, with: nextEvent)
-        showsSender = !event.isOwn
-            && (!isGroupedWithPrevious || Self.requiresExplicitSender(event.authenticity))
+        showsSender = !event.isOwn && !isGroupedWithPrevious
 
         let formatter = DateFormatter()
         formatter.locale = locale
@@ -93,45 +92,17 @@ public struct HyphaChatMessagePresentation: Equatable, Sendable {
             && event.senderID == adjacentEvent.senderID
     }
 
-    private static func requiresExplicitSender(
-        _ authenticity: MatrixEventAuthenticity
-    ) -> Bool {
-        switch authenticity {
-        case .unknownDevice, .unsignedDevice:
-            true
-        default:
-            false
-        }
-    }
 
     private static func authenticityPresentation(
         for authenticity: MatrixEventAuthenticity
     ) -> Authenticity? {
         switch authenticity {
-        case .noWarning:
+        case .noWarning,
+             .authenticityNotGuaranteed,
+             .unknownDevice,
+             .unsignedDevice,
+             .unverifiedIdentity:
             nil
-        case .authenticityNotGuaranteed:
-            Authenticity(
-                severity: .warning,
-                label: "Message authenticity cannot be guaranteed"
-            )
-        case .unknownDevice:
-            Authenticity(
-                severity: .warning,
-                label: "Encrypted by an unknown device",
-                displayStyle: .iconOnly
-            )
-        case .unsignedDevice:
-            Authenticity(
-                severity: .warning,
-                label: "Encrypted by a device not verified by its owner",
-                displayStyle: .iconOnly
-            )
-        case .unverifiedIdentity:
-            Authenticity(
-                severity: .warning,
-                label: "The sender's Matrix identity is not verified"
-            )
         case .verificationViolation:
             Authenticity(
                 severity: .critical,

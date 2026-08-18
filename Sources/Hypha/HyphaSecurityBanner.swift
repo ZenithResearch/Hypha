@@ -61,6 +61,8 @@ struct HyphaSecurityBanner: View {
 
     private var severityTitle: String {
         switch presentation.indicatorSeverity {
+        case .quiet:
+            return "Device verification is optional"
         case .unknown:
             return "Checking device security"
         case .recommended:
@@ -74,6 +76,8 @@ struct HyphaSecurityBanner: View {
 
     private var severityMessage: String {
         switch presentation.indicatorSeverity {
+        case .quiet:
+            return "Encrypted chat is available. Verify only when you add another device."
         case .unknown:
             return "Hypha is waiting for authoritative security state from your Matrix homeserver."
         case .recommended where presentation.primaryDeviceAction == nil:
@@ -89,6 +93,8 @@ struct HyphaSecurityBanner: View {
 
     private var severitySymbol: String {
         switch presentation.indicatorSeverity {
+        case .quiet:
+            return "shield"
         case .unknown:
             return "questionmark.shield"
         case .recommended:
@@ -127,6 +133,8 @@ struct HyphaSecurityBanner: View {
 
     private var severityColor: Color {
         switch presentation.indicatorSeverity {
+        case .quiet:
+            return ZenithDesign.Palette.muted
         case .unknown:
             return ZenithDesign.Palette.muted
         case .recommended:
