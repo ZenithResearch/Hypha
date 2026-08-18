@@ -14706,9 +14706,20 @@ public protocol SessionVerificationControllerProtocol: AnyObject, Sendable {
     func cancelVerification() async throws 
     
     /**
+     * Confirm that the other signed-in device scanned the displayed QR code.
+     */
+    func confirmQrVerification() async throws 
+    
+    /**
      * Reject the short auth string
      */
     func declineVerification() async throws 
+    
+    /**
+     * Generate raw Matrix QR verification bytes for another signed-in device
+     * to scan. These bytes must be encoded directly into a QR image.
+     */
+    func generateQrVerificationCode() async throws  -> Data
     
     /**
      * Request verification for the current device
@@ -14719,6 +14730,11 @@ public protocol SessionVerificationControllerProtocol: AnyObject, Sendable {
      * Request verification for the given user
      */
     func requestUserVerification(userId: String) async throws 
+    
+    /**
+     * Scan raw Matrix QR verification bytes from another signed-in device.
+     */
+    func scanQrVerificationCode(data: Data) async throws 
     
     func setDelegate(delegate: SessionVerificationControllerDelegate?) 
     
@@ -14866,6 +14882,26 @@ open func cancelVerification()async throws   {
 }
     
     /**
+     * Confirm that the other signed-in device scanned the displayed QR code.
+     */
+open func confirmQrVerification()async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_confirm_qr_verification(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
      * Reject the short auth string
      */
 open func declineVerification()async throws   {
@@ -14881,6 +14917,27 @@ open func declineVerification()async throws   {
             completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
             freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
             liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Generate raw Matrix QR verification bytes for another signed-in device
+     * to scan. These bytes must be encoded directly into a QR image.
+     */
+open func generateQrVerificationCode()async throws  -> Data  {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_generate_qr_verification_code(
+                    self.uniffiCloneHandle()
+                    
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_rust_buffer,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_rust_buffer,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_rust_buffer,
+            liftFunc: FfiConverterData.lift,
             errorHandler: FfiConverterTypeClientError_lift
         )
 }
@@ -14915,6 +14972,26 @@ open func requestUserVerification(userId: String)async throws   {
                 uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_request_user_verification(
                     self.uniffiCloneHandle(),
                     FfiConverterString.lower(userId)
+                )
+            },
+            pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
+            completeFunc: ffi_matrix_sdk_ffi_rust_future_complete_void,
+            freeFunc: ffi_matrix_sdk_ffi_rust_future_free_void,
+            liftFunc: { $0 },
+            errorHandler: FfiConverterTypeClientError_lift
+        )
+}
+    
+    /**
+     * Scan raw Matrix QR verification bytes from another signed-in device.
+     */
+open func scanQrVerificationCode(data: Data)async throws   {
+    return
+        try  await uniffiRustCallAsync(
+            rustFutureFunc: {
+                uniffi_matrix_sdk_ffi_fn_method_sessionverificationcontroller_scan_qr_verification_code(
+                    self.uniffiCloneHandle(),
+                    FfiConverterData.lower(data)
                 )
             },
             pollFunc: ffi_matrix_sdk_ffi_rust_future_poll_void,
@@ -41896,6 +41973,80 @@ public func FfiConverterTypeSessionVerificationData_lower(_ value: SessionVerifi
 
 // Note that we don't yet support `indirect` for enums.
 // See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
+
+public enum SessionVerificationQrState: Equatable, Hashable {
+    
+    case scanned
+    case reciprocated
+    case confirmed
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension SessionVerificationQrState: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSessionVerificationQrState: FfiConverterRustBuffer {
+    typealias SwiftType = SessionVerificationQrState
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SessionVerificationQrState {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+        
+        case 1: return .scanned
+        
+        case 2: return .reciprocated
+        
+        case 3: return .confirmed
+        
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: SessionVerificationQrState, into buf: inout [UInt8]) {
+        switch value {
+        
+        
+        case .scanned:
+            writeInt(&buf, Int32(1))
+        
+        
+        case .reciprocated:
+            writeInt(&buf, Int32(2))
+        
+        
+        case .confirmed:
+            writeInt(&buf, Int32(3))
+        
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSessionVerificationQrState_lift(_ buf: RustBuffer) throws -> SessionVerificationQrState {
+    return try FfiConverterTypeSessionVerificationQrState.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSessionVerificationQrState_lower(_ value: SessionVerificationQrState) -> RustBuffer {
+    return FfiConverterTypeSessionVerificationQrState.lower(value)
+}
+
+
+// Note that we don't yet support `indirect` for enums.
+// See https://github.com/mozilla/uniffi-rs/issues/396 for further discussion.
 /**
  * Recommended decorations for decrypted messages, representing the message's
  * authenticity properties.
@@ -48902,6 +49053,8 @@ public protocol SessionVerificationControllerDelegate: AnyObject, Sendable {
     
     func didReceiveVerificationData(data: SessionVerificationData) 
     
+    func didUpdateQrVerification(state: SessionVerificationQrState) 
+    
     func didFail() 
     
     func didCancel() 
@@ -49015,6 +49168,30 @@ fileprivate struct UniffiCallbackInterfaceSessionVerificationControllerDelegate 
                 }
                 return uniffiObj.didReceiveVerificationData(
                      data: try FfiConverterTypeSessionVerificationData_lift(data)
+                )
+            }
+
+            
+            let writeReturn = { () }
+            uniffiTraitInterfaceCall(
+                callStatus: uniffiCallStatus,
+                makeCall: makeCall,
+                writeReturn: writeReturn
+            )
+        },
+        didUpdateQrVerification: { (
+            uniffiHandle: UInt64,
+            state: RustBuffer,
+            uniffiOutReturn: UnsafeMutableRawPointer,
+            uniffiCallStatus: UnsafeMutablePointer<RustCallStatus>
+        ) in
+            let makeCall = {
+                () throws -> () in
+                guard let uniffiObj = try? FfiConverterCallbackInterfaceSessionVerificationControllerDelegate.handleMap.get(handle: uniffiHandle) else {
+                    throw UniffiInternalError.unexpectedStaleHandle
+                }
+                return uniffiObj.didUpdateQrVerification(
+                     state: try FfiConverterTypeSessionVerificationQrState_lift(state)
                 )
             }
 
@@ -56640,13 +56817,22 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_cancel_verification() != 32557) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_confirm_qr_verification() != 20979) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_decline_verification() != 9058) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_generate_qr_verification_code() != 17132) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_device_verification() != 20402) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_request_user_verification() != 11869) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_scan_qr_verification_code() != 18927) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontroller_set_delegate() != 65112) {
@@ -57138,13 +57324,16 @@ private let initializationResult: InitializationResult = {
     if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_receive_verification_data() != 8698) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_fail() != 45076) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_update_qr_verification() != 60340) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_cancel() != 36580) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_fail() != 44226) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_finish() != 53036) {
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_cancel() != 18824) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_matrix_sdk_ffi_checksum_method_sessionverificationcontrollerdelegate_did_finish() != 48498) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_matrix_sdk_ffi_checksum_method_spaceroomlistentrieslistener_on_update() != 20303) {

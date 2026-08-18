@@ -39,6 +39,17 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
         XCTAssertEqual(presentation.primaryDeviceAction, .verifyWithAnotherHyphaDevice)
     }
 
+    func testVerifiedDeviceCanInitiateVerificationWhenAnEligiblePeerExists() {
+        let presentation = makePresentation(
+            trust: .verifiedByCurrentSelfSigningKey,
+            bootstrap: .verifiedByCurrentSelfSigningKey,
+            recovery: .ready,
+            peerEligibility: .eligiblePeer
+        )
+
+        XCTAssertEqual(presentation.primaryDeviceAction, .verifyWithAnotherHyphaDevice)
+    }
+
     func testUnavailablePeerEligibilityDoesNotGuessFirstDeviceOrExposePeerVerification() {
         let presentation = makePresentation(
             trust: .unsigned,
@@ -126,8 +137,13 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
 
     func testActiveVerificationFlowMapsToLocalHyphaOperationWithoutDeviceSetupAction() {
         let challenge = MatrixVerificationChallenge.decimals([111, 222, 333])
+        let qrCode = Data([0x4d, 0x41, 0x54, 0x52, 0x49, 0x58])
         let cases: [(MatrixVerificationFlowState, HyphaSecurityLocalOperation)] = [
             (.requesting, .requestingVerificationFromAnotherHyphaDevice),
+            (.qrCode(qrCode), .displayingVerificationQrCode(qrCode)),
+            (.readyToScanQrCode, .readyToScanVerificationQrCode),
+            (.qrCodeScanned, .verificationQrCodeScanned),
+            (.qrCodeReciprocated, .waitingForVerificationQrConfirmation),
             (.challenge(challenge), .comparingWithAnotherHyphaDevice(challenge)),
             (.approving, .approvingAnotherHyphaDevice),
             (.failed(reason: "Timed out"), .verificationFailed(reason: "Timed out"))
@@ -158,6 +174,10 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
         ]
         let activeVerificationStates: [MatrixVerificationFlowState] = [
             .requesting,
+            .qrCode(Data([0x01])),
+            .readyToScanQrCode,
+            .qrCodeScanned,
+            .qrCodeReciprocated,
             .challenge(.emojis([.init(symbol: "🐙", description: "Octopus")])),
             .approving,
             .failed(reason: "Unavailable")

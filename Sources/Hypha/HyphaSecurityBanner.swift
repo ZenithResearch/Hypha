@@ -7,7 +7,11 @@ struct HyphaSecurityBanner: View {
     let onSetUpDevice: () -> Void
     let onContinueDeviceSetup: () -> Void
     let onRequestVerification: () -> Void
+    let onRequestQrVerification: () -> Void
     let onAcceptIncomingVerification: () -> Void
+    let onAcceptIncomingQrVerification: () -> Void
+    let onScanQrVerification: (Data) -> Void
+    let onConfirmQrVerification: () -> Void
     let onApproveVerification: () -> Void
     let onDeclineVerification: () -> Void
     let onRefresh: () -> Void
@@ -112,6 +116,14 @@ struct HyphaSecurityBanner: View {
             return "Another Hypha device is requesting verification."
         case .requestingVerificationFromAnotherHyphaDevice:
             return "Waiting for another Hypha device."
+        case .displayingVerificationQrCode:
+            return "Verification QR code is ready."
+        case .readyToScanVerificationQrCode:
+            return "Ready to scan the verification QR code."
+        case .verificationQrCodeScanned:
+            return "The other device scanned the verification QR code."
+        case .waitingForVerificationQrConfirmation:
+            return "Waiting for the other device to confirm verification."
         case .comparingWithAnotherHyphaDevice:
             return "Verification comparison is ready."
         case .approvingAnotherHyphaDevice:
@@ -164,9 +176,12 @@ struct HyphaSecurityBanner: View {
                 Button("Decline", action: onDeclineVerification)
                     .buttonStyle(HyphaButtonStyle(.quiet))
                     .accessibilityIdentifier("matrix.verification.decline")
-                Button("Accept", action: onAcceptIncomingVerification)
+                Button("Use SAS", action: onAcceptIncomingVerification)
+                    .buttonStyle(HyphaButtonStyle(.secondary))
+                    .accessibilityIdentifier("matrix.verification.accept-sas")
+                Button("Scan QR", action: onAcceptIncomingQrVerification)
                     .buttonStyle(HyphaButtonStyle(.primary))
-                    .accessibilityIdentifier("matrix.verification.accept-request")
+                    .accessibilityIdentifier("matrix.verification.accept-qr")
             }
         case .requestingVerificationFromAnotherHyphaDevice:
             HStack {
@@ -175,6 +190,51 @@ struct HyphaSecurityBanner: View {
                 Button("Cancel", action: onDeclineVerification)
                     .buttonStyle(HyphaButtonStyle(.quiet))
                     .accessibilityIdentifier("matrix.verification.decline")
+            }
+        case let .displayingVerificationQrCode(payload):
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
+                HyphaQrCodeImage(payload: payload)
+                    .frame(maxWidth: .infinity)
+                Text("Scan this code with the already verified Hypha device. Confirm only after that device reports a successful scan.")
+                    .font(ZenithDesign.Typography.corporate(.callout))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                Button("Cancel", action: onDeclineVerification)
+                    .buttonStyle(HyphaButtonStyle(.quiet))
+            }
+            .accessibilityIdentifier("matrix.verification.qr-code")
+        case .readyToScanVerificationQrCode:
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
+                #if os(iOS)
+                HyphaQrScannerView(
+                    onPayload: onScanQrVerification,
+                    onFailure: { _ in onDeclineVerification() }
+                )
+                .frame(minHeight: 280)
+                .clipShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.medium))
+                #else
+                Text("Open this verification request on an iPhone or iPad to scan the other device's code.")
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                #endif
+                Button("Cancel", action: onDeclineVerification)
+                    .buttonStyle(HyphaButtonStyle(.quiet))
+            }
+            .accessibilityIdentifier("matrix.verification.qr-scanner")
+        case .verificationQrCodeScanned:
+            HStack {
+                Text("The other device reports that it scanned this code.")
+                Spacer()
+                Button("Cancel", action: onDeclineVerification)
+                    .buttonStyle(HyphaButtonStyle(.quiet))
+                Button("Confirm scan", action: onConfirmQrVerification)
+                    .buttonStyle(HyphaButtonStyle(.primary))
+                    .accessibilityIdentifier("matrix.verification.qr-confirm")
+            }
+        case .waitingForVerificationQrConfirmation:
+            HStack {
+                progressRow("Code scanned. Waiting for confirmation on the other device…")
+                Spacer()
+                Button("Cancel", action: onDeclineVerification)
+                    .buttonStyle(HyphaButtonStyle(.quiet))
             }
         case let .comparingWithAnotherHyphaDevice(challenge):
             verificationChallenge(challenge)
@@ -224,8 +284,7 @@ struct HyphaSecurityBanner: View {
     }
 
     private var showsPrimaryDeviceAction: Bool {
-        guard let action = presentation.primaryDeviceAction else { return false }
-        return action != .verifyWithAnotherHyphaDevice
+        presentation.primaryDeviceAction != nil
     }
 
     @ViewBuilder
@@ -237,7 +296,10 @@ struct HyphaSecurityBanner: View {
                 .keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier("matrix.first-device.bootstrap")
         case .verifyWithAnotherHyphaDevice:
-            EmptyView()
+            Button("Verify New Device", action: onRequestQrVerification)
+                .buttonStyle(HyphaButtonStyle(.primary))
+                .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("matrix.verification.request-qr")
         case .continueDeviceSetupWithPassword:
             Button("Continue device setup", action: onContinueDeviceSetup)
                 .buttonStyle(HyphaButtonStyle(.primary))

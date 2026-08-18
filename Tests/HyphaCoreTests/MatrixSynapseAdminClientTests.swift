@@ -3,16 +3,11 @@ import XCTest
 @testable import HyphaCore
 
 final class MatrixSynapseAdminClientTests: XCTestCase {
+
     func testAdministratorErrorDispositionClassifiesPrimarySessionExpiryAndAllOtherFailures() {
         XCTAssertEqual(
             MatrixAdministratorErrorDisposition.classify(MatrixAdminClientError.sessionExpired),
             .primarySessionExpired
-        )
-        XCTAssertEqual(
-            MatrixAdministratorErrorDisposition.classify(
-                MatrixAdminClientError.insufficientScope(required: ["urn:synapse:admin:*"])
-            ),
-            .unsupportedScope
         )
         XCTAssertEqual(MatrixAdministratorErrorDisposition.classify(MatrixAdminClientError.notAdministrator), .denied)
         XCTAssertEqual(MatrixAdministratorErrorDisposition.classify(MatrixAdminClientError.offline), .offline)
@@ -25,125 +20,6 @@ final class MatrixSynapseAdminClientTests: XCTestCase {
         XCTAssertEqual(MatrixAdministratorErrorDisposition.classify(MatrixAdminClientError.invalidResponse), .rejected)
         XCTAssertEqual(MatrixAdministratorErrorDisposition.classify(MatrixAdminClientError.serverRejected), .rejected)
         XCTAssertEqual(MatrixAdministratorErrorDisposition.classify(CancellationError()), .rejected)
-    }
-
-    func testAdministratorAccessDistinguishesMissingAdminScopeFromExpiredSession() async {
-        let scopeResponse = MatrixAdminHTTPResponse.json(
-            status: 401,
-            body: ["errcode": "M_FORBIDDEN", "error": "Insufficient scope"],
-            headers: [
-                "WWW-Authenticate": "Bearer error=\"insufficient_scope\", scope=\"urn:synapse:admin:*\"",
-            ]
-        )
-        XCTAssertEqual(
-            scopeResponse.headers["WWW-Authenticate"],
-            "Bearer error=\"insufficient_scope\", scope=\"urn:synapse:admin:*\""
-        )
-        XCTAssertEqual(
-            MatrixSynapseAdminClient.mappedAdministratorProbeError(for: scopeResponse),
-            .insufficientScope(required: ["urn:synapse:admin:*"])
-        )
-        let insufficientScope = MatrixSynapseAdminClient(
-            homeserver: URL(string: "https://synapse.example.org")!,
-            currentUserID: "@operator:example.org",
-            accessToken: "secret-token-material",
-            transport: RecordingAdminTransport(responses: [
-                scopeResponse,
-            ])
-        )
-
-        await XCTAssertThrowsAdminError(
-            try await insufficientScope.isAdministrator(),
-            expected: .insufficientScope(required: ["urn:synapse:admin:*"])
-        )
-
-        let expired = MatrixSynapseAdminClient(
-            homeserver: URL(string: "https://synapse.example.org")!,
-            currentUserID: "@operator:example.org",
-            accessToken: "secret-token-material",
-            transport: RecordingAdminTransport(responses: [
-                .json(status: 401, body: ["errcode": "M_UNKNOWN_TOKEN"]),
-            ])
-        )
-
-        await XCTAssertThrowsAdminError(
-            try await expired.isAdministrator(),
-            expected: .sessionExpired
-        )
-    }
-
-    func testAdministratorAccessDoesNotTrustUnrelatedOrMalformedScopeChallenges() async {
-        for challenge in [
-            "Bearer error=\"insufficient_scope\", scope=\"urn:matrix:example\"",
-            "Bearer error=\"insufficient_scope\"",
-            "Bearer error=\"insufficient_scope\", scope=\"urn:synapse:admin:*\", scope=\"urn:synapse:admin:*\"",
-            "Basic realm=\"admin\"",
-        ] {
-            let client = MatrixSynapseAdminClient(
-                homeserver: URL(string: "https://synapse.example.org")!,
-                currentUserID: "@operator:example.org",
-                accessToken: "secret-token-material",
-                transport: RecordingAdminTransport(responses: [
-                    .json(
-                        status: 401,
-                        body: ["errcode": "M_FORBIDDEN"],
-                        headers: ["WWW-Authenticate": challenge]
-                    ),
-                ])
-            )
-
-            await XCTAssertThrowsAdminError(
-                try await client.isAdministrator(),
-                expected: .sessionExpired
-            )
-        }
-    }
-
-    func testAdministratorAccessParsesEquivalentBearerScopeChallenges() {
-        for challenge in [
-            "Bearer scope=\"urn:synapse:admin:*\", error=\"insufficient_scope\"",
-            "Bearer   error_description=\"Administrator capability required\",  scope = \"urn:synapse:admin:*\" , error = \"insufficient_scope\"",
-        ] {
-            let response = MatrixAdminHTTPResponse.json(
-                status: 401,
-                body: ["errcode": "M_FORBIDDEN"],
-                headers: ["www-authenticate": challenge]
-            )
-            XCTAssertEqual(
-                MatrixSynapseAdminClient.mappedAdministratorProbeError(for: response),
-                .insufficientScope(required: ["urn:synapse:admin:*"])
-            )
-        }
-    }
-
-    func testAdministratorAccessParsesExactlyOneBearerFromCombinedChallenges() {
-        for challenge in [
-            "Basic realm=\"admin\", Bearer error=\"insufficient_scope\", scope=\"urn:synapse:admin:*\"",
-            "Basic realm=\"ops\\\"team\", Bearer error=\"insufficient_scope\", scope=\"urn:synapse:admin:*\"",
-            "Bearer error=\"insufficient_scope\", scope=\"urn:synapse:admin:*\", Basic realm=\"admin\"",
-        ] {
-            let response = MatrixAdminHTTPResponse.json(
-                status: 401,
-                body: ["errcode": "M_FORBIDDEN"],
-                headers: ["WWW-Authenticate": challenge]
-            )
-            XCTAssertEqual(
-                MatrixSynapseAdminClient.mappedAdministratorProbeError(for: response),
-                .insufficientScope(required: ["urn:synapse:admin:*"])
-            )
-        }
-
-        let ambiguous = MatrixAdminHTTPResponse.json(
-            status: 401,
-            body: ["errcode": "M_FORBIDDEN"],
-            headers: [
-                "WWW-Authenticate": "Bearer error=\"insufficient_scope\", scope=\"urn:synapse:admin:*\", Bearer error=\"insufficient_scope\", scope=\"urn:synapse:admin:*\"",
-            ]
-        )
-        XCTAssertEqual(
-            MatrixSynapseAdminClient.mappedAdministratorProbeError(for: ambiguous),
-            .sessionExpired
-        )
     }
 
     func testAdministratorAccessRequiresAuthoritativeTrueResponse() async throws {

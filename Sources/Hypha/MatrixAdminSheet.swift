@@ -38,32 +38,22 @@ struct MatrixAdminSheet: View {
                 case .checking, .unknown:
                     ProgressView("Checking administrator authority…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .upgradeRequired:
+                case .denied:
                     VStack(spacing: ZenithDesign.Space.x4) {
                         ContentUnavailableView(
-                            "Administrator capability required",
+                            "Administrator authority unavailable",
                             systemImage: "person.badge.shield.checkmark",
-                            description: Text("Upgrade this saved Matrix session once to include homeserver administrator capability.")
+                            description: Text(model.adminMessage ?? "This Matrix account is not a homeserver administrator.")
                         )
-                        Button("Upgrade primary session…") {
-                            Task { await model.authorizeAdministratorAccess() }
-                        }
-                        .buttonStyle(HyphaButtonStyle(.primary))
-                        .disabled(model.isAdminAuthorizationInFlight)
-                        .accessibilityIdentifier("matrix.admin.authorize")
-                        if let message = model.adminMessage {
-                            Text(message)
-                                .font(ZenithDesign.Typography.corporate(.callout))
-                                .foregroundStyle(ZenithDesign.Palette.muted)
+                        if model.canReauthenticateAdministratorSession {
+                            Button("Sign in again with saved password") {
+                                Task { await model.reauthenticateAdministratorSession() }
+                            }
+                            .buttonStyle(HyphaButtonStyle(.primary))
+                            .disabled(model.isAuthenticationOperationInFlight)
+                            .accessibilityIdentifier("matrix.admin.reauthenticate-native")
                         }
                     }
-                    .padding(ZenithDesign.Space.x5)
-                case .denied:
-                    ContentUnavailableView(
-                        "Administrator authority unavailable",
-                        systemImage: "person.badge.shield.checkmark",
-                        description: Text(model.adminMessage ?? "This Matrix account is not a homeserver administrator.")
-                    )
                     .padding(ZenithDesign.Space.x5)
                 }
             }
@@ -78,10 +68,7 @@ struct MatrixAdminSheet: View {
                             }
                         }
                     }
-                    .disabled(
-                        model.isAdminOperationInFlight
-                            || model.isAdminAuthorizationInFlight
-                    )
+                    .disabled(model.isAdminOperationInFlight)
                 }
             }
         }
@@ -90,7 +77,6 @@ struct MatrixAdminSheet: View {
         .interactiveDismissDisabled(
             model.adminAccessState == .authorized
                 || model.isAdminOperationInFlight
-                || model.isAdminAuthorizationInFlight
         )
         .task {
             await model.refreshAdministratorAccess()

@@ -1,12 +1,14 @@
-# Zenith MatrixSDKFFI 26.08.15-zenith.12
+# Zenith MatrixSDKFFI 26.08.17-zenith.13
 
-Purpose: universal Apple Matrix Rust SDK artifact for Hypha on macOS 26.4 arm64, iOS 18 arm64, and the Apple Silicon iOS 18 Simulator. This fork-only integration preserves the existing authoritative device-trust surface while adding password-change UIAA, atomic custom room initial state with exact reconciliation, non-destructive first-device cross-signing bootstrap, and a session-bound fail-closed lost-recovery identity reset.
+Purpose: universal Apple Matrix Rust SDK artifact for Hypha on macOS 26.4 arm64, iOS 18 arm64, and the Apple Silicon iOS 18 Simulator. This fork-only integration preserves the existing authoritative device-trust, recovery-reset, UIAA, room-state, and first-device bootstrap surfaces while adding post-login QR verification between two already signed-in devices.
 
 ## Source
 
 - Fork: `bananawalnut/matrix-rust-sdk`
-- Integration branch: `fix/hypha-identity-reset-uiaa`
-- Exact source commit: `d28c164ef37cd67723aa565bf5aec9c0cefc3bb8`
+- Integration branch: `fix/hypha-post-login-qr-verification-main`
+- Exact source commit: `99d79bdde4bb2ff87c015e50d3537b4f512c5bf5`
+- Exact source base: `d28c164ef37cd67723aa565bf5aec9c0cefc3bb8`
+- Reviewed post-login QR source diff SHA-256: `16ef3f5f722a0f87b07b9de44c1c749d9d927a1223190871a8231e20ca176208`
 - Identity-reset authorization base: `f4889ec898e77d8b8c9013adadd77f3d0901fc2d`
 - Password-change UIAA head (#6783): `533973cb7d918108fa111214575382bfbe30f765`
 - Atomic room-state/reconciliation head (#6784): `2ee2199867bb28b723d80b1c6f80315301058c57`
@@ -47,14 +49,15 @@ cargo xtask swift build-framework \
   --sequentially
 ```
 
-The XCFramework contains `macos-arm64`, `ios-arm64`, and `ios-arm64-simulator` libraries. Representative objects report `LC_BUILD_VERSION` values of `MACOS minos 26.4`, `IOS minos 18.0`, and `IOSSIMULATOR minos 18.0`, respectively. The generated Swift bindings are byte-identical to the previously reviewed bindings.
+The XCFramework contains `macos-arm64`, `ios-arm64`, and `ios-arm64-simulator` libraries. Representative objects report `LC_BUILD_VERSION` values of `MACOS minos 26.4`, `IOS minos 18.0`, and `IOSSIMULATOR minos 18.0`, respectively. Seven generated Swift bindings are byte-identical to the previous artifact; `matrix_sdk_ffi.swift` is the reviewed post-login QR API change and is promoted with the matching native ABI.
 
 The archive was packaged from `bindings/apple/generated` with `COPYFILE_DISABLE=1 /usr/bin/zip -X -qry`, and verification rejects `__MACOSX`, `._*` AppleDouble metadata, absolute paths, and parent traversal entries.
 
 ## Verification
 
 - `matrix-sdk` library: 612 passed, 0 failed
-- `matrix-sdk-ffi` library: 43 passed, 0 failed
+- `matrix-sdk-ffi` library: 44 passed, 0 failed
+- post-login QR controller tests cover method negotiation, QR generation/scanning state, confirmation, cancellation, and callback lock reentrancy
 - password-authenticated identity-reset integration test: 1 passed, 0 failed
 - authoritative own-device integration classifications: 4 passed, 0 failed
 - password UIAA tests include typed challenge continuation and password non-disclosure
@@ -68,8 +71,8 @@ The archive was packaged from `bindings/apple/generated` with `COPYFILE_DISABLE=
 ## Artifact
 
 - `MatrixSDKFFI.xcframework.zip`
-- SHA-256 / SwiftPM checksum: `9b853f98352f088ae0939e28d4d739349c396f9b57f6af815c0a7957156fe4c8`
-- generated `matrix_sdk_ffi.swift` SHA-256: `8bcdf75446e97cf1cfca82529aa223c0c3ccca6e4e58113c8df038cc41c87f17`
+- SHA-256 / SwiftPM checksum: `bbb53ca9440b5ae11a25adf650cd7ce0fe134ee7c63dcb2da36dda8cf47716f0`
+- generated `matrix_sdk_ffi.swift` SHA-256: `6a97878dfe5cb23f20091c9fd6f9097bbba5fb396ad94ee111c4c7fae86ca045`
 
 ## License
 

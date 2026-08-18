@@ -14,10 +14,10 @@ from zipfile import BadZipFile, ZipFile
 ROOT = Path(__file__).resolve().parents[1]
 SECURITY_URL = "https://github.com/ZenithResearch/Hypha/security/advisories/new"
 AGPL_SHA256 = "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
-SDK_SHA256 = "9b853f98352f088ae0939e28d4d739349c396f9b57f6af815c0a7957156fe4c8"
-THIRD_PARTY_LICENSES_SHA256 = "fcaea90f82dc3aa6f0ab1761310e19c554ae771829e7a77d167c84128f9e42f2"
-LICENSE_INVENTORY_SHA256 = "66887660cc784b7d6cb4c4e425ba4a8d164ad1c9854a903a9af792576816216a"
-THIRD_PARTY_NOTICES_SHA256 = "e09cc55f6c0279876b459f03a91f28363b2be859736eef97ac269c4e7da5c86f"
+SDK_SHA256 = "bbb53ca9440b5ae11a25adf650cd7ce0fe134ee7c63dcb2da36dda8cf47716f0"
+THIRD_PARTY_LICENSES_SHA256 = "4cf7960300147bcee2a6838ffba4f75a1a6ecac53e7c6b9bc7694dbb36c0fe52"
+LICENSE_INVENTORY_SHA256 = "5839898ef03b1693be43544af144720c7ad7a8e77e89b91618a0e369b1824704"
+THIRD_PARTY_NOTICES_SHA256 = "4917e47146af2148bd40d852ed8fe2c4c7889cab5953df754061f1cea10e1bdc"
 PRIVATE_PATH_PREFIXES = ("/" + "Users/", "/" + "Volumes/" + "home/", "/" + "home/")
 LICENSE_HASHES = {
     "0BSD": "e3f18c71e10d673590eb9856c1d79dd3b4b0d65404efb5e8584dbede7edd608b",
@@ -232,7 +232,7 @@ require(sha256("Vendor/MatrixRustSDK/license-inventory.json") == LICENSE_INVENTO
 require(sha256("THIRD_PARTY_NOTICES.md") == THIRD_PARTY_NOTICES_SHA256, "third-party notices changed without inventory regeneration")
 inventory = json.loads(text("Vendor/MatrixRustSDK/license-inventory.json"))
 require(inventory.get("schema_version") == 1, "unsupported license inventory schema")
-require(inventory.get("matrix_sdk_source_commit") == "d28c164ef37cd67723aa565bf5aec9c0cefc3bb8", "license inventory source drift")
+require(inventory.get("matrix_sdk_source_commit") == "99d79bdde4bb2ff87c015e50d3537b4f512c5bf5", "license inventory source drift")
 require(inventory.get("cargo_about_version") == "0.9.1", "license inventory generator drift")
 require(inventory.get("target") == "aarch64-apple-darwin", "license inventory target drift")
 expected_packages = inventory.get("packages")

@@ -1,3 +1,5 @@
+import Foundation
+
 public enum HyphaSecurityIndicatorSeverity: Equatable, Sendable {
     case unknown
     case recommended
@@ -22,6 +24,10 @@ public enum HyphaSecurityLocalOperation: Equatable, Sendable {
     case deviceSetupFailed(reason: String)
     case incomingDeviceVerificationRequest
     case requestingVerificationFromAnotherHyphaDevice
+    case displayingVerificationQrCode(Data)
+    case readyToScanVerificationQrCode
+    case verificationQrCodeScanned
+    case waitingForVerificationQrConfirmation
     case comparingWithAnotherHyphaDevice(MatrixVerificationChallenge)
     case approvingAnotherHyphaDevice
     case verificationFailed(reason: String)
@@ -114,10 +120,16 @@ public enum HyphaSecurityPresentationPolicy {
         requiresPersistentCriticalBanner: Bool
     ) -> HyphaSecurityPrimaryDeviceAction? {
         guard verificationFlowState == .idle,
-              trustState == .unsigned,
               !requiresPersistentCriticalBanner else {
             return nil
         }
+
+        if trustState == .verifiedByCurrentSelfSigningKey {
+            return peerVerificationEligibility == .eligiblePeer
+                ? .verifyWithAnotherHyphaDevice
+                : nil
+        }
+        guard trustState == .unsigned else { return nil }
 
         switch firstDeviceTrustBootstrapState {
         case .notBootstrapped:
@@ -163,6 +175,16 @@ public enum HyphaSecurityPresentationPolicy {
             return .incomingDeviceVerificationRequest
         case .requesting:
             return .requestingVerificationFromAnotherHyphaDevice
+        case let .qrCode(data):
+            return .displayingVerificationQrCode(data)
+        case .readyToScanQrCode:
+            return .readyToScanVerificationQrCode
+        case .qrCodeScanned:
+            return .verificationQrCodeScanned
+        case .qrCodeReciprocated:
+            return .waitingForVerificationQrConfirmation
+        case .completed:
+            return .idle
         case let .challenge(challenge):
             return .comparingWithAnotherHyphaDevice(challenge)
         case .approving:

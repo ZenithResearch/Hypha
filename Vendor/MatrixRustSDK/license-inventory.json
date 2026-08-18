@@ -1,7 +1,7 @@
 {
   "cargo_about_version": "0.9.1",
   "matrix_sdk_ffi_version": "0.18.0",
-  "matrix_sdk_source_commit": "d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+  "matrix_sdk_source_commit": "99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
   "package_count": 507,
   "packages": [
     {
@@ -1837,7 +1837,7 @@
       "version": "0.2.3"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Damir Jelić <poljar@termina.org.uk>",
@@ -1845,7 +1845,7 @@
       "version": "0.18.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-base",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Damir Jelić <poljar@termina.org.uk>",
@@ -1853,7 +1853,7 @@
       "version": "0.18.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-common",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Damir Jelić <poljar@termina.org.uk>",
@@ -1861,7 +1861,7 @@
       "version": "0.18.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-contentscanner",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Jorge Martín Espinosa <jorgem@element.io>",
@@ -1869,7 +1869,7 @@
       "version": "0.18.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-crypto",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Damir Jelić <poljar@termina.org.uk>",
@@ -1877,7 +1877,7 @@
       "version": "0.18.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-ffi",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Upstream project contributors; see immutable source",
@@ -1885,7 +1885,7 @@
       "version": "0.18.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-ffi-macros",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Upstream project contributors; see immutable source",
@@ -1893,7 +1893,7 @@
       "version": "0.7.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-search",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Shrey Patel <shreyrg14@gmail.com>",
@@ -1901,7 +1901,7 @@
       "version": "0.18.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-sqlite",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Upstream project contributors; see immutable source",
@@ -1909,7 +1909,7 @@
       "version": "0.18.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-store-encryption",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Upstream project contributors; see immutable source",
@@ -1917,7 +1917,7 @@
       "version": "0.18.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-test",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Damir Jelić <poljar@termina.org.uk>",
@@ -1925,7 +1925,7 @@
       "version": "0.18.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-test-macros",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "stoically <stoically@protonmail.com>",
@@ -1933,7 +1933,7 @@
       "version": "0.18.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-test-utils",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Upstream project contributors; see immutable source",
@@ -1941,7 +1941,7 @@
       "version": "0.18.0"
     },
     {
-      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/d28c164ef37cd67723aa565bf5aec9c0cefc3bb8",
+      "immutable_source": "https://github.com/bananawalnut/matrix-rust-sdk/commit/99d79bdde4bb2ff87c015e50d3537b4f512c5bf5",
       "name": "matrix-sdk-ui",
       "normalized_spdx": "Apache-2.0",
       "package_metadata_attribution": "Upstream project contributors; see immutable source",

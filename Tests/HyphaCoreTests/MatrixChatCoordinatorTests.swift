@@ -172,24 +172,6 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.verificationFlowState, .idle)
     }
 
-    func testQrSignInPublishesProtocolProgressAndLoadsRooms() async {
-        let room = MatrixRoomSummary(
-            id: "!encrypted:example.org",
-            name: "Encrypted",
-            isEncrypted: true,
-            hasInvite: false
-        )
-        let service = FakeMatrixChatService(
-            restoredRooms: [room],
-            qrLoginUpdates: [.starting, .checkCodeDisplay("42"), .syncingSecrets, .completed]
-        )
-        let coordinator = MatrixChatCoordinator(service: service)
-
-        await coordinator.signInWithQrCode(Data([0x4d, 0x41, 0x54, 0x52, 0x49, 0x58]))
-
-        XCTAssertEqual(coordinator.state, .rooms([room]))
-        XCTAssertEqual(coordinator.qrLoginProgress, .completed)
-    }
 
     func testIncomingSASChallengeIsPublishedAfterSignIn() async {
         let challenge = MatrixVerificationChallenge.decimals([101, 202, 303])
@@ -372,6 +354,47 @@ final class MatrixChatCoordinatorTests: XCTestCase {
         await coordinator.approveDeviceVerification()
 
         XCTAssertEqual(coordinator.verificationFlowState, .idle)
+        XCTAssertEqual(coordinator.trustState, .unsigned)
+    }
+
+    func testPostLoginQrDisplayWaitsForExplicitScanConfirmationAndServerTrust() async {
+        let payload = Data([0x4d, 0x41, 0x54, 0x52, 0x49, 0x58])
+        let service = FakeMatrixChatService(
+            trustState: .unsigned,
+            trustStateAfterApproval: .verifiedByCurrentSelfSigningKey,
+            verificationQrCode: payload
+        )
+        let coordinator = MatrixChatCoordinator(service: service)
+
+        await coordinator.signIn(username: "alice", password: "not-recorded")
+        await coordinator.requestDeviceVerificationQrCode()
+        XCTAssertEqual(coordinator.verificationFlowState, .qrCode(payload))
+        XCTAssertEqual(service.qrVerificationRequests, 1)
+
+        service.emitIncomingVerificationState(.qrCodeScanned)
+        while coordinator.verificationFlowState != .qrCodeScanned { await Task.yield() }
+        XCTAssertEqual(coordinator.verificationFlowState, .qrCodeScanned)
+        XCTAssertEqual(service.qrVerificationConfirmations, 0)
+
+        await coordinator.confirmDeviceVerificationQrCode()
+        XCTAssertEqual(service.qrVerificationConfirmations, 1)
+        XCTAssertEqual(coordinator.verificationFlowState, .idle)
+        XCTAssertEqual(coordinator.trustState, .verifiedByCurrentSelfSigningKey)
+    }
+
+    func testPostLoginQrScannerUsesRawPayloadAndDoesNotDeclareTrustBeforeSdkTerminal() async {
+        let payload = Data([0x00, 0xff, 0x10, 0x80])
+        let service = FakeMatrixChatService(trustState: .unsigned)
+        let coordinator = MatrixChatCoordinator(service: service)
+
+        await coordinator.signIn(username: "alice", password: "not-recorded")
+        service.emitIncomingVerificationState(.incomingRequest)
+        await coordinator.acceptIncomingDeviceVerificationQrCode()
+        XCTAssertEqual(coordinator.verificationFlowState, .readyToScanQrCode)
+
+        await coordinator.scanDeviceVerificationQrCode(payload)
+        XCTAssertEqual(service.scannedVerificationQrCodes, [payload])
+        XCTAssertEqual(coordinator.verificationFlowState, .qrCodeReciprocated)
         XCTAssertEqual(coordinator.trustState, .unsigned)
     }
 
@@ -1058,6 +1081,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     var bootstrapContinuationResult: MatrixFirstDeviceTrustBootstrapState
     var trustStateAfterApproval: MatrixDeviceTrustState?
     var verificationChallenge: MatrixVerificationChallenge
+    var verificationQrCode: Data
     var verificationRequestError: MatrixChatServiceError?
     var recoveryState: MatrixRecoveryState
     var recoveryStateAfterApproval: MatrixRecoveryState?
@@ -1070,6 +1094,9 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     var verificationApprovals = 0
     var verificationDeclines = 0
     var verificationRequests = 0
+    var qrVerificationRequests = 0
+    var qrVerificationConfirmations = 0
+    var scannedVerificationQrCodes: [Data] = []
     var bootstrapRequests = 0
     var bootstrapContinuationRequests = 0
     var recoverySetupCount = 0
@@ -1086,14 +1113,12 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
     var adminAccountCreationRoles: [Bool] = []
     var timelineHandler: (@Sendable (String) async throws -> [MatrixTimelineEvent])?
     var sendTextHandler: (@Sendable (String, String) async throws -> Void)?
-    var qrLoginUpdates: [MatrixQrLoginProgress]
     var incomingVerificationChallenge: MatrixVerificationChallenge?
     var incomingVerificationHandler: (@Sendable (MatrixVerificationFlowState) -> Void)?
     var suspendResult = true
 
     init(
         restoredRooms: [MatrixRoomSummary] = [],
-        qrLoginUpdates: [MatrixQrLoginProgress] = [],
         incomingVerificationChallenge: MatrixVerificationChallenge? = nil,
         events: [MatrixTimelineEvent] = [],
         eventsAfterSend: [MatrixTimelineEvent]? = nil,
@@ -1109,6 +1134,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
         bootstrapContinuationResult: MatrixFirstDeviceTrustBootstrapState = .unavailable,
         trustStateAfterApproval: MatrixDeviceTrustState? = nil,
         verificationChallenge: MatrixVerificationChallenge = .decimals([111, 222, 333]),
+        verificationQrCode: Data = Data(),
         verificationRequestError: MatrixChatServiceError? = nil,
         recoveryState: MatrixRecoveryState = .unknown,
         recoveryStateAfterApproval: MatrixRecoveryState? = nil,
@@ -1118,7 +1144,6 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
         roomCreationError: MatrixChatServiceError? = nil
     ) {
         self.restoredRooms = restoredRooms
-        self.qrLoginUpdates = qrLoginUpdates
         self.incomingVerificationChallenge = incomingVerificationChallenge
         self.events = events
         self.eventsAfterSend = eventsAfterSend
@@ -1134,6 +1159,7 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
         self.bootstrapContinuationResult = bootstrapContinuationResult
         self.trustStateAfterApproval = trustStateAfterApproval
         self.verificationChallenge = verificationChallenge
+        self.verificationQrCode = verificationQrCode
         self.verificationRequestError = verificationRequestError
         self.recoveryState = recoveryState
         self.recoveryStateAfterApproval = recoveryStateAfterApproval
@@ -1162,14 +1188,8 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
         incomingVerificationHandler = handler
     }
 
-    func qrLoginAvailability() async -> MatrixQrLoginAvailability { .available }
-
-    func signInWithQrCode(
-        _ qrCodeData: Data,
-        progress: @escaping MatrixQrLoginProgressHandler
-    ) async throws -> [MatrixRoomSummary] {
-        qrLoginUpdates.forEach(progress)
-        return restoredRooms
+    func emitIncomingVerificationState(_ state: MatrixVerificationFlowState) {
+        incomingVerificationHandler?(state)
     }
 
     func changePassword(
@@ -1246,6 +1266,19 @@ private final class FakeMatrixChatService: MatrixChatService, @unchecked Sendabl
         verificationRequests += 1
         if let verificationRequestError { throw verificationRequestError }
         return verificationChallenge
+    }
+    func requestDeviceVerificationQrCode() async throws -> Data {
+        qrVerificationRequests += 1
+        if let verificationRequestError { throw verificationRequestError }
+        return verificationQrCode
+    }
+    func acceptIncomingDeviceVerificationQrCode() async throws {}
+    func scanDeviceVerificationQrCode(_ data: Data) async throws {
+        scannedVerificationQrCodes.append(data)
+    }
+    func confirmDeviceVerificationQrCode() async throws {
+        qrVerificationConfirmations += 1
+        if let trustStateAfterApproval { trustState = trustStateAfterApproval }
     }
     func approveDeviceVerification() async throws {
         verificationApprovals += 1
