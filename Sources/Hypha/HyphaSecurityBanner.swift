@@ -232,8 +232,7 @@ struct HyphaSecurityBanner: View {
     }
 
     private var showsPrimaryDeviceAction: Bool {
-        guard let action = presentation.primaryDeviceAction else { return false }
-        return action != .verifyWithAnotherHyphaDevice
+        presentation.primaryDeviceAction != nil
     }
 
     @ViewBuilder
@@ -245,7 +244,9 @@ struct HyphaSecurityBanner: View {
                 .keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier("matrix.first-device.bootstrap")
         case .verifyWithAnotherHyphaDevice:
-            EmptyView()
+            Button("Verify with Another Hypha Device", action: onRequestVerification)
+                .buttonStyle(HyphaButtonStyle(.primary))
+                .accessibilityIdentifier("matrix.verification.request.banner")
         case .continueDeviceSetupWithPassword:
             Button("Continue device setup", action: onContinueDeviceSetup)
                 .buttonStyle(HyphaButtonStyle(.primary))
