@@ -200,6 +200,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "model.isAdminOperationInFlight",
             "MatrixAdminSheet",
             "matrix.admin.open",
+            "matrix.admin.open.connection",
             "matrix.admin.account.create",
             "matrix.admin.account.password",
             "privacySensitive()",
