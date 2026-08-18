@@ -1894,13 +1894,7 @@ private struct MatrixCompanionShell: View {
                         repositoryRoom = room
                     }
                 }
-                compactToolbarButton(
-                    systemName: "shield",
-                    label: "Security",
-                    identifier: "matrix.toolbar.security"
-                ) {
-                    showsSecurityCenter = true
-                }
+                securityToolbarMenu
                 compactToolbarButton(
                     systemName: "slider.horizontal.3",
                     label: "Settings",
@@ -3103,15 +3097,16 @@ private struct MatrixCompanionShell: View {
                 }
                 .accessibilityIdentifier("matrix.security.center.open")
             } label: {
-                Label {
-                    Text("Security")
-                } icon: {
-                    Image(systemName: securityToolbarSymbol)
-                        .font(.system(size: 12, weight: .medium))
-                }
+                Image(systemName: securityToolbarSymbol)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
             }
+            .menuIndicator(.hidden)
             .help("Device verification and encryption recovery")
-            .accessibilityIdentifier("matrix.security.menu")
+            .accessibilityLabel("Security")
+            .accessibilityIdentifier("matrix.toolbar.security")
         }
     }
 

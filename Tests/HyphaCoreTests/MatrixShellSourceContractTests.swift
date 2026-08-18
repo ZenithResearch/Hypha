@@ -260,10 +260,15 @@ final class MatrixShellSourceContractTests: XCTestCase {
         )
 
         XCTAssertTrue(source.contains("matrix.toolbar.security"))
+        XCTAssertGreaterThanOrEqual(
+            source.components(separatedBy: "securityToolbarMenu").count,
+            3,
+            "The warning-aware Security menu must be mounted in the live toolbar"
+        )
         XCTAssertTrue(source.contains("font(.system(size: 11, weight: .regular))"))
         XCTAssertTrue(source.contains("foregroundStyle(ZenithDesign.Palette.muted)"))
         XCTAssertTrue(source.contains(".sheet(isPresented: $showsSecurityCenter)"))
-        XCTAssertTrue(source.contains("label: \"Security\""))
+        XCTAssertTrue(source.contains(".accessibilityLabel(\"Security\")"))
         XCTAssertTrue(source.contains("if securityPresentation.requiresPersistentCriticalBanner"))
         XCTAssertTrue(source.contains("maxHeight: .infinity, alignment: .top"))
         XCTAssertFalse(source.contains("                    securityBanner\n"))
@@ -330,8 +335,8 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(appSource.contains("Section(\"Devices\")"))
         XCTAssertTrue(appSource.contains("Button(\"Verify new device\")"))
         XCTAssertTrue(appSource.contains("matrix.verification.request.settings"))
-        XCTAssertFalse(bannerSource.contains("Button(\"Verify new device\""))
-        XCTAssertFalse(bannerSource.contains("Verify with another Hypha device"))
+        XCTAssertTrue(bannerSource.contains("Button(\"Verify with Another Hypha Device\""))
+        XCTAssertTrue(bannerSource.contains("matrix.verification.request.banner"))
         XCTAssertTrue(bannerSource.contains("matrix.security.banner"))
         XCTAssertTrue(bannerSource.contains("@Environment(\\.accessibilityReduceMotion)"))
         XCTAssertTrue(bannerSource.contains("AccessibilityNotification.Announcement"))
