@@ -133,25 +133,6 @@ public enum MatrixVerificationChallenge: Equatable, Sendable {
     case decimals([UInt16])
 }
 
-public enum MatrixQrLoginAvailability: Equatable, Sendable {
-    case available
-    case unavailable(reason: String)
-}
-
-public enum MatrixQrLoginProgress: Equatable, Sendable {
-    case starting
-    case qrReady(Data)
-    case checkCodeDisplay(String)
-    case checkCodeInputRequired
-    case waitingForAuthorization(URL)
-    case waitingForToken(String)
-    case syncingSecrets
-    case completed
-    case failed(String)
-}
-
-public typealias MatrixQrLoginProgressHandler = @Sendable (MatrixQrLoginProgress) -> Void
-
 public enum MatrixRecoveryState: Equatable, Sendable {
     case unknown
     case unavailable
@@ -476,14 +457,6 @@ public enum MatrixPasswordChangeResult: Equatable, Sendable {
 public protocol MatrixChatService: Sendable {
     func restore() async throws -> [MatrixRoomSummary]
     func signIn(username: String, password: String) async throws -> [MatrixRoomSummary]
-    func qrLoginAvailability() async -> MatrixQrLoginAvailability
-    func signInWithQrCode(
-        _ qrCodeData: Data,
-        progress: @escaping MatrixQrLoginProgressHandler
-    ) async throws -> [MatrixRoomSummary]
-    func generateQrLoginCode(progress: @escaping MatrixQrLoginProgressHandler) async throws
-    func submitQrLoginCheckCode(_ code: UInt8) async throws
-    func cancelQrLogin() async
     func changePassword(
         currentPassword: String,
         newPassword: String,
@@ -492,12 +465,6 @@ public protocol MatrixChatService: Sendable {
     func requestHomeserverPasswordReset() async throws -> MatrixPasswordResetRequest
     func currentHomeserverPasswordResetRequest() async throws -> MatrixPasswordResetRequest?
     func completeHomeserverPasswordResetRequest() async throws
-    func beginAdministratorAuthorization() async throws -> MatrixAdminOAuthRequest
-    func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws
-    @discardableResult
-    func cancelAdministratorAuthorization(requestID: UUID?) async -> Bool
-    @discardableResult
-    func endAdministratorAuthorization() async -> Bool
     func isHomeserverAdministrator() async throws -> Bool
     func administratorSnapshot() async throws -> MatrixAdminSnapshot
     func administratorPasswordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest]
@@ -558,27 +525,6 @@ public extension MatrixChatService {
         throw MatrixChatServiceError.unavailable(reason: "Room repository attachments are unavailable")
     }
 
-    func qrLoginAvailability() async -> MatrixQrLoginAvailability {
-        .unavailable(reason: "Secure QR login is unavailable")
-    }
-
-    func signInWithQrCode(
-        _ qrCodeData: Data,
-        progress: @escaping MatrixQrLoginProgressHandler
-    ) async throws -> [MatrixRoomSummary] {
-        throw MatrixChatServiceError.unavailable(reason: "Secure QR login is unavailable")
-    }
-
-    func generateQrLoginCode(progress: @escaping MatrixQrLoginProgressHandler) async throws {
-        throw MatrixChatServiceError.unavailable(reason: "Secure QR login is unavailable")
-    }
-
-    func submitQrLoginCheckCode(_ code: UInt8) async throws {
-        throw MatrixChatServiceError.unavailable(reason: "Secure QR login is unavailable")
-    }
-
-    func cancelQrLogin() async {}
-
     func createAdministratorManagedRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility) async throws -> MatrixAdminRoomSummary {
         throw MatrixAdminClientError.serverRejected
     }
@@ -603,19 +549,6 @@ public extension MatrixChatService {
 
     func completeHomeserverPasswordResetRequest() async throws {}
 
-    func beginAdministratorAuthorization() async throws -> MatrixAdminOAuthRequest {
-        throw MatrixChatServiceError.unavailable(reason: "Homeserver administrator authorization is unavailable")
-    }
-
-    func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws {
-        throw MatrixChatServiceError.unavailable(reason: "Homeserver administrator authorization is unavailable")
-    }
-
-    @discardableResult
-    func cancelAdministratorAuthorization(requestID: UUID?) async -> Bool { true }
-
-    @discardableResult
-    func endAdministratorAuthorization() async -> Bool { true }
 
     func administratorPasswordResetRequests(users: [MatrixAdminUserSummary]) async throws -> [MatrixPasswordResetRequest] {
         throw MatrixAdminClientError.serverRejected
@@ -747,7 +680,6 @@ public final class MatrixChatCoordinator {
     public private(set) var recoveryState: MatrixRecoveryState = .unknown
     public private(set) var firstDeviceTrustBootstrapState: MatrixFirstDeviceTrustBootstrapState = .notBootstrapped
     public private(set) var peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable
-    public private(set) var qrLoginProgress: MatrixQrLoginProgress?
 
     public var securityGuidance: MatrixSecurityGuidance {
         MatrixSecurityGuidance(
@@ -801,66 +733,6 @@ public final class MatrixChatCoordinator {
         }
     }
 
-    public func qrLoginAvailability() async -> MatrixQrLoginAvailability {
-        await service.qrLoginAvailability()
-    }
-
-    public func signInWithQrCode(
-        _ qrCodeData: Data,
-        progress: (@MainActor @Sendable (MatrixQrLoginProgress) -> Void)? = nil
-    ) async {
-        await installIncomingVerificationObserver()
-        state = .restoring
-        qrLoginProgress = .starting
-        do {
-            state = .rooms(try await service.signInWithQrCode(qrCodeData) { [weak self] update in
-                Task { @MainActor in
-                    self?.qrLoginProgress = update
-                    progress?(update)
-                }
-            })
-            qrLoginProgress = .completed
-            progress?(.completed)
-            await refreshTrustState()
-            await refreshRecoveryState()
-        } catch {
-            let mapped = map(error, room: nil)
-            state = mapped
-            qrLoginProgress = .failed(Self.qrFailureMessage(for: mapped))
-            progress?(qrLoginProgress!)
-        }
-    }
-
-    public func generateQrLoginCode(
-        progress: (@MainActor @Sendable (MatrixQrLoginProgress) -> Void)? = nil
-    ) async {
-        qrLoginProgress = .starting
-        do {
-            try await service.generateQrLoginCode { [weak self] update in
-                Task { @MainActor in
-                    self?.qrLoginProgress = update
-                    progress?(update)
-                }
-            }
-        } catch {
-            qrLoginProgress = .failed("Secure QR setup could not be started")
-            progress?(qrLoginProgress!)
-        }
-    }
-
-    public func submitQrLoginCheckCode(_ code: UInt8) async {
-        do {
-            try await service.submitQrLoginCheckCode(code)
-        } catch {
-            qrLoginProgress = .failed("The check code could not be confirmed")
-        }
-    }
-
-    public func cancelQrLogin() async {
-        await service.cancelQrLogin()
-        qrLoginProgress = nil
-    }
-
     private func installIncomingVerificationObserver() async {
         await service.setIncomingDeviceVerificationHandler { [weak self] state in
             Task { @MainActor in
@@ -870,14 +742,6 @@ public final class MatrixChatCoordinator {
         }
     }
 
-    private static func qrFailureMessage(for state: MatrixChatState) -> String {
-        switch state {
-        case .offline: return "Hypha is offline"
-        case .sessionExpired: return "The QR login session expired"
-        case let .unavailable(reason): return reason
-        default: return "Secure QR login failed"
-        }
-    }
 
     public func restoreAndRefreshForAccountSwitch() async -> [MatrixRoomSummary]? {
         await installIncomingVerificationObserver()
@@ -962,23 +826,6 @@ public final class MatrixChatCoordinator {
         }
     }
 
-    public func beginAdministratorAuthorization() async throws -> MatrixAdminOAuthRequest {
-        try await service.beginAdministratorAuthorization()
-    }
-
-    public func completeAdministratorAuthorization(requestID: UUID, callbackURL: URL) async throws {
-        try await service.completeAdministratorAuthorization(requestID: requestID, callbackURL: callbackURL)
-    }
-
-    @discardableResult
-    public func cancelAdministratorAuthorization(requestID: UUID?) async -> Bool {
-        await service.cancelAdministratorAuthorization(requestID: requestID)
-    }
-
-    @discardableResult
-    public func endAdministratorAuthorization() async -> Bool {
-        await service.endAdministratorAuthorization()
-    }
 
     public func isHomeserverAdministrator() async throws -> Bool {
         try await service.isHomeserverAdministrator()

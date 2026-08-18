@@ -1,5 +1,4 @@
 import Accessibility
-import AuthenticationServices
 import SwiftUI
 import HyphaCore
 #if os(macOS)
@@ -7,77 +6,6 @@ import AppKit
 #else
 import UIKit
 #endif
-
-@MainActor
-final class MatrixAdminWebAuthorizationSession: NSObject, ASWebAuthenticationPresentationContextProviding {
-    private var session: ASWebAuthenticationSession?
-    private var continuation: CheckedContinuation<URL, Error>?
-
-    func callback(for request: MatrixAdminOAuthRequest) async throws -> URL {
-        guard session == nil, continuation == nil else {
-            throw MatrixChatServiceError.unavailable(reason: "Administrator authorization is already in progress")
-        }
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                self.continuation = continuation
-                let session = ASWebAuthenticationSession(
-                    url: request.authorizationURL,
-                    callbackURLScheme: request.callbackScheme
-                ) { [weak self] callbackURL, error in
-                    Task { @MainActor in
-                        self?.finish(callbackURL: callbackURL, error: error)
-                    }
-                }
-                session.presentationContextProvider = self
-                session.prefersEphemeralWebBrowserSession = false
-                self.session = session
-                guard session.start() else {
-                    finish(
-                        callbackURL: nil,
-                        error: MatrixChatServiceError.unavailable(reason: "Administrator authorization could not be opened")
-                    )
-                    return
-                }
-            }
-        } onCancel: {
-            Task { @MainActor [weak self] in self?.cancel() }
-        }
-    }
-
-    func cancel() {
-        session?.cancel()
-        finish(
-            callbackURL: nil,
-            error: CancellationError()
-        )
-    }
-
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        #if os(macOS)
-        NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first ?? ASPresentationAnchor()
-        #else
-        let window = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-            .first { $0.isKeyWindow }
-        return window ?? ASPresentationAnchor()
-        #endif
-    }
-
-    private func finish(callbackURL: URL?, error: Error?) {
-        guard let continuation else { return }
-        self.continuation = nil
-        session = nil
-        if let callbackURL,
-           MatrixPrimarySessionOAuth.validCallback(callbackURL) {
-            continuation.resume(returning: callbackURL)
-        } else {
-            continuation.resume(throwing: error ?? MatrixChatServiceError.unavailable(
-                reason: "Administrator authorization callback was invalid"
-            ))
-        }
-    }
-}
 
 @main
 struct HyphaApp: App {
@@ -173,7 +101,6 @@ enum MatrixRecoveryIdentityResetPresentationState: Equatable {
 enum MatrixAppAdminAccessState: Equatable {
     case unknown
     case checking
-    case upgradeRequired
     case authorized
     case denied
 }
@@ -205,10 +132,6 @@ final class MatrixAppModel: ObservableObject {
     @Published var firstDeviceTrustBootstrapState: MatrixFirstDeviceTrustBootstrapState = .notBootstrapped
     @Published var peerVerificationEligibility: MatrixPeerVerificationEligibility = .unavailable
     @Published var registrationAvailability: MatrixRegistrationAvailability = .unavailable
-    @Published private(set) var qrLoginAvailability: MatrixQrLoginAvailability = .unavailable(
-        reason: "Secure QR login availability has not been checked"
-    )
-    @Published var qrLoginProgress: MatrixQrLoginProgress?
     @Published var registrationError: String?
     @Published var showsFirstRunGuidance = false
     @Published var isSyncingRooms = false
@@ -225,10 +148,13 @@ final class MatrixAppModel: ObservableObject {
     @Published private(set) var adminPasswordResetRequests: [MatrixPasswordResetRequest] = []
     @Published private(set) var issuedPasswordResetRequestIDs: Set<String> = []
     @Published private(set) var isAdminOperationInFlight = false
-    @Published private(set) var isAdminAuthorizationInFlight = false
     @Published var adminMessage: String?
     @Published private(set) var isPasswordResetRequestInFlight = false
     @Published private(set) var passwordResetRequestMessage: String?
+
+    var canReauthenticateAdministratorSession: Bool {
+        nativeAdministratorCredential != nil
+    }
 
     var isRecoveryIdentityResetActive: Bool {
         recoveryIdentityResetState != .idle
@@ -252,7 +178,6 @@ final class MatrixAppModel: ObservableObject {
     private var registrationClient: MatrixInviteRegistrationClient?
     private var timelineRefreshTask: Task<Void, Never>?
     private var authenticationOperationGate = HyphaAuthenticationOperationGate()
-    private let adminWebAuthorizationSession = MatrixAdminWebAuthorizationSession()
 
     init(
         healthChecker: MatrixHomeserverHealthChecker,
@@ -331,14 +256,11 @@ final class MatrixAppModel: ObservableObject {
             let registrationClient = MatrixInviteRegistrationClient(homeserver: configuration.homeserver)
             self.registrationClient = registrationClient
             registrationAvailability = await registrationClient.availability()
-            await refreshQrLoginAvailability()
         } catch {
             activeConfiguration = nil
             coordinator = nil
             registrationClient = nil
             registrationAvailability = .unavailable
-            qrLoginAvailability = .unavailable(reason: "The homeserver is unavailable")
-            qrLoginProgress = nil
             savedSessions = []
             savedCredentials = []
             activeSessionAccountKey = nil
@@ -408,14 +330,6 @@ final class MatrixAppModel: ObservableObject {
     private func suspendCoordinatorForAccountTransition() async -> Bool {
         guard !isRecoveryIdentityResetActive else { return false }
         guard let coordinator else { return true }
-        let ended = await coordinator.endAdministratorAuthorization()
-        guard coordinator === self.coordinator else { return false }
-        guard ended else {
-            adminAccessState = .denied
-            adminSnapshot = nil
-            adminMessage = "Administrator authorization is still completing. Wait before changing accounts or homeservers."
-            return false
-        }
         let suspended = await coordinator.suspend()
         guard coordinator === self.coordinator else { return false }
         guard suspended else {
@@ -543,55 +457,6 @@ final class MatrixAppModel: ObservableObject {
                 )
             }
         }
-    }
-
-    func refreshQrLoginAvailability() async {
-        guard let coordinator else {
-            qrLoginAvailability = .unavailable(reason: "Connect to the homeserver first")
-            return
-        }
-        qrLoginAvailability = await coordinator.qrLoginAvailability()
-    }
-
-    func signInWithQrCode(_ qrCodeData: Data) async {
-        guard let coordinator else { return }
-        guard beginAuthenticationOperation() else { return }
-        defer { finishAuthenticationOperation() }
-        qrLoginProgress = .starting
-        await coordinator.signInWithQrCode(qrCodeData) { [weak self] update in
-            self?.qrLoginProgress = update
-        }
-        applyState(from: coordinator)
-        applySecurityState(from: coordinator)
-        await refreshAdministratorAccess()
-        if let configuration = activeConfiguration {
-            refreshSavedSessions(configuration: configuration)
-            if case .rooms = state {
-                await refreshPasswordResetAuthority(using: coordinator)
-            }
-        }
-    }
-
-    func generateQrLoginCode() async {
-        guard let coordinator else { return }
-        qrLoginProgress = .starting
-        await coordinator.generateQrLoginCode { [weak self] update in
-            self?.qrLoginProgress = update
-        }
-    }
-
-    func submitQrLoginCheckCode(_ value: String) async {
-        guard let code = UInt8(value), value.count == 2, code <= 99 else {
-            qrLoginProgress = .failed("Enter the two-digit code shown on the new device")
-            return
-        }
-        await coordinator?.submitQrLoginCheckCode(code)
-        qrLoginProgress = coordinator?.qrLoginProgress
-    }
-
-    func cancelQrLogin() async {
-        await coordinator?.cancelQrLogin()
-        qrLoginProgress = nil
     }
 
     func signIn(with credential: HyphaMatrixCredentialDescriptor) async {
@@ -1298,12 +1163,6 @@ final class MatrixAppModel: ObservableObject {
                 adminSnapshot = nil
                 adminMessage = "This Matrix account is not a homeserver administrator."
             }
-        } catch let error as MatrixAdminClientError
-            where MatrixPrimarySessionOAuth.requiresAdministratorScopeUpgrade(error) {
-            guard coordinator === self.coordinator else { return }
-            adminAccessState = .upgradeRequired
-            adminSnapshot = nil
-            adminMessage = "This saved Matrix session needs administrator capability before the console can open."
         } catch {
             guard coordinator === self.coordinator else { return }
             adminAccessState = .denied
@@ -1312,100 +1171,24 @@ final class MatrixAppModel: ObservableObject {
         }
     }
 
-    func authorizeAdministratorAccess() async {
-        guard let coordinator,
-              adminAccessState == .upgradeRequired,
-              !isAdminAuthorizationInFlight else { return }
-        isAdminAuthorizationInFlight = true
-        adminAccessState = .checking
-        adminMessage = nil
-        var requestID: UUID?
-        defer { isAdminAuthorizationInFlight = false }
-        do {
-            do {
-                let authorized = try await coordinator.isHomeserverAdministrator()
-                guard coordinator === self.coordinator else { return }
-                if authorized {
-                    adminAccessState = .authorized
-                    await refreshAdministratorSnapshot()
-                    return
-                }
-                adminAccessState = .denied
-                adminSnapshot = nil
-                adminMessage = "This Matrix account is not a homeserver administrator."
-                return
-            } catch let error as MatrixAdminClientError
-                where MatrixPrimarySessionOAuth.requiresAdministratorScopeUpgrade(error) {
-                // The explicit user action below upgrades this same primary session.
-            }
-            let request = try await coordinator.beginAdministratorAuthorization()
-            requestID = request.id
-            guard coordinator === self.coordinator else {
-                await coordinator.cancelAdministratorAuthorization(requestID: request.id)
-                return
-            }
-            let callbackURL = try await adminWebAuthorizationSession.callback(for: request)
-            try await coordinator.completeAdministratorAuthorization(
-                requestID: request.id,
-                callbackURL: callbackURL
-            )
-            guard coordinator === self.coordinator else {
-                await coordinator.endAdministratorAuthorization()
-                return
-            }
-            adminAccessState = .authorized
-            await refreshAdministratorSnapshot()
-        } catch {
-            let cancellationConfirmed = await coordinator.cancelAdministratorAuthorization(requestID: requestID)
-            guard coordinator === self.coordinator else { return }
-            switch error {
-            case MatrixAdminClientError.sessionExpired:
-                state = .sessionExpired
-                adminAccessState = .denied
-                adminSnapshot = nil
-                adminMessage = "The primary Matrix session expired. Restore or sign in again before retrying."
-                return
-            default:
-                break
-            }
-            if let serviceError = error as? MatrixChatServiceError {
-                switch serviceError {
-                case .recoveryRequired:
-                    state = .recoveryRequired
-                    adminAccessState = .denied
-                    adminSnapshot = nil
-                    adminMessage = "The primary Matrix session needs recovery before administrator access can continue."
-                    return
-                case .sessionExpired:
-                    state = .sessionExpired
-                    adminAccessState = .denied
-                    adminSnapshot = nil
-                    adminMessage = "The primary Matrix session expired. Restore or sign in again before retrying."
-                    return
-                default:
-                    break
-                }
-            }
-            adminAccessState = .upgradeRequired
-            adminSnapshot = nil
-            adminMessage = error is CancellationError
-                ? "Administrator capability upgrade was cancelled."
-                : cancellationConfirmed
-                    ? "The primary Matrix session was not upgraded."
-                    : "The authorization callback is still completing; wait before retrying."
+    func reauthenticateAdministratorSession() async {
+        guard let credential = nativeAdministratorCredential else { return }
+        await signIn(with: credential)
+        if adminAccessState != .authorized, adminMessage == nil {
+            adminMessage = "Native password sign-in did not establish administrator authority."
         }
+    }
+
+    private var nativeAdministratorCredential: HyphaMatrixCredentialDescriptor? {
+        guard adminAccessState == .denied,
+              let activeSessionAccountKey,
+              let activeSession = savedSessions.first(where: { $0.accountKey == activeSessionAccountKey }),
+              activeSession.oauthData != nil else { return nil }
+        return savedCredentials.first(where: { $0.id == activeSessionAccountKey })
     }
 
     @discardableResult
     func endAdministratorAccess() async -> Bool {
-        adminWebAuthorizationSession.cancel()
-        guard let coordinator else {
-            resetAdministratorState()
-            return true
-        }
-        let ended = await coordinator.endAdministratorAuthorization()
-        guard coordinator === self.coordinator else { return ended }
-        guard ended else { return false }
         resetAdministratorState()
         return true
     }
@@ -1621,10 +1404,6 @@ final class MatrixAppModel: ObservableObject {
 
     private func applyAdministratorError(_ error: Error) async {
         switch MatrixAdministratorErrorDisposition.classify(error) {
-        case .unsupportedScope:
-            adminAccessState = .denied
-            adminSnapshot = nil
-            adminMessage = "The homeserver returned an unsupported administrator-scope challenge. No authorization was started."
         case .denied:
             adminAccessState = .denied
             adminSnapshot = nil
@@ -1941,7 +1720,6 @@ private struct MatrixCompanionShell: View {
     @State private var newRoomKind: MatrixRoomKind = .room
     @State private var showsFirstDevicePassword = false
     @State private var showsSecurityCenter = false
-    @State private var qrGrantCheckCode = ""
     @State private var showsPasswordChange = false
     @State private var showsAdministration = false
     @State private var showsSettings = false
@@ -2849,24 +2627,6 @@ private struct MatrixCompanionShell: View {
                 }
             }
 
-            Section("Verify New Device") {
-                Text("Use this Mac to securely sign in and verify a new Hypha device. The QR code contains Matrix protocol setup data—not your password or access token.")
-                    .font(.callout)
-                    .foregroundStyle(ZenithDesign.Palette.muted)
-
-                switch model.qrLoginAvailability {
-                case let .unavailable(reason):
-                    HyphaStatusMessage(message: reason, tone: .warning)
-                    Button("Check QR setup availability") {
-                        Task { await model.refreshQrLoginAvailability() }
-                    }
-                    .buttonStyle(HyphaButtonStyle(.secondary))
-                case .available:
-                    qrGrantProgress
-                }
-            }
-            .accessibilityIdentifier("matrix.settings.verify-new-device")
-
             Section("Application Updates") {
                 Text("Open Terminal to pull the canonical GitHub main branch, rebuild and verify Hypha outside the app sandbox, install it in place, and reopen it. Terminal shows the complete update log.")
                     .font(.callout)
@@ -3275,10 +3035,6 @@ private struct MatrixCompanionShell: View {
 
                 Divider()
 
-                qrDeviceSetupSection
-
-                Divider()
-
                 VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
                     Text("ACCOUNT SECURITY")
                         .font(ZenithDesign.Typography.technical(.caption2, weight: .semibold))
@@ -3306,89 +3062,6 @@ private struct MatrixCompanionShell: View {
             .background(ZenithDesign.Palette.base)
     }
 
-    @ViewBuilder
-    private var qrDeviceSetupSection: some View {
-        VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
-            Text("DEVICE SETUP")
-                .font(ZenithDesign.Typography.technical(.caption2, weight: .semibold))
-                .tracking(0.8)
-                .foregroundStyle(ZenithDesign.Palette.muted)
-            Text("Set Up Another Device")
-                .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
-            Text("Display a one-time Matrix QR code. Passwords and access tokens are never placed in it.")
-                .font(ZenithDesign.Typography.corporate(.callout))
-                .foregroundStyle(ZenithDesign.Palette.muted)
-
-            switch model.qrLoginAvailability {
-            case let .unavailable(reason):
-                HyphaStatusMessage(message: reason, tone: .warning)
-                Button("Check QR setup availability") {
-                    Task { await model.refreshQrLoginAvailability() }
-                }
-                .buttonStyle(HyphaButtonStyle(.secondary))
-            case .available:
-                qrGrantProgress
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, ZenithDesign.Space.x5)
-    }
-
-    @ViewBuilder
-    private var qrGrantProgress: some View {
-        switch model.qrLoginProgress {
-        case let .qrReady(payload):
-            VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
-                HyphaQrCodeImage(payload: payload)
-                    .frame(maxWidth: .infinity)
-                Text("Scan this code on the new device. It expires with the Matrix login session.")
-                    .font(ZenithDesign.Typography.corporate(.callout))
-                    .foregroundStyle(ZenithDesign.Palette.muted)
-            }
-        case .checkCodeInputRequired:
-            VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
-                Text("Enter the two-digit code shown on the new device")
-                    .font(ZenithDesign.Typography.corporate(.callout, weight: .semibold))
-                TextField("00", text: $qrGrantCheckCode)
-                    .textFieldStyle(HyphaTextFieldStyle())
-                    .frame(maxWidth: 120)
-                    .accessibilityIdentifier("matrix.qr-grant.check-code")
-                Button("Confirm code") {
-                    let value = qrGrantCheckCode
-                    qrGrantCheckCode = ""
-                    Task { await model.submitQrLoginCheckCode(value) }
-                }
-                .buttonStyle(HyphaButtonStyle(.primary))
-                .disabled(qrGrantCheckCode.count != 2)
-            }
-        case let .waitingForAuthorization(url):
-            Link("Authorize secure device setup", destination: url)
-                .buttonStyle(HyphaButtonStyle(.primary))
-        case .starting, .syncingSecrets:
-            HStack(spacing: ZenithDesign.Space.x2) {
-                ProgressView()
-                Text(model.qrLoginProgress == .syncingSecrets ? "Sharing encryption secrets…" : "Preparing secure QR code…")
-            }
-        case .completed:
-            HyphaStatusMessage(message: "The new device is signed in and verified.", tone: .success)
-            Button("Show setup QR code") {
-                Task { await model.generateQrLoginCode() }
-            }
-            .buttonStyle(HyphaButtonStyle(.secondary))
-        case let .failed(message):
-            HyphaStatusMessage(message: message)
-            Button("Try Again") {
-                Task { await model.generateQrLoginCode() }
-            }
-            .buttonStyle(HyphaButtonStyle(.secondary))
-        default:
-            Button("Show setup QR code") {
-                Task { await model.generateQrLoginCode() }
-            }
-            .buttonStyle(HyphaButtonStyle(.primary))
-            .accessibilityIdentifier("matrix.qr-grant.start")
-        }
-    }
 
     @ViewBuilder
     private var securityToolbarMenu: some View {

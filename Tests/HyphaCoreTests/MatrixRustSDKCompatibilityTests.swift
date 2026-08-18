@@ -4,26 +4,6 @@ import XCTest
 import MatrixRustSDK
 
 final class MatrixRustSDKCompatibilityTests: XCTestCase {
-    func testLiveQrLoginUsesPinnedMSC4108HandlersWithoutCredentialPayloads() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let source = try String(
-            contentsOf: root.appendingPathComponent("Sources/HyphaCore/MatrixRustSDKChatService.swift"),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(source.contains("QrCodeData.fromBytes(bytes: qrCodeData)"))
-        XCTAssertTrue(source.contains("client.newLoginWithQrCodeHandler(oauthConfiguration:"))
-        XCTAssertTrue(source.contains("client.newGrantLoginWithQrCodeHandler()"))
-        XCTAssertTrue(source.contains("handler.scan(qrCodeData:"))
-        XCTAssertTrue(source.contains("handler.generate(progressListener:"))
-        XCTAssertTrue(source.contains("try await sender.send(code: code)"))
-        XCTAssertFalse(source.contains("qrCodeData: password"))
-        XCTAssertFalse(source.contains("qrCodeData: session.accessToken"))
-    }
-
     func testExactSDKCanConstructFixedHomeserverBuilder() {
         let builder = ClientBuilder()
             .homeserverUrl(url: MatrixProductConfiguration.production.homeserver.absoluteString)
@@ -46,43 +26,6 @@ final class MatrixRustSDKCompatibilityTests: XCTestCase {
         )
     }
 
-    func testLiveFactoryRecognizesProductionMSC4108DelegatedAuthentication() async throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("zenith-matrix-qr-capability-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let factory = MatrixRustLiveClientFactory(
-            configuration: .production,
-            rootDirectory: root
-        )
-
-        let isSupported = try await factory.qrLoginSupported()
-        XCTAssertTrue(isSupported)
-    }
-
-    func testQrCapabilityRequiresMSC4108AndCompleteSameOriginOAuthMetadata() throws {
-        let versions = Data(#"{"unstable_features":{"org.matrix.msc4108":true}}"#.utf8)
-        let metadata = Data(#"{"issuer":"https://auth.example.org/","authorization_endpoint":"https://auth.example.org/authorize","token_endpoint":"https://auth.example.org/oauth2/token","registration_endpoint":"https://auth.example.org/oauth2/registration","device_authorization_endpoint":"https://auth.example.org/oauth2/device","grant_types_supported":["authorization_code","urn:ietf:params:oauth:grant-type:device_code"],"code_challenge_methods_supported":["S256"]}"#.utf8)
-
-        XCTAssertTrue(try MatrixRustLiveClientFactory.supportsQrLogin(
-            versionsData: versions,
-            authMetadataData: metadata
-        ))
-    }
-
-    func testQrCapabilityRejectsMissingDeviceGrantAndCrossOriginEndpoints() throws {
-        let versions = Data(#"{"unstable_features":{"org.matrix.msc4108":true}}"#.utf8)
-        let missingGrant = Data(#"{"issuer":"https://auth.example.org/","authorization_endpoint":"https://auth.example.org/authorize","token_endpoint":"https://auth.example.org/oauth2/token","registration_endpoint":"https://auth.example.org/oauth2/registration","device_authorization_endpoint":"https://auth.example.org/oauth2/device","grant_types_supported":["authorization_code"],"code_challenge_methods_supported":["S256"]}"#.utf8)
-        let crossOrigin = Data(#"{"issuer":"https://auth.example.org/","authorization_endpoint":"https://attacker.example/authorize","token_endpoint":"https://auth.example.org/oauth2/token","registration_endpoint":"https://auth.example.org/oauth2/registration","device_authorization_endpoint":"https://auth.example.org/oauth2/device","grant_types_supported":["urn:ietf:params:oauth:grant-type:device_code"],"code_challenge_methods_supported":["S256"]}"#.utf8)
-
-        XCTAssertFalse(try MatrixRustLiveClientFactory.supportsQrLogin(
-            versionsData: versions,
-            authMetadataData: missingGrant
-        ))
-        XCTAssertFalse(try MatrixRustLiveClientFactory.supportsQrLogin(
-            versionsData: versions,
-            authMetadataData: crossOrigin
-        ))
-    }
 
     func testFactoryMigratesLegacyCryptoStoreDirectory() throws {
         let root = FileManager.default.temporaryDirectory

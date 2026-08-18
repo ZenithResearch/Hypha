@@ -188,21 +188,11 @@ final class MatrixShellSourceContractTests: XCTestCase {
 
         for marker in [
             ".sheet(isPresented: $showsAdministration)",
-            "matrix.admin.authorize",
-            "urn:synapse:admin:*",
-            "prefersEphemeralWebBrowserSession = false",
-            "case upgradeRequired",
-            "case .insufficientScope:",
-            "case .recoveryRequired:",
-            "state = .recoveryRequired",
             "case .sessionExpired:",
-            "case MatrixAdminClientError.sessionExpired:",
             "MatrixAdministratorErrorDisposition.classify(error)",
             "case .primarySessionExpired:",
             "state = .sessionExpired",
-            "The primary Matrix session needs recovery before administrator access can continue.",
             "let authorized = try await coordinator.isHomeserverAdministrator()",
-            "endAdministratorAuthorization()",
             "let suspended = await coordinator.suspend()",
             "guard suspended else",
             "await applyAdministratorError(error)",
@@ -229,6 +219,15 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertFalse(source.contains("Create normal"))
         XCTAssertFalse(source.contains("prefersEphemeralWebBrowserSession = true"))
         XCTAssertFalse(source.contains("Retry revocation"))
+        XCTAssertFalse(appSource.contains("authorizeAdministratorAccess"))
+        XCTAssertFalse(appSource.contains("MatrixAdminWebAuthorizationSession"))
+        XCTAssertFalse(appSource.contains("case upgradeRequired"))
+        XCTAssertFalse(sheetSource.contains("matrix.admin.authorize"))
+        XCTAssertFalse(sheetSource.contains("Upgrade primary session"))
+        XCTAssertTrue(appSource.contains("canReauthenticateAdministratorSession"))
+        XCTAssertTrue(appSource.contains("reauthenticateAdministratorSession"))
+        XCTAssertTrue(sheetSource.contains("Sign in again with saved password"))
+        XCTAssertTrue(sheetSource.contains("matrix.admin.reauthenticate-native"))
     }
 
     func testSidebarUsesCompactCorporateRoomTypographyAndSmallTechnicalSecuritySymbols() throws {
@@ -541,13 +540,12 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(auth.contains("TextField(\"Username\", text: $model.username)"))
         XCTAssertTrue(auth.contains("HyphaRevealablePasswordField("))
         XCTAssertTrue(auth.contains("Sign in"))
-        XCTAssertTrue(auth.contains("Set up from another Hypha device"))
+        XCTAssertFalse(auth.contains("Set up from another Hypha device"))
         XCTAssertTrue(auth.contains("struct HyphaPulsingAppIcon: View"))
         XCTAssertTrue(auth.contains("accessibilityReduceMotion"))
         XCTAssertTrue(auth.contains("repeatForever(autoreverses: true)"))
-        XCTAssertTrue(auth.contains("Hypha will never encode your password or access token in a QR code."))
-        XCTAssertTrue(auth.contains("await model.refreshQrLoginAvailability()"))
-        XCTAssertTrue(auth.contains("HyphaQrScannerView("))
+        XCTAssertFalse(auth.contains("refreshQrLoginAvailability"))
+        XCTAssertFalse(auth.contains("HyphaQrScannerView("))
         XCTAssertFalse(auth.contains("Secure QR setup is not enabled on this homeserver yet."))
         XCTAssertTrue(scanner.contains("AVCaptureMetadataOutput"))
         XCTAssertTrue(scanner.contains("metadataObjectTypes = [.qr]"))
@@ -555,30 +553,74 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(mobileInfo.contains("NSCameraUsageDescription"))
     }
 
-    func testAuthenticatedSecurityCenterCanGrantMsc4108QrLogin() throws {
+    func testNativeAuthenticationExcludesMSC4108QrLoginAPIs() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let shell = try String(
-            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
-            encoding: .utf8
-        )
-        let renderer = try String(
-            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaQrCodeImage.swift"),
-            encoding: .utf8
-        )
+        let sources = [
+            "Sources/Hypha/Auth/HyphaAuthenticationViews.swift",
+            "Sources/Hypha/HyphaApp.swift",
+            "Sources/HyphaCore/MatrixChatService.swift",
+            "Sources/HyphaCore/MatrixRustSDKChatService.swift",
+        ]
+        let corpus = try sources.map {
+            try String(contentsOf: root.appendingPathComponent($0), encoding: .utf8)
+        }.joined(separator: "\n")
 
-        XCTAssertTrue(shell.contains("Set Up Another Device"))
-        XCTAssertTrue(shell.contains("Task { await model.generateQrLoginCode() }"))
-        XCTAssertTrue(shell.contains("HyphaQrCodeImage(payload:"))
-        XCTAssertTrue(shell.contains("await model.submitQrLoginCheckCode"))
-        XCTAssertTrue(shell.contains("Section(\"Verify New Device\")"))
-        XCTAssertTrue(shell.contains("Show setup QR code"))
-        XCTAssertTrue(shell.contains("matrix.settings.verify-new-device"))
-        XCTAssertTrue(renderer.contains("CIFilter.qrCodeGenerator()"))
-        XCTAssertTrue(renderer.contains("filter.message = payload"))
+        for forbidden in [
+            "MatrixQrLoginAvailability",
+            "MatrixQrLoginProgress",
+            "qrLoginAvailability",
+            "signInWithQrCode",
+            "generateQrLoginCode",
+            "submitQrLoginCheckCode",
+            "makeForQrLogin",
+            "qrLoginSupported",
+            "supportsQrLogin",
+            "org.matrix.msc4108",
+        ] {
+            XCTAssertFalse(corpus.contains(forbidden), "Native authentication still contains \(forbidden)")
+        }
+    }
+
+    func testNativeAdministratorAuthorityExcludesOAuthScopeEscalation() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let corpus = try [
+            "Sources/Hypha/HyphaApp.swift",
+            "Sources/HyphaCore/MatrixChatService.swift",
+            "Sources/HyphaCore/MatrixRustSDKChatService.swift",
+            "Sources/HyphaCore/MatrixSynapseAdminClient.swift",
+        ]
+        .map { try String(contentsOf: root.appendingPathComponent($0), encoding: .utf8) }
+        .joined(separator: "\n")
+
+        for forbidden in [
+            "MatrixAdminOAuthRequest",
+            "MatrixPrimarySessionOAuth",
+            "beginAdministratorAuthorization",
+            "completeAdministratorAuthorization",
+            "cancelAdministratorAuthorization",
+            "endAdministratorAuthorization",
+            "beginOAuthReauthorization",
+            "completeOAuthReauthorization",
+            "cancelOAuthReauthorization",
+            "urn:synapse:admin:*",
+            "administratorOAuth",
+            "saveProvisionalSession",
+            "loadProvisionalSession",
+            "deleteProvisionalSession",
+            "pendingOAuth",
+            "PendingOAuth",
+            "insufficientScope",
+            "bearerChallengeParameters",
+        ] {
+            XCTAssertFalse(corpus.contains(forbidden), "Native administrator authority still contains \(forbidden)")
+        }
     }
 
     func testSavedPasswordRouteFinalizesOnlyAuthenticatedCredentialMigration() throws {
@@ -888,7 +930,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(provenance.contains("f2f814679"))
         XCTAssertTrue(provenance.contains("97fa91b0c756604ef0b03ab9479fc704d1362c55"))
         XCTAssertTrue(provenance.contains("f4889ec898e77d8b8c9013adadd77f3d0901fc2d"))
-        XCTAssertTrue(provenance.contains("d28c164ef37cd67723aa565bf5aec9c0cefc3bb8"))
+
         XCTAssertTrue(provenance.contains("533973cb7d918108fa111214575382bfbe30f765"))
         XCTAssertTrue(provenance.contains("2ee2199867bb28b723d80b1c6f80315301058c57"))
         XCTAssertTrue(provenance.contains("94f7106f93016e212fe69e9cc6f6d098f6dc71b6"))
@@ -1445,7 +1487,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(app.contains("currentHomeserverPasswordResetRequest()"))
         XCTAssertGreaterThanOrEqual(
             app.components(separatedBy: "await refreshPasswordResetAuthority(using: coordinator)").count - 1,
-            5
+            4
         )
         XCTAssertTrue(app.contains("preflightMandatoryPasswordReset(using: coordinator)"))
         XCTAssertTrue(app.contains("case .resetNoLongerRequired"))
