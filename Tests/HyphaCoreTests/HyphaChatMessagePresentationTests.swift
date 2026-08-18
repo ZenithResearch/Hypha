@@ -42,7 +42,7 @@ final class HyphaChatMessagePresentationTests: XCTestCase {
         XCTAssertTrue(presentation.isGroupedWithPrevious)
     }
 
-    func testPeerMessagesFromUnverifiedDevicesAlwaysShowSenderEvenWhenGrouped() {
+    func testPeerMessagesFromRoutineUnverifiedDevicesRemainGroupedWithoutWarnings() {
         let previous = makeEvent(id: "$previous", sender: "Alice")
 
         for authenticity in [
@@ -55,11 +55,8 @@ final class HyphaChatMessagePresentationTests: XCTestCase {
                 previousEvent: previous
             )
 
-            XCTAssertTrue(
-                presentation.showsSender,
-                "Sender must remain visible for \(authenticity)"
-            )
-            XCTAssertEqual(presentation.senderDisplayName, "Alice")
+            XCTAssertFalse(presentation.showsSender)
+            XCTAssertNil(presentation.authenticity)
         }
     }
 
@@ -115,27 +112,13 @@ final class HyphaChatMessagePresentationTests: XCTestCase {
         )
     }
 
-    func testAuthenticityWarningsKeepExistingLabelsAndSeverity() {
+    func testOnlyEncryptionAndIntegrityFailuresProduceAuthenticityWarnings() {
         let expectations: [(MatrixEventAuthenticity, HyphaChatMessagePresentation.Authenticity?)] = [
             (.noWarning, nil),
-            (.authenticityNotGuaranteed, .init(
-                severity: .warning,
-                label: "Message authenticity cannot be guaranteed"
-            )),
-            (.unknownDevice, .init(
-                severity: .warning,
-                label: "Encrypted by an unknown device",
-                displayStyle: .iconOnly
-            )),
-            (.unsignedDevice, .init(
-                severity: .warning,
-                label: "Encrypted by a device not verified by its owner",
-                displayStyle: .iconOnly
-            )),
-            (.unverifiedIdentity, .init(
-                severity: .warning,
-                label: "The sender's Matrix identity is not verified"
-            )),
+            (.authenticityNotGuaranteed, nil),
+            (.unknownDevice, nil),
+            (.unsignedDevice, nil),
+            (.unverifiedIdentity, nil),
             (.verificationViolation, .init(
                 severity: .critical,
                 label: "The sender's verified Matrix identity changed"
@@ -156,7 +139,7 @@ final class HyphaChatMessagePresentationTests: XCTestCase {
         }
     }
 
-    func testUnknownAndUnsignedDeviceWarningsUseIconOnlyPresentation() {
+    func testRoutineVerificationStatesDoNotProduceMessageWarnings() {
         for authenticity in [
             MatrixEventAuthenticity.unknownDevice,
             MatrixEventAuthenticity.unsignedDevice,
@@ -164,13 +147,13 @@ final class HyphaChatMessagePresentationTests: XCTestCase {
             let presentation = HyphaChatMessagePresentation(
                 event: makeEvent(authenticity: authenticity)
             )
-            XCTAssertEqual(presentation.authenticity?.displayStyle, .iconOnly)
+            XCTAssertNil(presentation.authenticity)
         }
 
         let identityWarning = HyphaChatMessagePresentation(
             event: makeEvent(authenticity: .unverifiedIdentity)
         )
-        XCTAssertEqual(identityWarning.authenticity?.displayStyle, .detailed)
+        XCTAssertNil(identityWarning.authenticity)
     }
 
     private func makeEvent(

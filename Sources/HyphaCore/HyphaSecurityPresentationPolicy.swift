@@ -1,4 +1,5 @@
 public enum HyphaSecurityIndicatorSeverity: Equatable, Sendable {
+    case quiet
     case unknown
     case recommended
     case secure
@@ -67,6 +68,7 @@ public enum HyphaSecurityPresentationPolicy {
         return HyphaSecurityPresentationState(
             indicatorSeverity: indicatorSeverity(
                 trustState: trustState,
+                peerVerificationEligibility: peerVerificationEligibility,
                 requiresPersistentCriticalBanner: requiresPersistentCriticalBanner
             ),
             primaryDeviceAction: primaryDeviceAction(
@@ -88,6 +90,7 @@ public enum HyphaSecurityPresentationPolicy {
 
     private static func indicatorSeverity(
         trustState: MatrixDeviceTrustState,
+        peerVerificationEligibility: MatrixPeerVerificationEligibility,
         requiresPersistentCriticalBanner: Bool
     ) -> HyphaSecurityIndicatorSeverity {
         if requiresPersistentCriticalBanner {
@@ -98,7 +101,7 @@ public enum HyphaSecurityPresentationPolicy {
         case .unknown, .unavailable:
             return .unknown
         case .unsigned:
-            return .recommended
+            return peerVerificationEligibility == .eligiblePeer ? .recommended : .quiet
         case .verifiedByCurrentSelfSigningKey:
             return .secure
         case .invalidSignature:

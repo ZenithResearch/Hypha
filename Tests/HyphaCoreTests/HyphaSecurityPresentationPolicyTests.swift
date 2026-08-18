@@ -16,14 +16,14 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
         XCTAssertFalse(presentation.requiresPersistentCriticalBanner)
     }
 
-    func testUnsignedFirstDeviceOffersOnlyAuthoritativeSetupAction() {
+    func testUnsignedFirstDeviceIsQuietWhileKeepingOptionalSetupAction() {
         let presentation = makePresentation(
             trust: .unsigned,
             bootstrap: .notBootstrapped,
             peerEligibility: .noEligiblePeer
         )
 
-        XCTAssertEqual(presentation.indicatorSeverity, .recommended)
+        XCTAssertEqual(presentation.indicatorSeverity, .quiet)
         XCTAssertEqual(presentation.primaryDeviceAction, .setUpThisDevice)
         XCTAssertEqual(presentation.localOperation, .idle)
         XCTAssertFalse(presentation.requiresPersistentCriticalBanner)
@@ -37,6 +37,7 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
         )
 
         XCTAssertEqual(presentation.primaryDeviceAction, .verifyWithAnotherHyphaDevice)
+        XCTAssertEqual(presentation.indicatorSeverity, .recommended)
     }
 
     func testUnavailablePeerEligibilityDoesNotGuessFirstDeviceOrExposePeerVerification() {
@@ -47,7 +48,7 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
         )
 
         XCTAssertNil(presentation.primaryDeviceAction)
-        XCTAssertEqual(presentation.indicatorSeverity, .recommended)
+        XCTAssertEqual(presentation.indicatorSeverity, .quiet)
     }
 
     func testPasswordRequirementOffersContinuationInsteadOfStartingAnotherAction() {
@@ -127,6 +128,7 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
     func testActiveVerificationFlowMapsToLocalHyphaOperationWithoutDeviceSetupAction() {
         let challenge = MatrixVerificationChallenge.decimals([111, 222, 333])
         let cases: [(MatrixVerificationFlowState, HyphaSecurityLocalOperation)] = [
+            (.incomingRequest, .incomingDeviceVerificationRequest),
             (.requesting, .requestingVerificationFromAnotherHyphaDevice),
             (.challenge(challenge), .comparingWithAnotherHyphaDevice(challenge)),
             (.approving, .approvingAnotherHyphaDevice),
@@ -142,6 +144,7 @@ final class HyphaSecurityPresentationPolicyTests: XCTestCase {
 
             XCTAssertNil(presentation.primaryDeviceAction, "Flow \(flow) must suppress device setup")
             XCTAssertEqual(presentation.localOperation, expectedOperation)
+            XCTAssertEqual(presentation.indicatorSeverity, .quiet)
             XCTAssertFalse(presentation.requiresPersistentCriticalBanner)
         }
     }

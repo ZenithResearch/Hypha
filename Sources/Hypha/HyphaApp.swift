@@ -3117,6 +3117,8 @@ private struct MatrixCompanionShell: View {
 
     private var securityToolbarSymbol: String {
         switch securityPresentation.indicatorSeverity {
+        case .quiet:
+            return "shield"
         case .unknown:
             return "questionmark.shield"
         case .recommended:
