@@ -1939,6 +1939,13 @@ private struct MatrixCompanionShell: View {
                     .font(ZenithDesign.Typography.technical(size: 13, weight: .semibold))
                     .foregroundStyle(ZenithDesign.Palette.muted)
                     Spacer()
+                    Button("Homeserver administration", action: openAdministration)
+                        .buttonStyle(.plain)
+                        .disabled(model.isAuthenticationOperationInFlight)
+                        .font(.caption)
+                        .accessibilityIdentifier("matrix.admin.open.connection")
+                    Divider()
+                        .frame(height: 14)
                     Button("Change homeserver") {
                         Task {
                             if await model.changeHomeserver() {
