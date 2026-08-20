@@ -180,27 +180,38 @@ final class MatrixShellSourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("Sources/HyphaCore/MatrixSynapseAdminClient.swift"),
             encoding: .utf8
         )
+        let brokerClientSource = try String(
+            contentsOf: root.appendingPathComponent("Sources/HyphaCore/HyphaAdminBrokerClient.swift"),
+            encoding: .utf8
+        )
         let rustServiceSource = try String(
             contentsOf: root.appendingPathComponent("Sources/HyphaCore/MatrixRustSDKChatService.swift"),
             encoding: .utf8
         )
-        let source = [appSource, sheetSource, clientSource, rustServiceSource].joined(separator: "\n")
+        let source = [appSource, sheetSource, clientSource, brokerClientSource, rustServiceSource]
+            .joined(separator: "\n")
 
         for marker in [
             ".sheet(isPresented: $showsAdministration)",
+            "private var adminBrokerClient: HyphaAdminBrokerClient?",
+            "let client = try HyphaAdminBrokerClient(homeserver: configuration.homeserver)",
+            "_ = try await client.authenticate(secret: secret)",
+            "let snapshot = try await adminBrokerClient.snapshot()",
+            "try await adminBrokerClient.passwordResetRequests()",
+            "case .authenticationRejected:",
             "case .sessionExpired:",
-            "MatrixAdministratorErrorDisposition.classify(error)",
-            "case .primarySessionExpired:",
-            "state = .sessionExpired",
-            "let authorized = try await coordinator.isHomeserverAdministrator()",
-            "let suspended = await coordinator.suspend()",
-            "guard suspended else",
+            "adminBrokerClient = nil",
             "await applyAdministratorError(error)",
             ".interactiveDismissDisabled(",
             "model.isAdminOperationInFlight",
             "MatrixAdminSheet",
             "matrix.admin.open",
             "matrix.admin.open.connection",
+            "Administration secret",
+            "matrix.admin.secret",
+            "Authenticate for administration",
+            "authenticateAdministrator(secret:",
+            "does not sign in to Matrix",
             "matrix.admin.account.create",
             "matrix.admin.account.password",
             "privacySensitive()",
@@ -223,12 +234,23 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertFalse(appSource.contains("authorizeAdministratorAccess"))
         XCTAssertFalse(appSource.contains("MatrixAdminWebAuthorizationSession"))
         XCTAssertFalse(appSource.contains("case upgradeRequired"))
+        XCTAssertFalse(appSource.contains("coordinator.isHomeserverAdministrator()"))
+        XCTAssertFalse(appSource.contains("coordinator.administratorSnapshot()"))
+        XCTAssertFalse(appSource.contains("coordinator.createAdministratorManagedAccount("))
+        XCTAssertFalse(appSource.contains("coordinator.logoutAdministratorManagedAccount("))
         XCTAssertFalse(sheetSource.contains("matrix.admin.authorize"))
         XCTAssertFalse(sheetSource.contains("Upgrade primary session"))
-        XCTAssertTrue(appSource.contains("canReauthenticateAdministratorSession"))
-        XCTAssertTrue(appSource.contains("reauthenticateAdministratorSession"))
-        XCTAssertTrue(sheetSource.contains("Sign in again with saved password"))
-        XCTAssertTrue(sheetSource.contains("matrix.admin.reauthenticate-native"))
+        XCTAssertTrue(sheetSource.contains("let secretForRequest = administrationSecret"))
+        XCTAssertTrue(sheetSource.contains("administrationSecret = \"\""))
+        XCTAssertTrue(sheetSource.contains("await model.authenticateAdministrator(secret: secretForRequest)"))
+        XCTAssertFalse(appSource.contains("canReauthenticateAdministratorSession"))
+        XCTAssertFalse(appSource.contains("reauthenticateAdministratorSession"))
+        XCTAssertFalse(sheetSource.contains("Sign in again with saved password"))
+        XCTAssertFalse(sheetSource.contains("matrix.admin.reauthenticate-native"))
+        XCTAssertTrue(appSource.contains("phase == .background"))
+        XCTAssertTrue(appSource.contains("await model.endAdministratorAccess()"))
+        XCTAssertTrue(brokerClientSource.contains("maximumResponseBytes"))
+        XCTAssertTrue(brokerClientSource.contains("(32...512).contains(bytes.count)"))
     }
 
     func testSidebarUsesCompactCorporateRoomTypographyAndSmallTechnicalSecuritySymbols() throws {

@@ -9,6 +9,7 @@ import UIKit
 
 @main
 struct HyphaApp: App {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var model: MatrixAppModel
 
     init() {
@@ -52,6 +53,10 @@ struct HyphaApp: App {
                     #else
                     await model.restoreSavedHomeserverIfAvailable()
                     #endif
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .background else { return }
+                    Task { _ = await model.endAdministratorAccess() }
                 }
         }
         #if os(macOS)
@@ -152,10 +157,6 @@ final class MatrixAppModel: ObservableObject {
     @Published private(set) var isPasswordResetRequestInFlight = false
     @Published private(set) var passwordResetRequestMessage: String?
 
-    var canReauthenticateAdministratorSession: Bool {
-        nativeAdministratorCredential != nil
-    }
-
     var isRecoveryIdentityResetActive: Bool {
         recoveryIdentityResetState != .idle
     }
@@ -174,6 +175,7 @@ final class MatrixAppModel: ObservableObject {
     private let serviceFactory: ServiceFactory
     private var activeConfiguration: MatrixProductConfiguration?
     private var coordinator: MatrixChatCoordinator?
+    private var adminBrokerClient: HyphaAdminBrokerClient?
     private var pendingHomeserverPasswordResetRequest: MatrixPasswordResetRequest?
     private var registrationClient: MatrixInviteRegistrationClient?
     private var timelineRefreshTask: Task<Void, Never>?
@@ -227,6 +229,7 @@ final class MatrixAppModel: ObservableObject {
     var messageDraft: HyphaMessageDraft { messageDraftStore.activeDraft }
 
     func connectHomeserver() async {
+        _ = await endAdministratorAccess()
         timelineRefreshTask?.cancel()
         homeserverState = .checking
         password = ""
@@ -300,6 +303,7 @@ final class MatrixAppModel: ObservableObject {
     func changeHomeserver() async -> Bool {
         guard !isAuthenticationOperationInFlight else { return false }
         guard await suspendCoordinatorForAccountTransition() else { return false }
+        _ = await endAdministratorAccess()
         timelineRefreshTask?.cancel()
         timelineRefreshTask = nil
         defaults.removeObject(forKey: storageIdentity.homeserverDefaultsKey)
@@ -540,7 +544,7 @@ final class MatrixAppModel: ObservableObject {
             rooms = []
             state = .signedOut(message: nil)
             resetSecurityState()
-            resetAdministratorState()
+            _ = await endAdministratorAccess()
         }
         do {
             try sessionVault.deleteSession(accountKey: session.accountKey)
@@ -577,7 +581,7 @@ final class MatrixAppModel: ObservableObject {
         requiresInitialPasswordReset = false
         hasPendingHomeserverPasswordResetRequest = false
         resetSecurityState()
-        resetAdministratorState()
+        _ = await endAdministratorAccess()
         state = .signedOut(message: nil)
     }
 
@@ -846,7 +850,7 @@ final class MatrixAppModel: ObservableObject {
         }
         state = .signedOut(message: message)
         resetSecurityState()
-        resetAdministratorState()
+        _ = await endAdministratorAccess()
         return true
     }
 
@@ -1150,62 +1154,75 @@ final class MatrixAppModel: ObservableObject {
     }
 
     func refreshAdministratorAccess() async {
-        guard let coordinator else {
-            resetAdministratorState()
+        guard let adminBrokerClient else {
+            adminAccessState = .denied
+            adminSnapshot = nil
+            adminMessage = "Authenticate with the dedicated homeserver administration secret to continue."
             return
         }
         adminAccessState = .checking
+        adminAccessState = await adminBrokerClient.hasActiveSession ? .authorized : .denied
+        if adminAccessState != .authorized {
+            adminSnapshot = nil
+            adminMessage = "The administration session expired. Authenticate again to continue."
+        }
+    }
+
+    func authenticateAdministrator(secret: String) async {
+        guard let configuration = activeConfiguration,
+              !isAdminOperationInFlight else { return }
+        isAdminOperationInFlight = true
+        adminAccessState = .checking
+        adminMessage = nil
+        adminSnapshot = nil
+        defer { isAdminOperationInFlight = false }
         do {
-            let authorized = try await coordinator.isHomeserverAdministrator()
-            guard coordinator === self.coordinator else { return }
-            adminAccessState = authorized ? .authorized : .denied
-            if !authorized {
-                adminSnapshot = nil
-                adminMessage = "This Matrix account is not a homeserver administrator."
+            let client = try HyphaAdminBrokerClient(homeserver: configuration.homeserver)
+            _ = try await client.authenticate(secret: secret)
+            adminBrokerClient = client
+            adminAccessState = .authorized
+            let snapshot = try await client.snapshot()
+            guard client === adminBrokerClient else { return }
+            adminSnapshot = snapshot
+            do {
+                adminPasswordResetRequests = try await client.passwordResetRequests()
+            } catch {
+                adminPasswordResetRequests = []
+                await applyAdministratorError(error)
             }
         } catch {
-            guard coordinator === self.coordinator else { return }
+            if let client = adminBrokerClient {
+                try? await client.endSession()
+            }
+            adminBrokerClient = nil
             adminAccessState = .denied
-            adminSnapshot = nil
             await applyAdministratorError(error)
         }
     }
 
-    func reauthenticateAdministratorSession() async {
-        guard let credential = nativeAdministratorCredential else { return }
-        await signIn(with: credential)
-        if adminAccessState != .authorized, adminMessage == nil {
-            adminMessage = "Native password sign-in did not establish administrator authority."
-        }
-    }
-
-    private var nativeAdministratorCredential: HyphaMatrixCredentialDescriptor? {
-        guard adminAccessState == .denied,
-              let activeSessionAccountKey,
-              let activeSession = savedSessions.first(where: { $0.accountKey == activeSessionAccountKey }),
-              activeSession.oauthData != nil else { return nil }
-        return savedCredentials.first(where: { $0.id == activeSessionAccountKey })
-    }
-
     @discardableResult
     func endAdministratorAccess() async -> Bool {
+        let client = adminBrokerClient
         resetAdministratorState()
+        if await client?.hasActiveSession == true {
+            try? await client?.endSession()
+        }
         return true
     }
 
     func refreshAdministratorSnapshot() async {
         guard adminAccessState == .authorized,
-              let coordinator,
+              let adminBrokerClient,
               !isAdminOperationInFlight else { return }
         isAdminOperationInFlight = true
         adminMessage = nil
         defer { isAdminOperationInFlight = false }
         do {
-            let snapshot = try await coordinator.administratorSnapshot()
-            guard coordinator === self.coordinator else { return }
+            let snapshot = try await adminBrokerClient.snapshot()
+            guard adminBrokerClient === self.adminBrokerClient else { return }
             adminSnapshot = snapshot
             do {
-                adminPasswordResetRequests = try await coordinator.administratorPasswordResetRequests(users: snapshot.users)
+                adminPasswordResetRequests = try await adminBrokerClient.passwordResetRequests()
             } catch {
                 adminPasswordResetRequests = []
                 await applyAdministratorError(error)
@@ -1221,21 +1238,21 @@ final class MatrixAppModel: ObservableObject {
         administrator: Bool
     ) async -> Bool {
         guard adminAccessState == .authorized,
-              let coordinator,
+              let adminBrokerClient,
               !isAdminOperationInFlight else { return false }
         isAdminOperationInFlight = true
         adminMessage = nil
         defer { isAdminOperationInFlight = false }
         do {
-            let user = try await coordinator.createAdministratorManagedAccount(
+            let user = try await adminBrokerClient.createAccount(
                 localpart: localpart,
                 temporaryPassword: temporaryPassword,
                 administrator: administrator
             )
-            guard coordinator === self.coordinator else { return false }
+            guard adminBrokerClient === self.adminBrokerClient else { return false }
             await publishAdministratorMutationSuccess(
                 "Created \(user.userID) as \(user.isAdministrator ? "an administrator" : "a user"). Hypha did not retain the temporary password.",
-                coordinator: coordinator
+                client: adminBrokerClient
             )
             return true
         } catch {
@@ -1247,22 +1264,22 @@ final class MatrixAppModel: ObservableObject {
     func promoteAdministratorManagedAccount(_ user: MatrixAdminUserSummary) async {
         guard adminAccessState == .authorized,
               !user.isAdministrator,
-              let coordinator,
+              let adminBrokerClient,
               !isAdminOperationInFlight else { return }
         isAdminOperationInFlight = true
         adminMessage = nil
         defer { isAdminOperationInFlight = false }
         do {
-            let promoted = try await coordinator.setAdministratorManagedAccount(
+            let promoted = try await adminBrokerClient.setAdministrator(
                 userID: user.userID,
                 administrator: true
             )
-            guard coordinator === self.coordinator,
+            guard adminBrokerClient === self.adminBrokerClient,
                   promoted.userID == user.userID,
                   promoted.isAdministrator else { return }
             await publishAdministratorMutationSuccess(
                 "Promoted \(promoted.userID) to administrator without changing its password.",
-                coordinator: coordinator
+                client: adminBrokerClient
             )
         } catch {
             await applyAdministratorError(error)
@@ -1274,17 +1291,17 @@ final class MatrixAppModel: ObservableObject {
         temporaryPassword: String
     ) async -> Bool {
         guard adminAccessState == .authorized,
-              let coordinator,
+              let adminBrokerClient,
               !isAdminOperationInFlight else { return false }
         isAdminOperationInFlight = true
         adminMessage = nil
         defer { isAdminOperationInFlight = false }
         do {
-            try await coordinator.resetAdministratorManagedPassword(
+            try await adminBrokerClient.resetPassword(
                 for: request,
                 temporaryPassword: temporaryPassword
             )
-            guard coordinator === self.coordinator else { return false }
+            guard adminBrokerClient === self.adminBrokerClient else { return false }
             issuedPasswordResetRequestIDs.insert(request.id)
             clearLocalSessions(for: request.userID)
             adminMessage = "Issued a temporary password for \(request.userID), logged out existing devices, and preserved the account role. The authenticated request remains visible but cannot be reset again in this administrator session while the user completes replacement."
@@ -1296,14 +1313,14 @@ final class MatrixAppModel: ObservableObject {
     }
 
     func createAdministratorManagedRoom(name: String, topic: String, asSpace: Bool, visibility: MatrixRoomVisibility) async -> Bool {
-        guard adminAccessState == .authorized, let coordinator, !isAdminOperationInFlight else { return false }
+        guard adminAccessState == .authorized, let adminBrokerClient, !isAdminOperationInFlight else { return false }
         isAdminOperationInFlight = true
         adminMessage = nil
         defer { isAdminOperationInFlight = false }
         do {
-            let room = try await coordinator.createAdministratorManagedRoom(name: name, topic: topic, asSpace: asSpace, visibility: visibility)
-            guard coordinator === self.coordinator else { return false }
-            await publishAdministratorMutationSuccess("Created \(asSpace ? "space" : "encrypted room") \(room.name).", coordinator: coordinator)
+            let room = try await adminBrokerClient.createRoom(name: name, topic: topic, asSpace: asSpace, visibility: visibility)
+            guard adminBrokerClient === self.adminBrokerClient else { return false }
+            await publishAdministratorMutationSuccess("Created \(asSpace ? "space" : "encrypted room") \(room.name).", client: adminBrokerClient)
             return true
         } catch {
             await applyAdministratorError(error)
@@ -1312,20 +1329,15 @@ final class MatrixAppModel: ObservableObject {
     }
 
     func logoutAdministratorManagedAccount(_ user: MatrixAdminUserSummary) async {
-        guard adminAccessState == .authorized, let coordinator, !isAdminOperationInFlight else { return }
+        guard adminAccessState == .authorized, let adminBrokerClient, !isAdminOperationInFlight else { return }
         isAdminOperationInFlight = true
         adminMessage = nil
         defer { isAdminOperationInFlight = false }
         do {
-            try await coordinator.logoutAdministratorManagedAccount(userID: user.userID)
+            try await adminBrokerClient.logoutAccount(userID: user.userID)
+            guard adminBrokerClient === self.adminBrokerClient else { return }
             clearLocalSessions(for: user.userID)
-            if user.userID == adminSnapshot?.currentUserID {
-                _ = await coordinator.suspend()
-                state = .sessionExpired
-                resetAdministratorState()
-            } else {
-                await publishAdministratorMutationSuccess("Logged out every device for \(user.userID).", coordinator: coordinator)
-            }
+            await publishAdministratorMutationSuccess("Logged out every device for \(user.userID).", client: adminBrokerClient)
         } catch { await applyAdministratorError(error) }
     }
 
@@ -1338,21 +1350,19 @@ final class MatrixAppModel: ObservableObject {
 
     func deactivateAdministratorManagedAccount(_ user: MatrixAdminUserSummary) async {
         guard adminAccessState == .authorized,
-              let currentUserID = adminSnapshot?.currentUserID,
-              !currentUserID.isEmpty,
-              user.userID != currentUserID,
-              let coordinator,
+              user.userType == nil,
+              let adminBrokerClient,
               !isAdminOperationInFlight else { return }
         isAdminOperationInFlight = true
         adminMessage = nil
         defer { isAdminOperationInFlight = false }
         do {
-            try await coordinator.deactivateAdministratorManagedAccount(userID: user.userID)
-            guard coordinator === self.coordinator else { return }
+            try await adminBrokerClient.deactivateAccount(userID: user.userID)
+            guard adminBrokerClient === self.adminBrokerClient else { return }
             clearLocalSessions(for: user.userID)
             await publishAdministratorMutationSuccess(
                 "Deleted \(user.userID)'s active account and profile data. Synapse retained the MXID tombstone and event references.",
-                coordinator: coordinator
+                client: adminBrokerClient
             )
         } catch {
             await applyAdministratorError(error)
@@ -1361,14 +1371,14 @@ final class MatrixAppModel: ObservableObject {
 
     func purgeAdministratorManagedRoom(_ room: MatrixAdminRoomSummary) async {
         guard adminAccessState == .authorized,
-              let coordinator,
+              let adminBrokerClient,
               !isAdminOperationInFlight else { return }
         isAdminOperationInFlight = true
         adminMessage = nil
         defer { isAdminOperationInFlight = false }
         do {
-            try await coordinator.purgeAdministratorManagedRoom(roomID: room.roomID)
-            guard coordinator === self.coordinator else { return }
+            try await adminBrokerClient.purgeRoom(roomID: room.roomID)
+            guard adminBrokerClient === self.adminBrokerClient else { return }
             timelineRefreshTask?.cancel()
             timelineRefreshTask = nil
             rooms.removeAll { $0.id == room.roomID }
@@ -1381,7 +1391,7 @@ final class MatrixAppModel: ObservableObject {
             }
             await publishAdministratorMutationSuccess(
                 "Blocked and purged \(room.name) from this homeserver. Federated copies may remain.",
-                coordinator: coordinator
+                client: adminBrokerClient
             )
         } catch {
             await applyAdministratorError(error)
@@ -1390,12 +1400,12 @@ final class MatrixAppModel: ObservableObject {
 
     private func publishAdministratorMutationSuccess(
         _ message: String,
-        coordinator: MatrixChatCoordinator
+        client: HyphaAdminBrokerClient
     ) async {
         adminMessage = message
         do {
-            let snapshot = try await coordinator.administratorSnapshot()
-            guard coordinator === self.coordinator else { return }
+            let snapshot = try await client.snapshot()
+            guard client === self.adminBrokerClient else { return }
             adminSnapshot = snapshot
         } catch {
             await applyAdministratorError(error)
@@ -1403,30 +1413,51 @@ final class MatrixAppModel: ObservableObject {
     }
 
     private func applyAdministratorError(_ error: Error) async {
-        switch MatrixAdministratorErrorDisposition.classify(error) {
-        case .denied:
+        guard let brokerError = error as? HyphaAdminBrokerError else {
+            adminMessage = "The homeserver rejected the administrative operation. No success was assumed."
+            return
+        }
+        switch brokerError {
+        case .authenticationRejected:
             adminAccessState = .denied
             adminSnapshot = nil
-            adminMessage = "Administrator access is not available for this account."
-        case .primarySessionExpired:
-            state = .sessionExpired
+            adminMessage = "The administration secret was not accepted."
+        case .rateLimited:
             adminAccessState = .denied
             adminSnapshot = nil
-            adminMessage = "The Matrix session expired. Sign in again before using administration."
+            adminMessage = "Administration authentication is temporarily limited. Wait before trying again."
+        case .sessionExpired:
+            adminBrokerClient = nil
+            adminAccessState = .denied
+            adminSnapshot = nil
+            adminPasswordResetRequests = []
+            adminMessage = "The administration session expired. Authenticate again to continue."
         case .offline:
-            adminMessage = "Hypha could not reach the homeserver. No administrative change was made."
+            adminMessage = "Hypha could not reach the administration broker. No administrative change was made."
+        case .invalidConfiguration:
+            adminAccessState = .denied
+            adminSnapshot = nil
+            adminMessage = "This homeserver does not expose a valid Hypha administration broker."
         case .invalidInput:
             adminMessage = "Check the account or room details and try again."
-        case .protectedAccount:
-            adminMessage = "Hypha will not deactivate the active administrator account."
-        case .credentialNotEstablished:
-            adminMessage = "The account record exists, but the homeserver did not confirm a usable local password. Reset or delete the account before handing it off."
-        case .rejected:
+        case .invalidResponse:
+            if let adminBrokerClient,
+               await adminBrokerClient.hasActiveSession == false {
+                self.adminBrokerClient = nil
+                adminAccessState = .denied
+                adminSnapshot = nil
+                adminPasswordResetRequests = []
+                adminMessage = "The administration session ended after an invalid broker response. Authenticate again to continue."
+            } else {
+                adminMessage = "The homeserver rejected the administrative operation. No success was assumed."
+            }
+        case .serverRejected:
             adminMessage = "The homeserver rejected the administrative operation. No success was assumed."
         }
     }
 
     private func resetAdministratorState() {
+        adminBrokerClient = nil
         adminAccessState = .unknown
         adminSnapshot = nil
         adminPasswordResetRequests = []

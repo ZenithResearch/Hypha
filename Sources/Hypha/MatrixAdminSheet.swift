@@ -13,6 +13,7 @@ struct MatrixAdminSheet: View {
     @ObservedObject var model: MatrixAppModel
     @Binding var isPresented: Bool
 
+    @State private var administrationSecret = ""
     @State private var localpart = ""
     @State private var temporaryPassword = ""
     @State private var passwordConfirmation = ""
@@ -41,18 +42,36 @@ struct MatrixAdminSheet: View {
                 case .denied:
                     VStack(spacing: ZenithDesign.Space.x4) {
                         ContentUnavailableView(
-                            "Administrator authority unavailable",
+                            "Authenticate for administration",
                             systemImage: "person.badge.shield.checkmark",
-                            description: Text(model.adminMessage ?? "This Matrix account is not a homeserver administrator.")
+                            description: Text(model.adminMessage ?? "Enter the dedicated homeserver administration secret.")
                         )
-                        if model.canReauthenticateAdministratorSession {
-                            Button("Sign in again with saved password") {
-                                Task { await model.reauthenticateAdministratorSession() }
+                        HyphaRevealablePasswordField(
+                            title: "Administration secret",
+                            text: $administrationSecret,
+                            accessibilityIdentifier: "matrix.admin.secret",
+                            isNewPassword: false
+                        )
+                        .frame(maxWidth: 420)
+                        Text("This creates a short-lived, scoped Hypha administration session. It does not sign in to Matrix and is not saved by Hypha.")
+                            .font(ZenithDesign.Typography.corporate(.callout))
+                            .foregroundStyle(ZenithDesign.Palette.muted)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: 520)
+                        Button("Authenticate for administration") {
+                            let secretForRequest = administrationSecret
+                            administrationSecret = ""
+                            Task {
+                                await model.authenticateAdministrator(secret: secretForRequest)
                             }
-                            .buttonStyle(HyphaButtonStyle(.primary))
-                            .disabled(model.isAuthenticationOperationInFlight)
-                            .accessibilityIdentifier("matrix.admin.reauthenticate-native")
                         }
+                        .buttonStyle(HyphaButtonStyle(.primary))
+                        .disabled(
+                            model.isAdminOperationInFlight
+                                || !(32...512).contains(administrationSecret.utf8.count)
+                        )
+                        .accessibilityIdentifier("matrix.admin.authenticate")
                     }
                     .padding(ZenithDesign.Space.x5)
                 }
@@ -104,7 +123,7 @@ struct MatrixAdminSheet: View {
             Button("Create administrator", role: .destructive, action: performAccountCreation)
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("The new user will be able to create and deactivate users, including other administrators. The active administrator remains protected from self-deactivation.")
+            Text("The new user will be able to create and deactivate users, including other administrators. The hidden broker service administrator remains protected from client operations.")
         }
         .confirmationDialog(
             "Delete account permanently?",
@@ -190,10 +209,10 @@ struct MatrixAdminSheet: View {
 
     private var authorityNotice: some View {
         VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
-            Label("Administrator authority confirmed by the homeserver", systemImage: "checkmark.shield.fill")
+            Label("Scoped administration session confirmed by the homeserver", systemImage: "checkmark.shield.fill")
                 .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
                 .foregroundStyle(ZenithDesign.Palette.success)
-            Text("These controls use the active primary Matrix session after the homeserver confirms its administrator authority. Hypha does not contain or accept the Synapse registration shared secret.")
+            Text("These controls use a short-lived Hypha broker session that is independent from Matrix sign-in. The dedicated administration secret, Synapse service credential, and Synapse registration shared secret are never retained by Hypha.")
                 .font(ZenithDesign.Typography.corporate(.callout))
                 .foregroundStyle(ZenithDesign.Palette.muted)
             if let message = validationMessage ?? model.adminMessage {
@@ -518,6 +537,7 @@ struct MatrixAdminSheet: View {
     }
 
     private func clearSecrets() {
+        administrationSecret = ""
         temporaryPassword = ""
         passwordConfirmation = ""
     }
