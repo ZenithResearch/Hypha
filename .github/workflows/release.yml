@@ -45,6 +45,7 @@ jobs:
           python3 scripts/verify_public_release.py
           python3 scripts/test_public_release_verifier.py
           python3 scripts/test_release_metadata.py
+          python3 scripts/test_package_release.py
           python3 scripts/test_update_launcher.py
           swift test
       - name: Build and package explicitly non-notarized release

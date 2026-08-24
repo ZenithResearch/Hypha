@@ -13,6 +13,10 @@ fi
 
 VERSION="${TAG#v}"
 HEAD_SHA="$(git -C "$ROOT" rev-parse HEAD)"
+if [[ -n "$(git -C "$ROOT" status --porcelain=v1 --untracked-files=all)" ]]; then
+  echo "Release packaging requires a clean source worktree so metadata matches the committed source." >&2
+  exit 1
+fi
 TAG_SHA="$(git -C "$ROOT" rev-list -n 1 "$TAG" 2>/dev/null || true)"
 if [[ -n "$TAG_SHA" ]]; then
   if [[ "$TAG_SHA" != "$HEAD_SHA" ]]; then

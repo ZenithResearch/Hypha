@@ -32,21 +32,25 @@ The packaging script already supports hardened-runtime signing, notarization, st
 
 ## Prepare without publishing
 
-Run the ordinary gates and a non-distributable packaging proof:
+Commit the exact candidate first. Release packaging requires a clean worktree so
+the generated metadata cannot claim a source commit that differs from the bytes
+being packaged. Then run the ordinary gates and a non-distributable proof:
 
 ```bash
 swift test
 python3 scripts/verify_public_release.py
 python3 scripts/test_public_release_verifier.py
 python3 scripts/test_release_metadata.py
+python3 scripts/test_package_release.py
 proof_dir=$(mktemp -d)
 HYPHA_RELEASE_MODE=adhoc \
 HYPHA_ALLOW_NON_DISTRIBUTABLE_RELEASE=1 \
 HYPHA_RELEASE_ALLOW_UNTAGGED=1 \
-scripts/package-release.sh v0.1.0 "$proof_dir"
+scripts/package-release.sh v0.2.0 "$proof_dir"
 ```
 
-This does not create a tag or GitHub release.
+This does not create a tag or GitHub release. It does create a checksum-bound
+local artifact whose source commit is the clean candidate HEAD.
 
 ## Publish
 

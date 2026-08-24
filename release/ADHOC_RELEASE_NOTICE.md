@@ -11,8 +11,8 @@ Requirements:
 
 Download these three assets into the same directory:
 
-- `Hypha-v0.1.0-macos-arm64.zip`
-- `Hypha-v0.1.0-release.json`
+- `Hypha-v0.2.0-macos-arm64.zip`
+- `Hypha-v0.2.0-release.json`
 - `SHA256SUMS`
 
 Then run:
@@ -25,7 +25,7 @@ Both files must report `OK`. Do not open the app if verification fails.
 
 ### Open the app
 
-1. Unzip `Hypha-v0.1.0-macos-arm64.zip`.
+1. Unzip `Hypha-v0.2.0-macos-arm64.zip`.
 2. Move `Hypha.app` to Applications if desired.
 3. Try to open Hypha once. macOS will warn or block it because it is not notarized.
 4. Open **System Settings → Privacy & Security**.
@@ -36,10 +36,10 @@ Only bypass Gatekeeper if you downloaded Hypha from the official `ZenithResearch
 
 ### Source code
 
-GitHub provides **Source code (zip)** and **Source code (tar.gz)** snapshots for this exact `v0.1.0` tag on the release page. Those automatic snapshots may contain Git LFS pointer files rather than the large Matrix SDK artifact. For a buildable source checkout, clone the tag and fetch LFS objects:
+GitHub provides **Source code (zip)** and **Source code (tar.gz)** snapshots for this exact `v0.2.0` tag on the release page. Those automatic snapshots may contain Git LFS pointer files rather than the large Matrix SDK artifact. For a buildable source checkout, clone the tag and fetch LFS objects:
 
 ```bash
-git clone --branch v0.1.0 --depth 1 https://github.com/ZenithResearch/Hypha.git
+git clone --branch v0.2.0 --depth 1 https://github.com/ZenithResearch/Hypha.git
 cd Hypha
 git lfs install --local
 git lfs pull
