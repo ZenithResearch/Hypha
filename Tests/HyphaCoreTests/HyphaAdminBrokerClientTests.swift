@@ -366,6 +366,62 @@ final class HyphaAdminBrokerClientTests: XCTestCase {
         XCTAssertFalse(hasActiveSession)
     }
 
+    func testSnapshotRejectsMalformedMatrixIdentifiersAndRevokesLocalSession() async throws {
+        let invalidIdentifiers = [
+            "@:example.org",
+            "@alice:",
+            "@ali\nce:example.org",
+            "!:example.org",
+            "!room:",
+            "!room:example.org\u{7F}",
+        ]
+
+        for identifier in invalidIdentifiers {
+            let isUser = identifier.first == "@"
+            let transport = RecordingBrokerTransport(responses: [
+                response(
+                    status: 201,
+                    json: [
+                        "session_token": sessionToken,
+                        "expires_in_seconds": 600,
+                        "idle_timeout_seconds": 120,
+                    ]
+                ),
+                response(
+                    status: 200,
+                    json: [
+                        "users": isUser ? [[
+                            "user_id": identifier,
+                            "is_administrator": false,
+                            "is_deactivated": false,
+                            "is_guest": false,
+                            "user_type": NSNull(),
+                        ]] : [],
+                        "rooms": isUser ? [] : [[
+                            "room_id": identifier,
+                            "name": "Malformed",
+                            "joined_member_count": 1,
+                        ]],
+                    ]
+                ),
+            ])
+            let client = try HyphaAdminBrokerClient(
+                homeserver: URL(string: "https://matrix.example.org")!,
+                transport: transport
+            )
+            _ = try await client.authenticate(secret: "dedicated-administration-secret-value")
+
+            do {
+                _ = try await client.snapshot()
+                XCTFail("Expected malformed Matrix identifier to fail closed: \(identifier.debugDescription)")
+            } catch {
+                XCTAssertEqual(error as? HyphaAdminBrokerError, .invalidResponse)
+            }
+            let hasActiveSession = await client.hasActiveSession
+            XCTAssertFalse(hasActiveSession)
+        }
+    }
+
     private func response(
         status: Int,
         json: [String: Any]? = nil,
