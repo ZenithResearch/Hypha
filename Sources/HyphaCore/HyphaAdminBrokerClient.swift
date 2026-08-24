@@ -164,6 +164,7 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
               decoded.rooms.count <= Self.maximumCollectionCount,
               decoded.users.allSatisfy({ Self.validUserID($0.userID) }),
               decoded.rooms.allSatisfy({ Self.validRoomID($0.roomID) && $0.joinedMemberCount >= 0 }) else {
+            sessionToken = nil
             throw HyphaAdminBrokerError.invalidResponse
         }
         return MatrixAdminSnapshot(
@@ -205,9 +206,11 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
         )
         try requireStatus(response, expected: 201)
         let user: UserResponse = try decodeJSON(response)
-        guard user.userID.hasPrefix("@\(localpart):"),
+        guard Self.validUserID(user.userID),
+              user.userID.hasPrefix("@\(localpart):"),
               user.isAdministrator == administrator,
               !user.isDeactivated else {
+            sessionToken = nil
             throw HyphaAdminBrokerError.invalidResponse
         }
         return Self.userSummary(user)
@@ -230,6 +233,7 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
         guard user.userID == userID,
               user.isAdministrator == administrator,
               !user.isDeactivated else {
+            sessionToken = nil
             throw HyphaAdminBrokerError.invalidResponse
         }
         return Self.userSummary(user)
@@ -249,6 +253,7 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
                 && UUID(uuidString: $0.requestID) != nil
                 && $0.requestedAtMilliseconds > 0
         }) else {
+            sessionToken = nil
             throw HyphaAdminBrokerError.invalidResponse
         }
         return decoded.map {
@@ -309,6 +314,7 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
         try requireStatus(response, expected: 201)
         let room: RoomResponse = try decodeJSON(response)
         guard Self.validRoomID(room.roomID), room.joinedMemberCount >= 0 else {
+            sessionToken = nil
             throw HyphaAdminBrokerError.invalidResponse
         }
         return MatrixAdminRoomSummary(
@@ -523,11 +529,7 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
     }
 
     private static func validUserID(_ value: String) -> Bool {
-        guard value.hasPrefix("@"), value.count <= 512,
-              let separator = value.firstIndex(of: ":"), separator > value.startIndex else {
-            return false
-        }
-        return value.index(after: separator) < value.endIndex
+        validMatrixID(value, sigil: "@")
     }
 
     private static func validLocalpart(_ value: String) -> Bool {
@@ -556,11 +558,19 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
     }
 
     private static func validRoomID(_ value: String) -> Bool {
-        guard value.hasPrefix("!"), value.count <= 512,
-              let separator = value.firstIndex(of: ":"), separator > value.startIndex else {
+        validMatrixID(value, sigil: "!")
+    }
+
+    private static func validMatrixID(_ value: String, sigil: Character) -> Bool {
+        guard value.first == sigil,
+              value.count <= 512,
+              value.unicodeScalars.allSatisfy({ $0.value >= 0x20 && $0.value != 0x7F }),
+              let separator = value.firstIndex(of: ":"),
+              separator > value.index(after: value.startIndex),
+              value.index(after: separator) < value.endIndex else {
             return false
         }
-        return value.index(after: separator) < value.endIndex
+        return true
     }
 
     private static func sameOrigin(_ lhs: URL, _ rhs: URL) -> Bool {

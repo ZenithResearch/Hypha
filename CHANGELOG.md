@@ -8,3 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 
 - Added broker-backed, short-lived homeserver administration sessions — keeps Synapse service authority and operator secrets out of the native client while preserving explicit typed administration actions.
+
+### Changed
+
+- Tightened broker response validation for Matrix user and room identifiers — malformed empty or control-character-bearing IDs now revoke local administration authority and fail closed.
