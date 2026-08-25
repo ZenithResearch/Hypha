@@ -1,6 +1,6 @@
 # Release process
 
-Hypha publishes macOS downloads only from semantic-version tags after the production encryption gate has passed. The temporary free channel is ad-hoc signed and explicitly non-notarized; Developer ID distribution remains implemented but inactive until Apple credentials are available.
+Hypha publishes macOS downloads only from semantic-version tags after the production encryption gate has passed. Public tag releases are Developer ID signed, notarized by Apple, stapled, and assessed by Gatekeeper. Ad-hoc packaging remains available only as a local, explicitly non-distributable proof.
 
 ## Release boundary
 
@@ -10,16 +10,17 @@ A distributable release must satisfy all of the following:
 2. The tag version equals `CFBundleShortVersionString` in `Resources/Info.plist`.
 3. `release/encryption-gate.json` records a passed live two-account encrypted send, restore, synchronization, and decryption proof, its commit is an ancestor of the tagged commit, and no packaged runtime input has changed since that proof.
 4. The complete Swift test suite and public-release policy checks pass on the tagged commit.
-5. The temporary build is ad-hoc signed and its metadata must explicitly report `notarized: false` and `distributable: false`.
-6. The release notes must disclose the missing Apple publisher identity and provide Gatekeeper **Open Anyway** instructions.
-7. GitHub provides source archives for the exact release tag.
-8. The archive, release metadata, and `SHA256SUMS` verify before upload.
+5. The app is signed with the single Developer ID Application identity imported into the ephemeral release keychain, with hardened runtime and a timestamp.
+6. Apple accepts the notarization submission; the workflow staples and validates the ticket and Gatekeeper accepts the app.
+7. Release metadata reports `mode: developer-id`, `notarized: true`, and `distributable: true`.
+8. GitHub provides source archives for the exact release tag.
+9. The archive, release metadata, and `SHA256SUMS` verify before upload.
 
-Ad-hoc packages are explicitly marked non-distributable and cannot claim notarization. The current tag workflow opts into that boundary deliberately and verifies it again immediately before publication.
+Ad-hoc packages are explicitly marked non-distributable and cannot claim notarization. The tag workflow has no non-distributable escape hatch: missing or invalid Apple credentials stop publication.
 
-## Future Developer ID channel
+## Protected release environment
 
-When the paid Developer ID channel is enabled, the protected `release` GitHub environment will supply these secrets:
+The protected `release` GitHub environment allows only `v*` tags, requires an operator review, and must supply these secrets:
 
 - `MACOS_CERTIFICATE_P12` — base64-encoded Developer ID Application certificate and private key.
 - `MACOS_CERTIFICATE_PASSWORD` — password for the PKCS#12 archive.
@@ -28,7 +29,7 @@ When the paid Developer ID channel is enabled, the protected `release` GitHub en
 - `APPLE_API_KEY_ID` — App Store Connect key identifier.
 - `APPLE_API_ISSUER_ID` — App Store Connect issuer identifier.
 
-The packaging script already supports hardened-runtime signing, notarization, stapling, and Gatekeeper assessment. The current ad-hoc workflow does not request or use these secrets.
+No release secret is optional. The workflow imports the certificate into an ephemeral keychain, writes the notarization key under `RUNNER_TEMP`, and removes both after the job.
 
 ## Prepare without publishing
 
@@ -54,7 +55,7 @@ local artifact whose source commit is the clean candidate HEAD.
 
 ## Publish
 
-Publishing is intentionally tag-only. Once the version and encryption gate are approved, push the exact semantic-version tag. `.github/workflows/release.yml` builds, ad-hoc signs, verifies, packages, and creates the GitHub release with `release/ADHOC_RELEASE_NOTICE.md` as the mandatory warning and installation guide.
+Publishing is intentionally tag-only. Once the version, encryption gate, and Apple credentials are approved, push the exact semantic-version tag. `.github/workflows/release.yml` builds, Developer ID signs, notarizes, staples, verifies, packages, and creates the GitHub release with `release/RELEASE_NOTES.md`.
 
 Published assets:
 
@@ -72,4 +73,4 @@ codesign --verify --deep --strict --verbose=2 Hypha.app
 spctl --assess --type execute --verbose=4 Hypha.app
 ```
 
-The JSON metadata binds the archive checksum to its source commit, bundle identity, executable, minimum macOS version, signing/notarization status, and encryption-gate evidence.
+The JSON metadata binds the archive checksum to its source commit, bundle identity, executable, minimum macOS version, signing/notarization status, and encryption-gate evidence. A public tag release is valid only when its signing block is `{"mode":"developer-id","notarized":true,"distributable":true}`.
