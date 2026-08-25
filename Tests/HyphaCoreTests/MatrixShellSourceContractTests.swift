@@ -855,7 +855,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         }
     }
 
-    func testTagReleaseRequiresEncryptionGateExplicitSigningBoundaryChecksumsAndSourceNotice() throws {
+    func testTagReleaseRequiresEncryptionGateNotarizedSigningChecksumsAndSourceNotice() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile
             .deletingLastPathComponent()
@@ -877,12 +877,16 @@ final class MatrixShellSourceContractTests: XCTestCase {
             contentsOf: root.appendingPathComponent("scripts/write_release_metadata.py"),
             encoding: .utf8
         )
+        let signingPreparation = try String(
+            contentsOf: root.appendingPathComponent("scripts/prepare-release-signing.sh"),
+            encoding: .utf8
+        )
         let gate = try String(
             contentsOf: root.appendingPathComponent("release/encryption-gate.json"),
             encoding: .utf8
         )
         let releaseNotice = try String(
-            contentsOf: root.appendingPathComponent("release/ADHOC_RELEASE_NOTICE.md"),
+            contentsOf: root.appendingPathComponent("release/RELEASE_NOTES.md"),
             encoding: .utf8
         )
 
@@ -897,14 +901,27 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(workflow.contains("b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5"))
         XCTAssertTrue(workflow.contains("/tmp/gitleaks git ."))
         XCTAssertTrue(workflow.contains("/tmp/gitleaks dir ."))
-        XCTAssertFalse(workflow.contains("MACOS_CERTIFICATE_P12"))
-        XCTAssertFalse(workflow.contains("APPLE_API_KEY_P8"))
+        for secret in [
+            "MACOS_CERTIFICATE_P12",
+            "MACOS_CERTIFICATE_PASSWORD",
+            "RELEASE_KEYCHAIN_PASSWORD",
+            "APPLE_API_KEY_P8",
+            "APPLE_API_KEY_ID",
+            "APPLE_API_ISSUER_ID"
+        ] {
+            XCTAssertTrue(workflow.contains("secrets.\(secret)"), "Missing protected release secret: \(secret)")
+            XCTAssertTrue(signingPreparation.contains(secret), "Signing preparation does not require \(secret)")
+        }
+        XCTAssertTrue(workflow.contains("scripts/prepare-release-signing.sh"))
+        XCTAssertTrue(signingPreparation.contains("-T /usr/bin/codesign"))
+        XCTAssertFalse(signingPreparation.contains(" -A "))
+        XCTAssertTrue(signingPreparation.contains("trap cleanup_on_error EXIT"))
         XCTAssertTrue(packageScript.contains("notarytool"))
         XCTAssertTrue(workflow.contains("gh release create"))
-        XCTAssertTrue(workflow.contains("HYPHA_RELEASE_MODE: adhoc"))
-        XCTAssertTrue(workflow.contains("HYPHA_ALLOW_NON_DISTRIBUTABLE_RELEASE: '1'"))
-        XCTAssertTrue(workflow.contains("Verify explicitly non-distributable release metadata"))
-        XCTAssertTrue(workflow.contains("--notes-file release/ADHOC_RELEASE_NOTICE.md"))
+        XCTAssertTrue(workflow.contains("HYPHA_RELEASE_MODE: distributable"))
+        XCTAssertFalse(workflow.contains("HYPHA_ALLOW_NON_DISTRIBUTABLE_RELEASE"))
+        XCTAssertTrue(workflow.contains("Verify distributable release metadata"))
+        XCTAssertTrue(workflow.contains("--notes-file release/RELEASE_NOTES.md"))
         XCTAssertTrue(packageScript.contains("HYPHA_SIGNING_MODE=developer-id"))
         XCTAssertTrue(packageScript.contains("merge-base --is-ancestor"))
         XCTAssertTrue(packageScript.contains("Package.swift Package.resolved Sources Vendor Resources scripts/update-from-main.sh scripts/launch-update-from-main.command build-app.sh"))
@@ -915,8 +932,10 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(metadataScript.contains("encryption_gate"))
         XCTAssertTrue(metadataScript.contains("homeserver"))
         XCTAssertTrue(buildScript.contains("--options runtime --timestamp"))
-        XCTAssertTrue(releaseNotice.contains("not notarized"))
-        XCTAssertTrue(releaseNotice.contains("Open Anyway"))
+        XCTAssertTrue(releaseNotice.contains("signed with Zenith Research's Apple Developer ID"))
+        XCTAssertTrue(releaseNotice.contains("notarized by Apple"))
+        XCTAssertTrue(releaseNotice.contains("Do not bypass a Gatekeeper failure"))
+        XCTAssertFalse(releaseNotice.contains("Open Anyway"))
         XCTAssertTrue(releaseNotice.contains("Source code"))
         XCTAssertTrue(gate.contains("e715c4693ed86a19cf129c04d20fbf2cf4a2ef1d"))
         XCTAssertTrue(gate.contains("passed"))
