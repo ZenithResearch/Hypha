@@ -52,6 +52,7 @@ jobs:
           python3 scripts/test_public_release_verifier.py
           python3 scripts/test_release_metadata.py
           python3 scripts/test_package_release.py
+          python3 scripts/test_prepare_release_signing.py
           python3 scripts/test_update_launcher.py
       - name: Install output schema dependencies
         run: npm --prefix docs ci --ignore-scripts --no-audit --no-fund

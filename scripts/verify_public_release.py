@@ -48,13 +48,15 @@ CRITICAL_POLICY_HASHES = {
     "project.yml": "32aca3f10b90261e678cdd8bc7a27383d9b72be32ff3fd083fa1ea6652aab637",
     "Resources/iOS/Info.plist": "f684655642e476f10aa8b909f0bf62fecb65e9d91f2bcdf3ef7f60666625b2f6",
     "HyphaMobile.xcodeproj/project.pbxproj": "addbf377324d71c8ec8e1cb679fd1d8e9f619ea5ccd282a5ccdd8dcd68239686",
-    ".github/workflows/ci.yml": "c7a74a35326a77c9b01dccd61639ffe635b67e5b805683c4aaa2fae8e786dcea",
-    ".github/workflows/release.yml": "1883a6c3cccf6f315401bd53931b4c8309ecc9052287f43b274dde2d09b5a7f9",
+    ".github/workflows/ci.yml": "a0197e410b90e50ef99e60665d9558ba8326abf77616211f8eb3f5abfd834064",
+    ".github/workflows/release.yml": "766a573d6aa88ebc175a323bdfb712653ff0f213ea636619a080244dd15862ca",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
     "build-app.sh": "6f1b7ba44241e52439fe024922b9b266f2a866ca19fa3f58b131ccd98d1ebee4",
     "release/encryption-gate.json": "6aac43d006072c05c3ecc65ec05490e2c24acc76c3aa85bc146473e6f9a9e1c6",
-    "release/ADHOC_RELEASE_NOTICE.md": "2825fc1d975afa8b92d8351f0ff31a93d73f495991792ebc2cd981b2cff6b959",
+    "release/RELEASE_NOTES.md": "f382d08f5238c173fc9e5099d72f38b4d30d1c9f592f89bab099e0c1aafbdb57",
     "scripts/package-release.sh": "37466216ca5e8d19746a4ade4149a2e58c0fb9735a2ed1eeb5ca74a51fcf7482",
+    "scripts/prepare-release-signing.sh": "659ddbd4d260c3db31d9bfe6813676212ef2cf76983ec39c776fb98cda7cff61",
+    "scripts/test_prepare_release_signing.py": "dcfb977656b7cddb5b61e6021f90d8418d31b092fd2da15fecb833a7f08677d3",
     "scripts/update-from-main.sh": "39b42e5ee8ed1e8bbac324249381b47cdb07cd30c8d7ca8259d18c4ec43a7392",
     "scripts/launch-update-from-main.command": "6850baecd7798789955c5e88883586dc03209d4235756da15b814322e60fe606",
     "scripts/test_update_launcher.py": "5a0e134d6cf647774520a0ec399a5c951f76d852390c9ada48ed3c21dd73553e",
@@ -312,6 +314,30 @@ require("fetch-depth: 0" in ci_workflow, "history scanner requires full checkout
 require("gitleaks_8.30.1_darwin_arm64.tar.gz" in ci_workflow, "pinned Gitleaks download missing")
 require("b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5" in ci_workflow, "Gitleaks checksum missing")
 require("/tmp/gitleaks git ." in ci_workflow and "/tmp/gitleaks dir ." in ci_workflow, "ongoing secret scans missing")
+
+release_workflow = text(".github/workflows/release.yml")
+required_release_secrets = (
+    "MACOS_CERTIFICATE_P12",
+    "MACOS_CERTIFICATE_PASSWORD",
+    "RELEASE_KEYCHAIN_PASSWORD",
+    "APPLE_API_KEY_P8",
+    "APPLE_API_KEY_ID",
+    "APPLE_API_ISSUER_ID",
+)
+for secret_name in required_release_secrets:
+    require(f"secrets.{secret_name}" in release_workflow, f"release secret is not wired: {secret_name}")
+require("scripts/prepare-release-signing.sh" in release_workflow, "release signing preparation is not invoked")
+require("HYPHA_RELEASE_MODE: distributable" in release_workflow, "public release is not distributable")
+require("HYPHA_ALLOW_NON_DISTRIBUTABLE_RELEASE" not in release_workflow, "public release has an ad-hoc escape hatch")
+require("release/RELEASE_NOTES.md" in release_workflow, "distributable release notes are not published")
+require("ADHOC_RELEASE_NOTICE" not in release_workflow, "public release still publishes the ad-hoc warning")
+
+credential_import = text("scripts/prepare-release-signing.sh")
+for secret_name in required_release_secrets:
+    require(f"${{{secret_name}:?" in credential_import, f"credential importer does not require {secret_name}")
+require("-T /usr/bin/codesign" in credential_import, "Developer ID private key is not limited to codesign")
+require(" -A " not in credential_import, "Developer ID private key grants unrestricted application access")
+require("trap cleanup_on_error EXIT" in credential_import, "partial credential import does not clean up")
 
 require("THIRD_PARTY_LICENSES.html" in build_script and "verify_app_licenses.py" in build_script, "app packaging omits license verification")
 for forbidden in PRIVATE_PATH_PREFIXES:
