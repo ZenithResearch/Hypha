@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SECURITY_URL = "https://github.com/ZenithResearch/Hypha/security/advisories/new"
 AGPL_SHA256 = "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
 SDK_SHA256 = "9b853f98352f088ae0939e28d4d739349c396f9b57f6af815c0a7957156fe4c8"
+SDK_ARTIFACT_URL = "https://github.com/bananawalnut/matrix-rust-sdk/releases/download/hypha-26.08.15-zenith.12/MatrixSDKFFI.xcframework.zip"
 THIRD_PARTY_LICENSES_SHA256 = "fcaea90f82dc3aa6f0ab1761310e19c554ae771829e7a77d167c84128f9e42f2"
 LICENSE_INVENTORY_SHA256 = "66887660cc784b7d6cb4c4e425ba4a8d164ad1c9854a903a9af792576816216a"
 THIRD_PARTY_NOTICES_SHA256 = "e09cc55f6c0279876b459f03a91f28363b2be859736eef97ac269c4e7da5c86f"
@@ -48,16 +49,17 @@ CRITICAL_POLICY_HASHES = {
     "project.yml": "32aca3f10b90261e678cdd8bc7a27383d9b72be32ff3fd083fa1ea6652aab637",
     "Resources/iOS/Info.plist": "f684655642e476f10aa8b909f0bf62fecb65e9d91f2bcdf3ef7f60666625b2f6",
     "HyphaMobile.xcodeproj/project.pbxproj": "addbf377324d71c8ec8e1cb679fd1d8e9f619ea5ccd282a5ccdd8dcd68239686",
-    ".github/workflows/ci.yml": "a0197e410b90e50ef99e60665d9558ba8326abf77616211f8eb3f5abfd834064",
-    ".github/workflows/release.yml": "766a573d6aa88ebc175a323bdfb712653ff0f213ea636619a080244dd15862ca",
+    ".github/workflows/ci.yml": "9dd19c79fb238e1be0f81dd394110ff830682a5426fd3ad7581d72d6ddd85722",
+    ".github/workflows/release.yml": "c4ec74ec7f7eaf3b75aa0fcaf0ad9d3a6584a25ee0589c61f174948bc0ef6924",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
-    "build-app.sh": "6f1b7ba44241e52439fe024922b9b266f2a866ca19fa3f58b131ccd98d1ebee4",
+    "build-app.sh": "a03d2dda7b90ee526cbb2e18623d6e5ccc84575ce974ea391f16fb1ef32ccd4b",
     "release/encryption-gate.json": "6aac43d006072c05c3ecc65ec05490e2c24acc76c3aa85bc146473e6f9a9e1c6",
     "release/RELEASE_NOTES.md": "f382d08f5238c173fc9e5099d72f38b4d30d1c9f592f89bab099e0c1aafbdb57",
-    "scripts/package-release.sh": "37466216ca5e8d19746a4ade4149a2e58c0fb9735a2ed1eeb5ca74a51fcf7482",
+    "scripts/package-release.sh": "9c03277f59f14e971f4356c8807d062f785059307c0d7853bdc65bfb341e490e",
+    "scripts/hydrate-matrix-sdk.sh": "8b67054cc625431926ea6359bfdd41691bb79280edee7428f3697744e5a12651",
     "scripts/prepare-release-signing.sh": "659ddbd4d260c3db31d9bfe6813676212ef2cf76983ec39c776fb98cda7cff61",
     "scripts/test_prepare_release_signing.py": "dcfb977656b7cddb5b61e6021f90d8418d31b092fd2da15fecb833a7f08677d3",
-    "scripts/update-from-main.sh": "39b42e5ee8ed1e8bbac324249381b47cdb07cd30c8d7ca8259d18c4ec43a7392",
+    "scripts/update-from-main.sh": "1584db6f26caf98421666499a0ee99464a961e814c796f6279638e7a55075ce7",
     "scripts/launch-update-from-main.command": "6850baecd7798789955c5e88883586dc03209d4235756da15b814322e60fe606",
     "scripts/test_update_launcher.py": "5a0e134d6cf647774520a0ec399a5c951f76d852390c9ada48ed3c21dd73553e",
     "scripts/write_release_metadata.py": "d0f6cdca5dc39d7ecb537a94d0dd5ac1696d51838641ba8d3a4bfb6ed79054a1",
@@ -205,10 +207,15 @@ notices = text("THIRD_PARTY_NOTICES.md")
 licenses_html = text("THIRD_PARTY_LICENSES.html")
 provenance = text("Vendor/MatrixRustSDK/PROVENANCE.md")
 build_script = text("build-app.sh")
+hydrate_script = text("scripts/hydrate-matrix-sdk.sh")
+updater_script = text("scripts/update-from-main.sh")
 require("SPDX-License-Identifier: AGPL-3.0-or-later" in readme, "README SPDX declaration missing")
 require("GNU AGPL v3 or later" in contributing, "contribution license missing")
 require(SECURITY_URL in security and "attacker.invalid" not in security, "exact security-reporting URL missing")
 require(SDK_SHA256 in notices and SDK_SHA256 in provenance, "SDK checksum missing")
+require(SDK_ARTIFACT_URL in provenance and SDK_ARTIFACT_URL in hydrate_script, "SDK artifact URL drift")
+require(SDK_SHA256 in hydrate_script, "SDK hydrator checksum drift")
+require("d28c164ef37cd67723aa565bf5aec9c0cefc3bb8" in hydrate_script, "SDK hydrator source commit drift")
 
 sdk_archive_path = ROOT / "Vendor/MatrixRustSDK/MatrixSDKFFI.xcframework.zip"
 try:
@@ -311,11 +318,15 @@ for path in workflow_paths:
 require("permissions:\n  contents: read" in text(".github/workflows/ci.yml"), "CI top-level contents: read missing")
 ci_workflow = text(".github/workflows/ci.yml")
 require("fetch-depth: 0" in ci_workflow, "history scanner requires full checkout")
+require("lfs: false" in ci_workflow and "lfs: true" not in ci_workflow, "CI must not depend on Git LFS hydration")
+require("scripts/hydrate-matrix-sdk.sh" in ci_workflow, "CI SDK hydration missing")
 require("gitleaks_8.30.1_darwin_arm64.tar.gz" in ci_workflow, "pinned Gitleaks download missing")
 require("b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5" in ci_workflow, "Gitleaks checksum missing")
 require("/tmp/gitleaks git ." in ci_workflow and "/tmp/gitleaks dir ." in ci_workflow, "ongoing secret scans missing")
 
 release_workflow = text(".github/workflows/release.yml")
+require("lfs: false" in release_workflow and "lfs: true" not in release_workflow, "release must not depend on Git LFS hydration")
+require("scripts/hydrate-matrix-sdk.sh" in release_workflow, "release SDK hydration missing")
 required_release_secrets = (
     "MACOS_CERTIFICATE_P12",
     "MACOS_CERTIFICATE_PASSWORD",
@@ -340,6 +351,8 @@ require(" -A " not in credential_import, "Developer ID private key grants unrest
 require("trap cleanup_on_error EXIT" in credential_import, "partial credential import does not clean up")
 
 require("THIRD_PARTY_LICENSES.html" in build_script and "verify_app_licenses.py" in build_script, "app packaging omits license verification")
+require("scripts/hydrate-matrix-sdk.sh" in build_script, "app build SDK hydration missing")
+require("scripts/hydrate-matrix-sdk.sh" in updater_script and "git lfs pull" not in updater_script, "updater SDK hydration drift")
 for forbidden in PRIVATE_PATH_PREFIXES:
     require(forbidden not in provenance, f"current SDK provenance contains private path: {forbidden}")
 

@@ -848,7 +848,8 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "./build-app.sh",
             "codesign --verify --deep --strict",
             "Verify patched SDK artifact",
-            "lfs: true",
+            "lfs: false",
+            "scripts/hydrate-matrix-sdk.sh",
             "macos-26"
         ] {
             XCTAssertTrue(source.contains(marker), "Missing CI gate: \(marker)")
@@ -896,7 +897,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(workflow.contains("contents: write"))
         XCTAssertTrue(workflow.contains("environment: release"))
         XCTAssertTrue(workflow.contains("git merge-base --is-ancestor"))
-        XCTAssertTrue(workflow.contains("git diff --quiet \"$gate_sha\" \"$GITHUB_SHA\" -- Package.swift Package.resolved Sources Vendor Resources scripts/update-from-main.sh scripts/launch-update-from-main.command build-app.sh"))
+        XCTAssertTrue(workflow.contains("git diff --quiet \"$gate_sha\" \"$GITHUB_SHA\" -- Package.swift Package.resolved Sources Vendor Resources scripts/hydrate-matrix-sdk.sh scripts/update-from-main.sh scripts/launch-update-from-main.command build-app.sh"))
         XCTAssertTrue(workflow.contains("gitleaks_8.30.1_darwin_arm64.tar.gz"))
         XCTAssertTrue(workflow.contains("b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5"))
         XCTAssertTrue(workflow.contains("/tmp/gitleaks git ."))
@@ -924,7 +925,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(workflow.contains("--notes-file release/RELEASE_NOTES.md"))
         XCTAssertTrue(packageScript.contains("HYPHA_SIGNING_MODE=developer-id"))
         XCTAssertTrue(packageScript.contains("merge-base --is-ancestor"))
-        XCTAssertTrue(packageScript.contains("Package.swift Package.resolved Sources Vendor Resources scripts/update-from-main.sh scripts/launch-update-from-main.command build-app.sh"))
+        XCTAssertTrue(packageScript.contains("Package.swift Package.resolved Sources Vendor Resources scripts/hydrate-matrix-sdk.sh scripts/update-from-main.sh scripts/launch-update-from-main.command build-app.sh"))
         XCTAssertTrue(packageScript.contains("stapler staple"))
         XCTAssertTrue(packageScript.contains("SHA256SUMS"))
         XCTAssertTrue(packageScript.contains("write_release_metadata.py"))
@@ -1594,8 +1595,9 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(updater.contains("https://github.com/ZenithResearch/Hypha.git"))
         XCTAssertTrue(updater.contains("fetch --force --prune origin main"))
         XCTAssertTrue(updater.contains("checkout --detach --force FETCH_HEAD"))
-        XCTAssertTrue(updater.contains("lfs install --local --skip-smudge"))
-        XCTAssertTrue(updater.contains("lfs pull origin main"))
+        XCTAssertTrue(updater.contains("GIT_LFS_SKIP_SMUDGE=1"))
+        XCTAssertTrue(updater.contains("scripts/hydrate-matrix-sdk.sh"))
+        XCTAssertFalse(updater.contains("lfs pull"))
         XCTAssertTrue(updater.contains("HYPHA_SIGNING_MODE=adhoc ./build-app.sh"))
         XCTAssertTrue(updater.contains("codesign --verify --deep --strict"))
         XCTAssertTrue(updater.contains("$BUILT_APP/Contents/Resources/update-from-main.sh"))

@@ -51,7 +51,7 @@ case "$MODE" in
     : "${HYPHA_NOTARY_ISSUER_ID:?HYPHA_NOTARY_ISSUER_ID is required}"
     GATE_SHA="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["commit_sha"])' "$ROOT/release/encryption-gate.json")"
     git -C "$ROOT" merge-base --is-ancestor "$GATE_SHA" "$HEAD_SHA"
-    git -C "$ROOT" diff --quiet "$GATE_SHA" "$HEAD_SHA" -- Package.swift Package.resolved Sources Vendor Resources scripts/update-from-main.sh scripts/launch-update-from-main.command build-app.sh
+    git -C "$ROOT" diff --quiet "$GATE_SHA" "$HEAD_SHA" -- Package.swift Package.resolved Sources Vendor Resources scripts/hydrate-matrix-sdk.sh scripts/update-from-main.sh scripts/launch-update-from-main.command build-app.sh
     HYPHA_SIGNING_MODE=developer-id "$ROOT/build-app.sh"
     if ! codesign -dv --verbose=4 "$ROOT/Hypha.app" 2>&1 | grep -q 'Authority=Developer ID Application'; then
       echo "Hypha.app is not signed with a Developer ID Application identity." >&2
