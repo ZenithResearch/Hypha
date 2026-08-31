@@ -4,6 +4,52 @@ import XCTest
 @testable import HyphaCore
 
 final class MatrixRustSDKChatServiceTests: XCTestCase {
+    func testRoomNameResolutionPrefersPersistedStateNameOverComputedFallbacks() {
+        XCTAssertEqual(
+            MatrixRoomNameResolution.resolve(
+                rawName: "hello world",
+                roomInfoDisplayName: "Empty Room",
+                roomDisplayName: "Empty Room",
+                canonicalAlias: "#fallback:example.org",
+                fallback: "!room:example.org"
+            ),
+            "hello world"
+        )
+    }
+
+    func testRoomNameResolutionFallsBackThroughSDKNamesAliasAndRoomID() {
+        XCTAssertEqual(
+            MatrixRoomNameResolution.resolve(
+                rawName: nil,
+                roomInfoDisplayName: "Computed Room",
+                roomDisplayName: "Older Computed Room",
+                canonicalAlias: "#fallback:example.org",
+                fallback: "!room:example.org"
+            ),
+            "Computed Room"
+        )
+        XCTAssertEqual(
+            MatrixRoomNameResolution.resolve(
+                rawName: nil,
+                roomInfoDisplayName: nil,
+                roomDisplayName: nil,
+                canonicalAlias: "#fallback:example.org",
+                fallback: "!room:example.org"
+            ),
+            "#fallback:example.org"
+        )
+        XCTAssertEqual(
+            MatrixRoomNameResolution.resolve(
+                rawName: nil,
+                roomInfoDisplayName: nil,
+                roomDisplayName: nil,
+                canonicalAlias: nil,
+                fallback: "!room:example.org"
+            ),
+            "!room:example.org"
+        )
+    }
+
     func testRecoveryIdentityResetLifecycleNeverRestartsAfterIdentityCommitment() {
         var lifecycle = MatrixRecoveryIdentityResetLifecycle()
 

@@ -19,6 +19,12 @@ final class MatrixLiveSessionSmokeTests: XCTestCase {
         let rooms = try await service.restore()
         mark("live-smoke: restored \(rooms.count) joined room(s)")
         XCTAssertFalse(rooms.isEmpty, "The saved production session should expose joined rooms")
+        if let expectedRoomName = ProcessInfo.processInfo.environment["HYPHA_MATRIX_LIVE_EXPECTED_ROOM_NAME"] {
+            XCTAssertTrue(
+                rooms.contains { $0.name == expectedRoomName },
+                "The persisted Matrix room name should survive session restoration"
+            )
+        }
         let trustState = try await service.deviceTrustState()
         XCTAssertNotEqual(trustState, .unknown, "Production device trust state should resolve after sync")
         mark("live-smoke: authoritative device trust state resolved")
@@ -122,7 +128,8 @@ final class MatrixLiveSessionSmokeTests: XCTestCase {
         _ = try await sender.signIn(username: senderUsername, password: senderPassword)
         let roomName = "Hypha live E2EE \(UUID().uuidString)"
         let senderRoom = try await sender.createEncryptedRoom(.init(name: roomName))
-        _ = try await sender.refreshRooms()
+        let refreshedSenderRooms = try await sender.refreshRooms()
+        XCTAssertEqual(refreshedSenderRooms.first(where: { $0.id == senderRoom.id })?.name, roomName)
         try await sender.inviteUsers(.init(
             roomID: senderRoom.id,
             userIDs: ["@\(receiverUsername):synapse.zenith-research.ca"]
@@ -164,7 +171,8 @@ final class MatrixLiveSessionSmokeTests: XCTestCase {
             vault: senderVault,
             clientFactory: MatrixRustLiveClientFactory(configuration: configuration, rootDirectory: senderRoot)
         )
-        _ = try await restoredSender.restore()
+        let restoredRooms = try await restoredSender.restore()
+        XCTAssertEqual(restoredRooms.first(where: { $0.id == senderRoom.id })?.name, roomName)
         var restoredContent: MatrixTimelineEvent.Content?
         for _ in 0..<40 {
             let events = try await restoredSender.timeline(for: senderRoom.id)
