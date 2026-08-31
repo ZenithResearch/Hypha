@@ -67,6 +67,15 @@ credential.
 
 For an unpackaged development launch, provide the same key to `swift run Hypha`.
 
+When the configured endpoint uses Tailscale Serve's `.ts.net` hostname, Hypha
+presents it as the recommended **Connect through Tailscale** action. The action
+still performs the ordinary Matrix client health check; it does not receive a
+Tailscale credential or join a tailnet on the user's behalf. **Open Tailscale**
+uses the native `tailscale://` app link and falls back to Tailscale's official
+download page when the client is not installed. Manual HTTPS homeserver entry
+remains available, and an existing saved homeserver still takes precedence over
+the deployment default.
+
 ## Repository output contract
 
 An attached room shares the remote repository URL and fixed `out/` contract through Matrix room state. Each Mac separately chooses its local checkout. The local build command is optional: with no command, Hypha loads every supported file from `<repo>/out`. If the manifest selects a primary output, that output opens first while the remaining supported assets stay available in the room-content picker.

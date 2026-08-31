@@ -218,6 +218,15 @@ final class MatrixAppModel: ObservableObject {
         return url
     }
 
+    var configuredDefaultHomeserver: URL? {
+        defaultHomeserver
+    }
+
+    var defaultHomeserverAccessMethod: MatrixHomeserverAccessMethod {
+        guard let defaultHomeserver else { return .internet }
+        return MatrixProductConfiguration(homeserver: defaultHomeserver).accessMethod
+    }
+
     var isCheckingHomeserver: Bool { homeserverState == .checking }
 
     var applePasswordsAvailable: Bool {
@@ -274,7 +283,17 @@ final class MatrixAppModel: ObservableObject {
             rooms = []
             resetSecurityState()
             resetAdministratorState()
-            let message = (error as? LocalizedError)?.errorDescription ?? "The homeserver could not be checked."
+            let message: String
+            if error as? MatrixHomeserverConnectionError == .unreachable,
+               let requestedHomeserver = try? MatrixHomeserverHealthChecker.normalizedHomeserver(
+                   from: homeserverInput
+               ),
+               MatrixProductConfiguration(homeserver: requestedHomeserver).accessMethod == .tailscale {
+                message = "Hypha could not reach this private homeserver through Tailscale. Open Tailscale, connect this device to the authorized tailnet, then try again."
+            } else {
+                message = (error as? LocalizedError)?.errorDescription
+                    ?? "The homeserver could not be checked."
+            }
             homeserverState = .failed(message)
         }
     }
@@ -3288,7 +3307,8 @@ private struct MatrixCompanionShell: View {
     #endif
 
     private var homeserverSetup: some View {
-        VStack(spacing: 18) {
+        ScrollView {
+            VStack(spacing: 18) {
             Image(systemName: "network")
                 .font(.system(size: 54))
                 .foregroundStyle(.tint)
@@ -3304,6 +3324,13 @@ private struct MatrixCompanionShell: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(ZenithDesign.Palette.muted)
                 .frame(maxWidth: 480)
+            if model.defaultHomeserverAccessMethod == .tailscale,
+               let defaultHomeserver = model.configuredDefaultHomeserver {
+                tailscaleConnectionCard(defaultHomeserver)
+                Text("Or use another Matrix homeserver")
+                    .font(ZenithDesign.Typography.corporate(.caption, weight: .medium))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+            }
             TextField("https://matrix.example.org", text: $model.homeserverInput)
                 .textFieldStyle(ZenithInputStyle())
                 #if os(iOS)
@@ -3324,30 +3351,111 @@ private struct MatrixCompanionShell: View {
                     .foregroundStyle(ZenithDesign.Palette.error)
                     .accessibilityIdentifier("matrix.homeserver.error")
             }
+            manualHomeserverConnectButton
+            }
+            .frame(maxWidth: 520)
+            .padding(.horizontal, horizontalSizeClass == .compact ? ZenithDesign.Space.x4 : 40)
+            .padding(.vertical, horizontalSizeClass == .compact ? ZenithDesign.Space.x5 : 40)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func tailscaleConnectionCard(_ homeserver: URL) -> some View {
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
+            Label("Private Tailscale homeserver", systemImage: "lock.shield.fill")
+                .font(ZenithDesign.Typography.corporate(.headline, weight: .semibold))
+            Text(homeserver.host ?? homeserver.absoluteString)
+                .font(ZenithDesign.Typography.technical(.callout, weight: .medium))
+                .foregroundStyle(ZenithDesign.Palette.brand)
+                .textSelection(.enabled)
+            Text("Tailscale must be installed and connected to the authorized tailnet. Hypha never receives your Tailscale credentials.")
+                .font(ZenithDesign.Typography.corporate(.caption))
+                .foregroundStyle(ZenithDesign.Palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
             Button {
-                Task { await model.connectHomeserver() }
+                Task { await model.connectDefaultHomeserver() }
             } label: {
-                Group {
+                HStack(spacing: ZenithDesign.Space.x2) {
                     if model.isCheckingHomeserver {
                         ProgressView()
                             .controlSize(.small)
                     } else {
-                        Text("Check and connect")
+                        Image(systemName: "network.badge.shield.half.filled")
+                        Text("Connect through Tailscale")
                     }
                 }
-                .frame(maxWidth: horizontalSizeClass == .compact ? .infinity : nil)
+                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(ZenithPrimaryButtonStyle())
+            .buttonStyle(HyphaButtonStyle(.primary))
             .keyboardShortcut(.defaultAction)
-            .disabled(
-                model.isCheckingHomeserver ||
-                model.homeserverInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            )
-            .accessibilityIdentifier("matrix.homeserver.connect")
+            .disabled(model.isCheckingHomeserver)
+            .accessibilityIdentifier("matrix.homeserver.tailscale.connect")
+
+            Button {
+                openTailscale()
+            } label: {
+                Label("Open Tailscale", systemImage: "arrow.up.forward.app")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(HyphaButtonStyle(.secondary))
+            .disabled(model.isCheckingHomeserver)
+            .accessibilityIdentifier("matrix.homeserver.tailscale.open")
         }
-        .frame(maxWidth: 520)
-        .padding(.horizontal, horizontalSizeClass == .compact ? ZenithDesign.Space.x4 : 40)
-        .padding(.vertical, horizontalSizeClass == .compact ? ZenithDesign.Space.x5 : 40)
+        .padding(ZenithDesign.Space.x4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .zenithGlassSurface()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("matrix.homeserver.tailscale")
+    }
+
+    @ViewBuilder
+    private var manualHomeserverConnectButton: some View {
+        if model.defaultHomeserverAccessMethod == .tailscale {
+            manualHomeserverConnectButtonBody
+                .buttonStyle(HyphaButtonStyle(.secondary))
+        } else {
+            manualHomeserverConnectButtonBody
+                .buttonStyle(HyphaButtonStyle(.primary))
+                .keyboardShortcut(.defaultAction)
+        }
+    }
+
+    private var manualHomeserverConnectButtonBody: some View {
+        Button {
+            Task { await model.connectHomeserver() }
+        } label: {
+            Group {
+                if model.isCheckingHomeserver {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Text("Check and connect")
+                }
+            }
+            .frame(maxWidth: horizontalSizeClass == .compact ? .infinity : nil)
+        }
+        .disabled(
+            model.isCheckingHomeserver ||
+            model.homeserverInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        )
+        .accessibilityIdentifier("matrix.homeserver.connect")
+    }
+
+    private func openTailscale() {
+        guard let appURL = URL(string: "tailscale://"),
+              let downloadURL = URL(string: "https://tailscale.com/download") else {
+            return
+        }
+        #if os(macOS)
+        if !NSWorkspace.shared.open(appURL) {
+            NSWorkspace.shared.open(downloadURL)
+        }
+        #else
+        UIApplication.shared.open(appURL, options: [:]) { opened in
+            guard !opened else { return }
+            UIApplication.shared.open(downloadURL)
+        }
+        #endif
     }
 
     @ViewBuilder

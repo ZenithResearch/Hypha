@@ -1,5 +1,10 @@
 import Foundation
 
+public enum MatrixHomeserverAccessMethod: Equatable, Sendable {
+    case internet
+    case tailscale
+}
+
 public struct MatrixProductConfiguration: Equatable, Sendable {
     public static let defaultHomeserverEnvironmentKey = "HYPHA_DEFAULT_HOMESERVER"
     public static let defaultHomeserverBundleKey = "HyphaDefaultHomeserver"
@@ -10,6 +15,15 @@ public struct MatrixProductConfiguration: Equatable, Sendable {
     public init(homeserver: URL, allowsPlaintextFallback: Bool = false) {
         self.homeserver = homeserver
         self.allowsPlaintextFallback = allowsPlaintextFallback
+    }
+
+    public var accessMethod: MatrixHomeserverAccessMethod {
+        guard let host = homeserver.host?.lowercased(),
+              host != "ts.net",
+              host.hasSuffix(".ts.net") else {
+            return .internet
+        }
+        return .tailscale
     }
 
     public static var configuredDefault: MatrixProductConfiguration? {
