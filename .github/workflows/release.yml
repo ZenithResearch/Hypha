@@ -62,11 +62,14 @@ jobs:
         run: scripts/prepare-release-signing.sh
       - name: Build, sign, notarize, and package distributable release
         env:
+          HYPHA_DEFAULT_HOMESERVER: ${{ vars.HYPHA_DEFAULT_HOMESERVER }}
           HYPHA_RELEASE_MODE: distributable
           HYPHA_RELEASE_ALLOW_UNTAGGED: '0'
           HYPHA_NOTARY_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           HYPHA_NOTARY_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-        run: scripts/package-release.sh "$GITHUB_REF_NAME" dist
+        run: |
+          test -n "$HYPHA_DEFAULT_HOMESERVER"
+          scripts/package-release.sh "$GITHUB_REF_NAME" dist
       - name: Verify distributable release metadata
         run: |
           (cd dist && shasum -a 256 -c SHA256SUMS)

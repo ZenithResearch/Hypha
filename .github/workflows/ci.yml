@@ -65,6 +65,11 @@ jobs:
       - name: Build
         run: swift build
       - name: Package and audit
-        run: HYPHA_SIGNING_MODE=adhoc ./build-app.sh
+        env:
+          HYPHA_DEFAULT_HOMESERVER: https://matrix.example.org
+          HYPHA_SIGNING_MODE: adhoc
+        run: ./build-app.sh
       - name: Verify signed bundle
-        run: codesign --verify --deep --strict --verbose=2 Hypha.app
+        run: |
+          codesign --verify --deep --strict --verbose=2 Hypha.app
+          test "$(plutil -extract HyphaDefaultHomeserver raw Hypha.app/Contents/Info.plist)" = "https://matrix.example.org"

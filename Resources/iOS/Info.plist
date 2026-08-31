@@ -11,6 +11,8 @@
     <key>CFBundlePackageType</key><string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
     <key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+    <key>HyphaDefaultHomeserver</key>
+    <string>$(HYPHA_DEFAULT_HOMESERVER)</string>
     <key>LSRequiresIPhoneOS</key><true/>
     <key>NSCameraUsageDescription</key>
     <string>Hypha uses the camera to scan a secure Matrix device setup QR code.</string>

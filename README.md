@@ -51,9 +51,21 @@ A standalone app keeps human credentials and capability state away from ZenithOS
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build
-./build-app.sh
+HYPHA_DEFAULT_HOMESERVER=https://matrix.example.org ./build-app.sh
 open Hypha.app
 ```
+
+`HYPHA_DEFAULT_HOMESERVER` is the single default-homeserver configuration key. It
+must contain an HTTPS URL. At runtime it overrides a packaged default; at build
+time `build-app.sh` records it as `HyphaDefaultHomeserver` in the app bundle so a
+normal Finder launch receives the same setting. If neither value is present or
+the explicit environment value is invalid, Hypha leaves the homeserver
+unconfigured and shows the chooser. A homeserver previously selected by the user
+is restored before this first-run default, so changing a deployment default does
+not silently move existing accounts. The value is a public endpoint, never a
+credential.
+
+For an unpackaged development launch, provide the same key to `swift run Hypha`.
 
 ## Repository output contract
 
@@ -94,7 +106,8 @@ Generate and build the iPhone/iPad project with XcodeGen:
 xcodegen generate
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   xcodebuild -project HyphaMobile.xcodeproj -scheme HyphaMobile \
-  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO \
+  HYPHA_DEFAULT_HOMESERVER=https://matrix.example.org build
 ```
 
 The generated `HyphaMobile` target supports iPhone and iPad and uses bundle identifier `ca.zenithresearch.ios.client`. Device builds require the Zenith Research development team and normal Xcode provisioning.

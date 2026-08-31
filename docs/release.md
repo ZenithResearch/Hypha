@@ -15,6 +15,7 @@ A distributable release must satisfy all of the following:
 7. Release metadata reports `mode: developer-id`, `notarized: true`, and `distributable: true`.
 8. GitHub provides source archives for the exact release tag.
 9. The archive, release metadata, and `SHA256SUMS` verify before upload.
+10. `HYPHA_DEFAULT_HOMESERVER` is supplied by the protected release environment and embedded as the public first-run HTTPS endpoint.
 
 Ad-hoc packages are explicitly marked non-distributable and cannot claim notarization. The tag workflow has no non-distributable escape hatch: missing or invalid Apple credentials stop publication.
 
@@ -28,6 +29,10 @@ The protected `release` GitHub environment allows only `v*` tags, requires an op
 - `APPLE_API_KEY_P8` — base64-encoded App Store Connect API private key.
 - `APPLE_API_KEY_ID` — App Store Connect key identifier.
 - `APPLE_API_ISSUER_ID` — App Store Connect issuer identifier.
+
+It must also define the non-secret environment variable
+`HYPHA_DEFAULT_HOMESERVER` as the intended public HTTPS Matrix endpoint. The
+release job fails if it is absent; the endpoint is not an authentication secret.
 
 No release secret is optional. The workflow imports the certificate into an ephemeral keychain, writes the notarization key under `RUNNER_TEMP`, and removes both after the job.
 
@@ -47,6 +52,7 @@ proof_dir=$(mktemp -d)
 HYPHA_RELEASE_MODE=adhoc \
 HYPHA_ALLOW_NON_DISTRIBUTABLE_RELEASE=1 \
 HYPHA_RELEASE_ALLOW_UNTAGGED=1 \
+HYPHA_DEFAULT_HOMESERVER=https://matrix.example.org \
 scripts/package-release.sh v0.2.0 "$proof_dir"
 ```
 

@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 APP="$ROOT/Hypha.app"
 EXECUTABLE="$APP/Contents/MacOS/Hypha"
 HYPHA_SIGNING_MODE="${HYPHA_SIGNING_MODE:-development}"
+HYPHA_DEFAULT_HOMESERVER="${HYPHA_DEFAULT_HOMESERVER:-}"
 HYPHA_DEVELOPMENT_TEAM="${HYPHA_DEVELOPMENT_TEAM:-KR4YTNKK3Y}"
 
 case "$HYPHA_SIGNING_MODE" in
@@ -73,6 +74,15 @@ if app.exists():
 PY
 cp "$ROOT/.build/release/Hypha" "$EXECUTABLE"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
+if [[ -n "$HYPHA_DEFAULT_HOMESERVER" ]]; then
+  if [[ "$HYPHA_DEFAULT_HOMESERVER" != https://* ]]; then
+    echo "HYPHA_DEFAULT_HOMESERVER must be an HTTPS URL." >&2
+    exit 1
+  fi
+  plutil -insert HyphaDefaultHomeserver \
+    -string "$HYPHA_DEFAULT_HOMESERVER" \
+    "$APP/Contents/Info.plist"
+fi
 cp "$ROOT/Resources/ZenithOSIcon.icns" "$APP/Contents/Resources/ZenithOSIcon.icns"
 cp "$ROOT/scripts/update-from-main.sh" "$APP/Contents/Resources/update-from-main.sh"
 cp "$ROOT/scripts/launch-update-from-main.command" "$APP/Contents/Resources/launch-update-from-main.command"

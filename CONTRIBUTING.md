@@ -17,9 +17,12 @@ Hypha currently targets macOS 26.4 and uses Xcode 26.4. Clone with Git LFS enabl
 git lfs pull
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build
-HYPHA_SIGNING_MODE=adhoc ./build-app.sh
+HYPHA_DEFAULT_HOMESERVER=https://matrix.example.org \
+  HYPHA_SIGNING_MODE=adhoc ./build-app.sh
 codesign --verify --deep --strict --verbose=2 Hypha.app
 ```
+
+Omit `HYPHA_DEFAULT_HOMESERVER` to test the first-run homeserver chooser.
 
 Live Matrix tests are opt-in and require disposable test accounts supplied through their documented environment variables. Never use production credentials in public CI or bug reports.
 

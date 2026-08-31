@@ -4,6 +4,10 @@ import XCTest
 @testable import HyphaCore
 
 final class MatrixRustSDKChatServiceTests: XCTestCase {
+    private static let testConfiguration = MatrixProductConfiguration(
+        homeserver: URL(string: "https://synapse.zenith-research.ca")!
+    )
+
     func testRoomNameResolutionPrefersPersistedStateNameOverComputedFallbacks() {
         XCTAssertEqual(
             MatrixRoomNameResolution.resolve(
@@ -145,7 +149,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
     func testRecoveryIdentityResetKeepsTheOrdinarySessionAndReturnsAReplacementKey() async throws {
         let liveClient = FakeLiveClient()
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: liveClient),
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
@@ -173,7 +177,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
     func testPrimarySessionProvidesAdministratorAuthorityWithoutSecondLogin() async throws {
         let observedTokens = LockedValues<String>()
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
             administratorClientFactory: { _, _, token in
@@ -192,7 +196,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
     func testPasswordSignInReauthenticatesExistingDeviceAndRestoresItsSDKStore() async throws {
         let accountKey = MatrixRustSDKChatService.accountKey(
             username: "alice",
-            homeserver: MatrixProductConfiguration.production.homeserver
+            homeserver: Self.testConfiguration.homeserver
         )
         let existing = MatrixSDKSessionRecord.fixture(
             accountKey: accountKey,
@@ -214,7 +218,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         ])
         let reauthenticator = FakePasswordSessionReauthenticator(result: .success(refreshed))
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: vault,
             clientFactory: FakeLiveClientFactory(client: client),
             passwordSessionReauthenticator: reauthenticator,
@@ -236,7 +240,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
     func testPasswordChangeForwardsCurrentAndNewPasswordsWithoutLoggingOutOtherDevices() async throws {
         let client = FakeLiveClient()
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
@@ -258,7 +262,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
     func testPasswordReauthenticationRejectsAReplacementDeviceBeforeOpeningTheStore() async throws {
         let accountKey = MatrixRustSDKChatService.accountKey(
             username: "alice",
-            homeserver: MatrixProductConfiguration.production.homeserver
+            homeserver: Self.testConfiguration.homeserver
         )
         let existing = MatrixSDKSessionRecord.fixture(
             accountKey: accountKey,
@@ -276,7 +280,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         try vault.saveStoreKey(Data(repeating: 0xA5, count: 32), accountKey: accountKey)
         let factory = FakeLiveClientFactory(client: FakeLiveClient())
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: vault,
             clientFactory: factory,
             passwordSessionReauthenticator: FakePasswordSessionReauthenticator(result: .success(replacement))
@@ -300,7 +304,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         ])
         let factory = FakeLiveClientFactory(client: client)
         let service = MatrixRustSDKChatService(
-            configuration: MatrixProductConfiguration.production,
+            configuration: Self.testConfiguration,
             vault: vault,
             clientFactory: factory,
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
@@ -327,7 +331,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
             incomingVerificationHandlerError: FixtureSDKError("verification controller unavailable")
         )
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: vault,
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
@@ -345,7 +349,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
     func testPasswordSignInResetsAbandonedCryptoStoreWhenNoSessionRemains() async throws {
         let accountKey = MatrixRustSDKChatService.accountKey(
             username: "beaver",
-            homeserver: MatrixProductConfiguration.production.homeserver
+            homeserver: Self.testConfiguration.homeserver
         )
         let abandonedStoreKey = Data(repeating: 0xA5, count: 32)
         let replacementStoreKey = Data(repeating: 0xB6, count: 32)
@@ -353,7 +357,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         try vault.saveStoreKey(abandonedStoreKey, accountKey: accountKey)
         let factory = FakeLiveClientFactory(client: FakeLiveClient())
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: vault,
             clientFactory: factory,
             randomStoreKey: { replacementStoreKey }
@@ -384,7 +388,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let client = FakeLiveClient()
         await client.setRooms([joined])
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
@@ -407,7 +411,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let vault = MemorySessionVault()
         let client = FakeLiveClient(sessionHomeserverURL: "https://synapse.zenith-research.ca/")
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: vault,
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
@@ -426,7 +430,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
             details: nil
         ))
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
@@ -442,7 +446,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let vault = MemorySessionVault()
         let client = FakeLiveClient(syncError: FixtureSDKError("secret-token-material"))
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: vault,
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
@@ -458,7 +462,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
     func testSignInReportsSessionReadStageWithoutLeakingUnderlyingError() async throws {
         let client = FakeLiveClient(sessionError: FixtureSDKError("secret-token-material"))
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
@@ -473,7 +477,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
     func testSignInReportsRoomLoadStageWithoutLeakingUnderlyingError() async throws {
         let client = FakeLiveClient(roomLoadError: FixtureSDKError("secret-token-material"))
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 0xA5, count: 32) }
@@ -491,7 +495,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         try vault.saveSession(session)
         try vault.saveStoreKey(Data(repeating: 0x4A, count: 32), accountKey: session.accountKey)
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: vault,
             clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
             randomStoreKey: { Data(repeating: 1, count: 32) }
@@ -504,7 +508,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let vault = MemorySessionVault()
         try vault.saveSession(.fixture())
         let service = MatrixRustSDKChatService(
-            configuration: MatrixProductConfiguration.production,
+            configuration: Self.testConfiguration,
             vault: vault,
             clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
             randomStoreKey: { Data(repeating: 1, count: 32) }
@@ -527,7 +531,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
             verificationChallenge: challenge
         )
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -560,7 +564,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
                 peerVerificationEligibilityError: liveError
             )
             let service = MatrixRustSDKChatService(
-                configuration: .production,
+                configuration: Self.testConfiguration,
                 vault: MemorySessionVault(),
                 clientFactory: FakeLiveClientFactory(client: client),
                 randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -575,7 +579,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
 
     func testServiceReportsUnavailablePeerEligibilityWithoutSession() async {
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: FakeLiveClient()),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -592,7 +596,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
             bootstrapState: .verifiedByCurrentSelfSigningKey
         )
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -614,7 +618,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
             bootstrapState: .unavailable
         )
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -633,7 +637,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
             bootstrapContinuationState: .verifiedByCurrentSelfSigningKey
         )
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -658,7 +662,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
             suspendBootstrap: true
         )
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -686,7 +690,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         )
         let client = FakeLiveClient(recoveryState: .available, createdRoom: createdRoom)
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -728,7 +732,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let client = FakeLiveClient()
         await client.setRooms([room])
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -758,7 +762,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let client = FakeLiveClient()
         await client.setRooms([room])
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -783,7 +787,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let client = FakeLiveClient(userLookupResult: expected)
         await client.setRooms([room])
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -808,7 +812,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let client = FakeLiveClient(invitationError: MatrixChatServiceError.unavailable(reason: "Invite permission changed"))
         await client.setRooms([room])
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -846,7 +850,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
             let client = FakeLiveClient()
             await client.setRooms([blockedRoom])
             let service = MatrixRustSDKChatService(
-                configuration: .production,
+                configuration: Self.testConfiguration,
                 vault: MemorySessionVault(),
                 clientFactory: FakeLiveClientFactory(client: client),
                 randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -875,7 +879,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let client = FakeLiveClient()
         await client.setRooms([ownedRoom])
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -900,7 +904,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let client = FakeLiveClient()
         await client.setRooms([otherAccountsRoom])
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -924,7 +928,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let vault = MemorySessionVault()
         let client = FakeLiveClient()
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: vault,
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -942,7 +946,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         let vault = MemorySessionVault()
         let client = FakeLiveClient()
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: vault,
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -969,7 +973,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         ])
         await client.suspendSend()
         let service = MatrixRustSDKChatService(
-            configuration: .production,
+            configuration: Self.testConfiguration,
             vault: MemorySessionVault(),
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }
@@ -1003,7 +1007,7 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
             MatrixRoomSummary(id: "!plain:example.org", name: "Plain", isEncrypted: false, hasInvite: false)
         ])
         let service = MatrixRustSDKChatService(
-            configuration: MatrixProductConfiguration.production,
+            configuration: Self.testConfiguration,
             vault: vault,
             clientFactory: FakeLiveClientFactory(client: client),
             randomStoreKey: { Data(repeating: 2, count: 32) }

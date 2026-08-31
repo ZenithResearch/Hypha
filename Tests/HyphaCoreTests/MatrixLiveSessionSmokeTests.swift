@@ -2,12 +2,27 @@ import XCTest
 @testable import HyphaCore
 
 final class MatrixLiveSessionSmokeTests: XCTestCase {
+    private func liveConfiguration(
+        environment: [String: String]
+    ) throws -> MatrixProductConfiguration {
+        guard let configuration = MatrixProductConfiguration.defaultConfiguration(
+            environment: environment,
+            bundleValue: nil
+        ) else {
+            throw XCTSkip(
+                "Set HYPHA_DEFAULT_HOMESERVER to the HTTPS homeserver used by this live test"
+            )
+        }
+        return configuration
+    }
+
     func testSavedProductionSessionRestoresRoomsAndOpensEncryptedTimeline() async throws {
-        guard ProcessInfo.processInfo.environment["ZENITH_MATRIX_LIVE_SESSION"] == "1" else {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["ZENITH_MATRIX_LIVE_SESSION"] == "1" else {
             throw XCTSkip("Set ZENITH_MATRIX_LIVE_SESSION=1 to exercise the Keychain-backed production session")
         }
 
-        let configuration = MatrixProductConfiguration.production
+        let configuration = try liveConfiguration(environment: environment)
         mark("live-smoke: constructing production service")
         let service = MatrixRustSDKChatService(
             configuration: configuration,
@@ -101,7 +116,7 @@ final class MatrixLiveSessionSmokeTests: XCTestCase {
             throw XCTSkip("Disposable sender and receiver credentials are required")
         }
 
-        let configuration = MatrixProductConfiguration.production
+        let configuration = try liveConfiguration(environment: environment)
         let senderRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("hypha-live-sender-\(UUID().uuidString)", isDirectory: true)
         let receiverRoot = FileManager.default.temporaryDirectory
@@ -130,9 +145,10 @@ final class MatrixLiveSessionSmokeTests: XCTestCase {
         let senderRoom = try await sender.createEncryptedRoom(.init(name: roomName))
         let refreshedSenderRooms = try await sender.refreshRooms()
         XCTAssertEqual(refreshedSenderRooms.first(where: { $0.id == senderRoom.id })?.name, roomName)
+        let serverName = try XCTUnwrap(configuration.homeserver.host)
         try await sender.inviteUsers(.init(
             roomID: senderRoom.id,
-            userIDs: ["@\(receiverUsername):synapse.zenith-research.ca"]
+            userIDs: ["@\(receiverUsername):\(serverName)"]
         ))
         let invitedRooms = try await receiver.refreshRooms()
         let invitation = try XCTUnwrap(invitedRooms.first { $0.id == senderRoom.id && $0.hasInvite })

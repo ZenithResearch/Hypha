@@ -121,7 +121,7 @@ final class MatrixAppModel: ObservableObject {
     typealias ServiceFactory = (MatrixProductConfiguration) -> any MatrixChatService
 
     @Published var state: MatrixChatState = .signedOut(message: nil)
-    @Published var homeserverInput = MatrixProductConfiguration.production.homeserver.absoluteString
+    @Published var homeserverInput: String
     @Published var homeserverState: HomeserverOnboardingState = .awaitingInput
     @Published var username = ""
     @Published var password = ""
@@ -168,6 +168,7 @@ final class MatrixAppModel: ObservableObject {
     private let storageIdentity: MatrixPlatformStorageIdentity
     private let defaults: UserDefaults
     private let legacyDefaults: UserDefaults?
+    private let defaultHomeserver: URL?
     private let healthChecker: MatrixHomeserverHealthChecker
     private let sessionVault: MatrixEncryptedSessionVault
     private let credentialStore: any HyphaMatrixCredentialStore
@@ -188,6 +189,7 @@ final class MatrixAppModel: ObservableObject {
         sharedPasswordStore: any HyphaSharedWebCredentialStore = AppleSharedWebCredentialStore(),
         storageIdentity: MatrixPlatformStorageIdentity = .current,
         defaults: UserDefaults = .standard,
+        defaultHomeserver: URL? = MatrixProductConfiguration.configuredDefault?.homeserver,
         serviceFactory: @escaping ServiceFactory
     ) {
         self.storageIdentity = storageIdentity
@@ -195,6 +197,8 @@ final class MatrixAppModel: ObservableObject {
         self.legacyDefaults = storageIdentity.legacyDefaultsSuite.flatMap(UserDefaults.init(suiteName:))
         self.healthChecker = healthChecker
         self.sessionVault = sessionVault
+        self.defaultHomeserver = defaultHomeserver
+        self.homeserverInput = defaultHomeserver?.absoluteString ?? ""
         self.credentialStore = credentialStore
         self.sharedPasswordStore = sharedPasswordStore
         self.serviceFactory = serviceFactory
@@ -277,7 +281,11 @@ final class MatrixAppModel: ObservableObject {
 
     func connectDefaultHomeserver() async {
         guard connectedHomeserver == nil, !isCheckingHomeserver else { return }
-        homeserverInput = MatrixProductConfiguration.production.homeserver.absoluteString
+        guard let defaultHomeserver else {
+            homeserverState = .awaitingInput
+            return
+        }
+        homeserverInput = defaultHomeserver.absoluteString
         await connectHomeserver()
     }
 
