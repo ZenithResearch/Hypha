@@ -828,7 +828,8 @@ final class MatrixShellSourceContractTests: XCTestCase {
         for marker in ["HYPHA_SIGNING_MODE", "development", "adhoc", "HYPHA_DEVELOPMENT_TEAM"] {
             XCTAssertTrue(buildScript.contains(marker), "Missing explicit signing contract: \(marker)")
         }
-        XCTAssertTrue(workflow.contains("HYPHA_SIGNING_MODE=adhoc ./build-app.sh"))
+        XCTAssertTrue(workflow.contains("HYPHA_SIGNING_MODE: adhoc"))
+        XCTAssertTrue(workflow.contains("run: ./build-app.sh"))
         XCTAssertTrue(workflow.contains("codesign --verify --deep --strict --verbose=2 Hypha.app"))
         XCTAssertFalse(workflow.contains("codesign --verify --deep --strict --verbose=2 ZenithMacOSClient.app"))
     }
