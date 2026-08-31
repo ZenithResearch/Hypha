@@ -47,12 +47,12 @@ BINARY_HASHES = {
 }
 CRITICAL_POLICY_HASHES = {
     "project.yml": "32aca3f10b90261e678cdd8bc7a27383d9b72be32ff3fd083fa1ea6652aab637",
-    "Resources/iOS/Info.plist": "f684655642e476f10aa8b909f0bf62fecb65e9d91f2bcdf3ef7f60666625b2f6",
+    "Resources/iOS/Info.plist": "0995bf9455bdab14dcc7178f85335937a038c290e7fafcda0a2dd45d3017ebd5",
     "HyphaMobile.xcodeproj/project.pbxproj": "addbf377324d71c8ec8e1cb679fd1d8e9f619ea5ccd282a5ccdd8dcd68239686",
-    ".github/workflows/ci.yml": "9dd19c79fb238e1be0f81dd394110ff830682a5426fd3ad7581d72d6ddd85722",
-    ".github/workflows/release.yml": "c4ec74ec7f7eaf3b75aa0fcaf0ad9d3a6584a25ee0589c61f174948bc0ef6924",
+    ".github/workflows/ci.yml": "bba82ea5da36b8ffecf337f615767a9145902dc3a0a226a7bbbcd14e0c767d78",
+    ".github/workflows/release.yml": "08f2e80cba593e5eb2bb02354bd91d8c072838764834faba7ded7dec02b6b107",
     "SECURITY.md": "38c04ef47f90e68ef21eed3234f891b935caf5cf2386dd0f4737f922eaa17e37",
-    "build-app.sh": "a03d2dda7b90ee526cbb2e18623d6e5ccc84575ce974ea391f16fb1ef32ccd4b",
+    "build-app.sh": "4a17f3ec23f5bc6a7dbe51bdc575f0477016a57bb265b83d114e60cc292280f8",
     "release/encryption-gate.json": "6aac43d006072c05c3ecc65ec05490e2c24acc76c3aa85bc146473e6f9a9e1c6",
     "release/RELEASE_NOTES.md": "f382d08f5238c173fc9e5099d72f38b4d30d1c9f592f89bab099e0c1aafbdb57",
     "scripts/package-release.sh": "9c03277f59f14e971f4356c8807d062f785059307c0d7853bdc65bfb341e490e",

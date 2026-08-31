@@ -4,9 +4,13 @@ import XCTest
 import MatrixRustSDK
 
 final class MatrixRustSDKCompatibilityTests: XCTestCase {
+    private static let testConfiguration = MatrixProductConfiguration(
+        homeserver: URL(string: "https://synapse.zenith-research.ca")!
+    )
+
     func testExactSDKCanConstructFixedHomeserverBuilder() {
         let builder = ClientBuilder()
-            .homeserverUrl(url: MatrixProductConfiguration.production.homeserver.absoluteString)
+            .homeserverUrl(url: Self.testConfiguration.homeserver.absoluteString)
         XCTAssertNotNil(builder)
     }
 
@@ -14,7 +18,7 @@ final class MatrixRustSDKCompatibilityTests: XCTestCase {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("zenith-matrix-factory-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        let configuration = MatrixProductConfiguration.production
+        let configuration = Self.testConfiguration
         let factory = MatrixRustLiveClientFactory(
             configuration: configuration,
             rootDirectory: root
@@ -263,7 +267,7 @@ final class MatrixRustSDKCompatibilityTests: XCTestCase {
     }
 
     func testHomeserverMatchAcceptsOnlyCanonicalizationNotAuthorityChanges() {
-        let configured = MatrixProductConfiguration.production.homeserver
+        let configured = Self.testConfiguration.homeserver
 
         XCTAssertTrue(
             MatrixRustLiveClientFactory.matchesConfiguredHomeserver(
