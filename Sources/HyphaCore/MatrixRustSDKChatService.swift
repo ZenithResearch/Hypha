@@ -2094,6 +2094,20 @@ public struct MatrixRustLiveClientFactory: MatrixLiveClientFactory {
     }
 }
 
+enum MatrixRoomNameResolution {
+    static func resolve(
+        rawName: String?,
+        roomInfoDisplayName: String?,
+        roomDisplayName: String?,
+        canonicalAlias: String?,
+        fallback: String
+    ) -> String {
+        [rawName, roomInfoDisplayName, roomDisplayName, canonicalAlias]
+            .compactMap { $0 }
+            .first(where: { !$0.isEmpty }) ?? fallback
+    }
+}
+
 public actor MatrixRustLiveClient: MatrixLiveClient {
     private let client: Client
     private var roomByID: [String: Room] = [:]
@@ -2219,7 +2233,13 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
             }
             summaries.append(MatrixRoomSummary(
                 id: roomID,
-                name: room.displayName() ?? room.canonicalAlias() ?? roomID,
+                name: MatrixRoomNameResolution.resolve(
+                    rawName: info?.rawName,
+                    roomInfoDisplayName: info?.displayName,
+                    roomDisplayName: room.displayName(),
+                    canonicalAlias: room.canonicalAlias(),
+                    fallback: roomID
+                ),
                 isEncrypted: await room.isEncrypted(),
                 hasInvite: room.membership() == .invited,
                 isCreatedByCurrentUser: isCreatedByCurrentUser,
@@ -2503,10 +2523,17 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
             throw MatrixChatServiceError.trustViolation
         }
 
+        let info = try? await room.roomInfo()
         roomByID[roomID] = room
         return MatrixRoomSummary(
             id: roomID,
-            name: room.displayName() ?? room.canonicalAlias() ?? request.name,
+            name: MatrixRoomNameResolution.resolve(
+                rawName: info?.rawName,
+                roomInfoDisplayName: info?.displayName,
+                roomDisplayName: room.displayName(),
+                canonicalAlias: room.canonicalAlias(),
+                fallback: request.name
+            ),
             isEncrypted: !createsSpace,
             hasInvite: false,
             isCreatedByCurrentUser: true,
