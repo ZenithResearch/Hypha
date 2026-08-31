@@ -60,6 +60,7 @@ if [[ -z "${DEVELOPER_DIR:-}" && -d /Applications/Xcode.app/Contents/Developer ]
 fi
 
 cd "$ROOT"
+"$ROOT/scripts/hydrate-matrix-sdk.sh"
 export MACOSX_DEPLOYMENT_TARGET=26.4
 swift build -c release --product Hypha
 python3 - "$APP" <<'PY'

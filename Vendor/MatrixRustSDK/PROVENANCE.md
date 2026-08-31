@@ -70,6 +70,10 @@ The archive was packaged from `bindings/apple/generated` with `COPYFILE_DISABLE=
 - `MatrixSDKFFI.xcframework.zip`
 - SHA-256 / SwiftPM checksum: `9b853f98352f088ae0939e28d4d739349c396f9b57f6af815c0a7957156fe4c8`
 - generated `matrix_sdk_ffi.swift` SHA-256: `8bcdf75446e97cf1cfca82529aa223c0c3ccca6e4e58113c8df038cc41c87f17`
+- source release tag: `hypha-26.08.15-zenith.12` at exact source commit `d28c164ef37cd67723aa565bf5aec9c0cefc3bb8`
+- distribution URL: `https://github.com/bananawalnut/matrix-rust-sdk/releases/download/hypha-26.08.15-zenith.12/MatrixSDKFFI.xcframework.zip`
+
+The repository retains the archive's Git LFS pointer as a content receipt, but canonical builds do not require LFS retrieval. `scripts/hydrate-matrix-sdk.sh` downloads only the HTTPS release URL above, verifies the exact SHA-256 before replacing the pointer, validates the ZIP container, and fails without exposing an unverified archive to SwiftPM.
 
 ## License
 

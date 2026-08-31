@@ -23,28 +23,23 @@ fi
 
 if [[ ! -d "$SOURCE_DIR/.git" ]]; then
   rm -rf "$SOURCE_DIR"
-  git -c core.hooksPath=/dev/null clone --no-checkout "$REMOTE_URL" "$SOURCE_DIR"
+  GIT_LFS_SKIP_SMUDGE=1 git -c core.hooksPath=/dev/null clone --no-checkout "$REMOTE_URL" "$SOURCE_DIR"
 fi
 
 git -C "$SOURCE_DIR" remote set-url origin "$REMOTE_URL"
 git -C "$SOURCE_DIR" -c core.hooksPath=/dev/null fetch --force --prune origin main
-git -C "$SOURCE_DIR" checkout --detach --force FETCH_HEAD
+GIT_LFS_SKIP_SMUDGE=1 git -C "$SOURCE_DIR" checkout --detach --force FETCH_HEAD
 git -C "$SOURCE_DIR" clean -ffdqx
-if ! git lfs version >/dev/null 2>&1; then
-  echo "Git LFS is required to download Hypha's pinned SDK artifact." >&2
-  exit 5
-fi
-git -C "$SOURCE_DIR" lfs install --local --skip-smudge
-git -C "$SOURCE_DIR" lfs pull origin main
 git -C "$SOURCE_DIR" -c core.hooksPath=/dev/null submodule sync --recursive
 git -C "$SOURCE_DIR" -c core.hooksPath=/dev/null submodule update --init --recursive --force
+"$SOURCE_DIR/scripts/hydrate-matrix-sdk.sh"
 
 cd "$SOURCE_DIR"
 HYPHA_SIGNING_MODE=adhoc ./build-app.sh
 BUILT_APP="$SOURCE_DIR/Hypha.app"
 codesign --verify --deep --strict "$BUILT_APP"
 if [[ ! -x "$BUILT_APP/Contents/Resources/update-from-main.sh" ]] || \
-   ! grep -Fq 'lfs install --local --skip-smudge' "$BUILT_APP/Contents/Resources/update-from-main.sh" || \
+   ! grep -Fq 'scripts/hydrate-matrix-sdk.sh' "$BUILT_APP/Contents/Resources/update-from-main.sh" || \
    [[ ! -x "$BUILT_APP/Contents/Resources/launch-update-from-main.command" ]] || \
    ! grep -Fq 'Update installed from GitHub main' "$BUILT_APP/Contents/Resources/launch-update-from-main.command"; then
   echo "GitHub main does not yet contain the current self-update contract; the current app was left unchanged." >&2

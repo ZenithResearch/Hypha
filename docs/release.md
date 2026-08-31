@@ -74,3 +74,5 @@ spctl --assess --type execute --verbose=4 Hypha.app
 ```
 
 The JSON metadata binds the archive checksum to its source commit, bundle identity, executable, minimum macOS version, signing/notarization status, and encryption-gate evidence. A public tag release is valid only when its signing block is `{"mode":"developer-id","notarized":true,"distributable":true}`.
+
+The application release workflow checks out without Git LFS and runs `scripts/hydrate-matrix-sdk.sh` before any audit or build. That script accepts only the exact Matrix SDK source-release artifact and SHA-256 recorded in `Vendor/MatrixRustSDK/PROVENANCE.md`; unavailable or mismatched bytes stop the release.
