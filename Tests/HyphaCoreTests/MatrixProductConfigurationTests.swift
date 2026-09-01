@@ -38,6 +38,27 @@ final class MatrixProductConfigurationTests: XCTestCase {
         XCTAssertFalse(configuration.allowsPlaintextFallback)
     }
 
+    func testTailscaleServeEndpointSelectsTailscaleAccess() throws {
+        let configuration = MatrixProductConfiguration(
+            homeserver: try XCTUnwrap(URL(string: "https://matrix-home.example.ts.net"))
+        )
+
+        XCTAssertEqual(configuration.accessMethod, .tailscale)
+    }
+
+    func testOrdinaryHTTPSAndLookalikeHostsRemainInternetAccess() throws {
+        for value in [
+            "https://matrix.example.org",
+            "https://ts.net",
+            "https://matrix.ts.net.example.org"
+        ] {
+            let configuration = MatrixProductConfiguration(
+                homeserver: try XCTUnwrap(URL(string: value))
+            )
+            XCTAssertEqual(configuration.accessMethod, .internet, value)
+        }
+    }
+
     func testMissingDefaultLeavesHomeserverUnconfigured() {
         XCTAssertNil(MatrixProductConfiguration.defaultConfiguration(
             environment: [:],

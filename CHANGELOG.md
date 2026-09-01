@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 ### Added
 
 - Added broker-backed, short-lived homeserver administration sessions — keeps Synapse service authority and operator secrets out of the native client while preserving explicit typed administration actions.
+- Added a first-class Tailscale homeserver connection card with native app launch, official install fallback, and actionable tailnet errors — makes private self-hosted deployments understandable and connectable without exposing Tailscale credentials to Hypha.
 
 ### Changed
 
