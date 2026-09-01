@@ -1,0 +1,43 @@
+:root {
+  color-scheme: dark;
+  --hypha-base: #10211d;
+  --hypha-raised: #193830;
+  --hypha-content: #d8fff5;
+  --hypha-muted: #66bda5;
+  --hypha-brand: #58efc9;
+  --hypha-border: #478878;
+  --hypha-radius: 12px;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  color: var(--hypha-content);
+  background: var(--hypha-base);
+}
+
+body { margin: 0; padding: 24px; }
+hypha-room-header, hypha-repository-status, hypha-asset-gallery, hypha-asset-card, hypha-viewer-link { display: block; }
+hypha-room-header h1 { margin: 0; font: 650 clamp(1.7rem, 4vw, 3rem) ui-monospace, monospace; }
+hypha-room-header p { color: var(--hypha-muted); }
+hypha-asset-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+.hypha-asset-card__link {
+  display: grid;
+  min-height: 120px;
+  gap: 10px;
+  padding: 16px;
+  color: inherit;
+  text-decoration: none;
+  border: 1px solid var(--hypha-border);
+  border-radius: var(--hypha-radius);
+  background: var(--hypha-raised);
+}
+.hypha-asset-card__link:hover { border-color: var(--hypha-brand); }
+hypha-viewer-link a { color: var(--hypha-brand); text-underline-offset: 0.2em; }
+.hypha-asset-card__link:focus-visible, hypha-viewer-link a:focus-visible {
+  outline: 3px solid var(--hypha-brand);
+  outline-offset: 3px;
+}
+.hypha-asset-card__link code { color: var(--hypha-muted); overflow-wrap: anywhere; }
+.hypha-asset-card__link span { color: var(--hypha-muted); font: 600 0.75rem ui-monospace, monospace; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }

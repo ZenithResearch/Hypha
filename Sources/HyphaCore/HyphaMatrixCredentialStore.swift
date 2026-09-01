@@ -281,7 +281,7 @@ public final class HyphaMatrixKeychainCredentialStore: HyphaMatrixCredentialStor
     }
 }
 
-private final class SecurityHyphaPasswordStorage: HyphaPasswordStorage, @unchecked Sendable {
+final class SecurityHyphaPasswordStorage: HyphaPasswordStorage, @unchecked Sendable {
     func readSecret(service: String, account: String) throws -> Data? {
         var query = baseQuery(service: service, account: account)
         query[kSecReturnData as String] = true

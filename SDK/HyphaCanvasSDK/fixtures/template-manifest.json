@@ -1,0 +1,10 @@
+{
+  "schema": "hypha.room-template.v1",
+  "entry": "index.html",
+  "sdk_version": "1",
+  "capabilities": ["room.read", "assets.list", "viewer.open"],
+  "integrity": {
+    "algorithm": "sha256",
+    "digest": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

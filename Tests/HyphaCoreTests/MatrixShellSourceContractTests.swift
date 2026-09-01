@@ -1186,6 +1186,30 @@ final class MatrixShellSourceContractTests: XCTestCase {
         }
     }
 
+    func testHomeserverConnectionOwnsAuthenticationGateBeforeSuspending() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
+            encoding: .utf8
+        )
+        let start = try XCTUnwrap(source.range(of: "func connectHomeserver() async {"))
+        let end = try XCTUnwrap(
+            source.range(of: "func connectDefaultHomeserver() async {", range: start.upperBound..<source.endIndex)
+        )
+        let body = String(source[start.lowerBound..<end.lowerBound])
+
+        let gate = try XCTUnwrap(body.range(of: "guard beginAuthenticationOperation() else { return }"))
+        let checking = try XCTUnwrap(body.range(of: "homeserverState = .checking"))
+        let firstSuspension = try XCTUnwrap(body.range(of: "await endAdministratorAccess()"))
+
+        XCTAssertTrue(body.contains("defer { finishAuthenticationOperation() }"))
+        XCTAssertLessThan(gate.lowerBound, firstSuspension.lowerBound)
+        XCTAssertLessThan(checking.lowerBound, firstSuspension.lowerBound)
+    }
+
     func testSecurityGuidanceIsAdditiveToRoomsAndChatAuthority() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile

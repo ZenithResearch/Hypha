@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "source": {
+    "kind": "repository_asset",
+    "repository_id": "room-layout",
+    "path": "templates/room/hypha-room-template.json",
+    "resolved_commit": "0123456789abcdef0123456789abcdef01234567",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

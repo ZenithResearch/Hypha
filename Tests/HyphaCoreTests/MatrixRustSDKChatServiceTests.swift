@@ -747,6 +747,44 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         XCTAssertEqual(writes, [attachment])
     }
 
+    func testServiceStoresAndReadsAuthoritativeRepositoryCollectionForJoinedRoom() async throws {
+        let room = MatrixRoomSummary(
+            id: "!repositories:example.org",
+            name: "Repository collection",
+            isEncrypted: true,
+            hasInvite: false
+        )
+        let descriptor = try MatrixRoomRepositoryDescriptor(
+            id: "hypha",
+            repository: "https://github.com/ZenithResearch/Hypha",
+            name: "Hypha"
+        )
+        let repositorySet = try MatrixRoomRepositorySet(
+            repositories: [descriptor],
+            primaryID: descriptor.id
+        )
+        let client = FakeLiveClient()
+        await client.setRooms([room])
+        let service = MatrixRustSDKChatService(
+            configuration: Self.testConfiguration,
+            vault: MemorySessionVault(),
+            clientFactory: FakeLiveClientFactory(client: client),
+            randomStoreKey: { Data(repeating: 2, count: 32) }
+        )
+        _ = try await service.signIn(username: "alice", password: "secret")
+
+        let result = try await service.setRoomRepositorySet(repositorySet, roomID: room.id)
+        let stored = try await service.roomRepositoryState(roomID: room.id)
+        let writes = await client.observedRepositorySetWrites()
+
+        XCTAssertEqual(result, .applied)
+        XCTAssertEqual(stored.repositorySet, repositorySet)
+        XCTAssertEqual(stored.source, .collection)
+        XCTAssertEqual(stored.mirrorStatus, .current)
+        XCTAssertEqual(writes, [repositorySet])
+    }
+
+
     func testServiceForwardsInviteOnlyForCachedEligibleRoom() async throws {
         let room = MatrixRoomSummary(
             id: "!eligible:example.org",
@@ -1323,6 +1361,8 @@ private actor FakeLiveClient: MatrixLiveClient {
     private let bootstrapState: MatrixFirstDeviceTrustBootstrapState
     private let bootstrapContinuationState: MatrixFirstDeviceTrustBootstrapState
     private let verificationChallenge: MatrixVerificationChallenge
+    private var repositoryState: MatrixRoomRepositoryState = .empty
+    private var repositorySetWrites: [MatrixRoomRepositorySet] = []
     private let recoveryState: MatrixRecoveryState
     private let createdRoom: MatrixRoomSummary?
     private let sessionHomeserverURL: String
@@ -1463,6 +1503,21 @@ private actor FakeLiveClient: MatrixLiveClient {
         repositoryAttachment = attachment
         repositoryAttachmentWrites.append(attachment)
     }
+    func roomRepositoryState(roomID: String) async throws -> MatrixRoomRepositoryState {
+        repositoryState
+    }
+    func setRoomRepositorySet(
+        _ repositorySet: MatrixRoomRepositorySet,
+        roomID: String
+    ) async throws -> MatrixRoomRepositorySetWriteResult {
+        repositorySetWrites.append(repositorySet)
+        repositoryState = MatrixRoomRepositoryState(
+            repositorySet: repositorySet,
+            source: .collection,
+            mirrorStatus: .current
+        )
+        return .applied
+    }
     func createEncryptedRoom(_ request: MatrixRoomCreationRequest) async throws -> MatrixRoomSummary {
         roomCreationRequests.append(request)
         guard let createdRoom else {
@@ -1575,6 +1630,9 @@ private actor FakeLiveClient: MatrixLiveClient {
     func sentBodies() -> [String] { sends }
     func observedRepositoryAttachmentWrites() -> [MatrixRoomRepositoryAttachment] {
         repositoryAttachmentWrites
+    }
+    func observedRepositorySetWrites() -> [MatrixRoomRepositorySet] {
+        repositorySetWrites
     }
 }
 

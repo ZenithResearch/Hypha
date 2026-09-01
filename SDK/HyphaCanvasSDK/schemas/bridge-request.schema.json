@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenith-research.ca/hypha/canvas/bridge-request.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "id", "method", "params"],
+  "properties": {
+    "v": { "const": 1 },
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "method": {
+      "enum": ["room.get_metadata", "repositories.list", "assets.list", "assets.get_metadata", "assets.get_url", "viewer.open", "layout_state.get", "layout_state.set"]
+    },
+    "params": { "type": "object" }
+  }
+}

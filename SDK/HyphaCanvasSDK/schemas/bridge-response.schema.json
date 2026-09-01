@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenith-research.ca/hypha/canvas/bridge-response.v1.schema.json",
+  "title": "Hypha Canvas v1 bridge response",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "id", "ok", "result"],
+      "properties": {
+        "v": { "const": 1 },
+        "id": { "$ref": "#/$defs/id" },
+        "ok": { "const": true },
+        "result": {},
+        "error": false
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["v", "id", "ok", "error"],
+      "properties": {
+        "v": { "const": 1 },
+        "id": { "$ref": "#/$defs/id" },
+        "ok": { "const": false },
+        "result": false,
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "enum": ["invalid_request", "unsupported_version", "capability_denied", "not_found", "rate_limited", "user_gesture_required", "state_too_large"] },
+            "message": { "type": "string", "minLength": 1, "maxLength": 512 }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": { "id": { "type": "string", "minLength": 1, "maxLength": 128 } }
+}

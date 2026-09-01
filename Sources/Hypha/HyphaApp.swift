@@ -242,9 +242,11 @@ final class MatrixAppModel: ObservableObject {
     var messageDraft: HyphaMessageDraft { messageDraftStore.activeDraft }
 
     func connectHomeserver() async {
+        guard beginAuthenticationOperation() else { return }
+        defer { finishAuthenticationOperation() }
+        homeserverState = .checking
         _ = await endAdministratorAccess()
         timelineRefreshTask?.cancel()
-        homeserverState = .checking
         password = ""
         do {
             let configuration = try await healthChecker.connect(to: homeserverInput)
@@ -1646,6 +1648,35 @@ final class MatrixAppModel: ObservableObject {
         }
     }
 
+    func repositoryState(
+        for room: MatrixRoomSummary
+    ) async throws -> MatrixRoomRepositoryState {
+        guard let coordinator else { throw MatrixChatServiceError.sessionExpired }
+        return try await coordinator.repositoryState(for: room)
+    }
+
+    @discardableResult
+    func setRepositorySet(
+        _ repositorySet: MatrixRoomRepositorySet,
+        for room: MatrixRoomSummary
+    ) async throws -> MatrixRoomRepositorySetWriteResult {
+        guard let coordinator else { throw MatrixChatServiceError.sessionExpired }
+        return try await coordinator.setRepositorySet(repositorySet, for: room)
+    }
+
+    func templateReference(for room: MatrixRoomSummary) async throws -> HyphaRoomTemplateReference? {
+        guard let coordinator else { throw MatrixChatServiceError.sessionExpired }
+        return try await coordinator.templateReference(for: room)
+    }
+
+    func setTemplateReference(
+        _ reference: HyphaRoomTemplateReference,
+        for room: MatrixRoomSummary
+    ) async throws {
+        guard let coordinator else { throw MatrixChatServiceError.sessionExpired }
+        try await coordinator.setTemplateReference(reference, for: room)
+    }
+
     func repositoryAttachment(
         for room: MatrixRoomSummary
     ) async throws -> MatrixRoomRepositoryAttachment? {
@@ -2670,7 +2701,7 @@ private struct MatrixCompanionShell: View {
                     .accessibilityIdentifier("hypha.github.connect")
                 }
 
-                Text("GitHub is a global Hypha connection. The temporary token fallback is kept only in memory for this app session, never stored or sent to Matrix. Repository-specific access is checked from each room's Repository control.")
+                Text("GitHub is a global Hypha connection saved in this device's protected Keychain. The credential is never stored in Matrix, repository bindings, caches, room templates, or logs. Repository-specific access is checked from each room's Repositories control.")
                     .font(.caption)
                     .foregroundStyle(ZenithDesign.Palette.muted)
 
@@ -2972,6 +3003,7 @@ private struct MatrixCompanionShell: View {
             } else {
                 HyphaRoomContentView(
                     model: model,
+                    githubConnection: githubConnection,
                     room: room,
                     openRepositorySettings: { repositoryRoom = room }
                 )
@@ -2983,6 +3015,7 @@ private struct MatrixCompanionShell: View {
             } else {
                 HyphaRoomContentView(
                     model: model,
+                    githubConnection: githubConnection,
                     room: room,
                     openRepositorySettings: { repositoryRoom = room }
                 )
