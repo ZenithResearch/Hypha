@@ -27,6 +27,12 @@ struct HyphaRoomRepositorySheet: View {
     @State private var isLoading = true
     @State private var isMutating = false
     @State private var isVerifyingGitHubAccess = false
+    @State private var availableGitHubRepositories: [HyphaGitHubRepositoryChoice] = []
+    @State private var selectedGitHubRepositoryID: String?
+    @State private var isLoadingGitHubRepositories = false
+    @State private var githubRepositoryLoadMessage: String?
+    @State private var showsManualRepositoryEntry = false
+    @State private var showsAttachLocalOptions = false
     @State private var pendingRemoval: MatrixRoomRepositoryDescriptor?
 
     private let bindingStore = HyphaRoomRepositoryLocalBindingStore()
@@ -40,6 +46,11 @@ struct HyphaRoomRepositorySheet: View {
         return repositorySet.repositories.first { $0.id == selectedAttachmentID }
     }
 
+    private var selectedGitHubRepository: HyphaGitHubRepositoryChoice? {
+        guard let selectedGitHubRepositoryID else { return nil }
+        return availableGitHubRepositories.first { $0.id == selectedGitHubRepositoryID }
+    }
+
     private var canAttach: Bool {
         !isMutating
             && repositorySet.repositories.count < MatrixRoomRepositorySet.maximumAttachmentCount
@@ -50,12 +61,42 @@ struct HyphaRoomRepositorySheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack(spacing: ZenithDesign.Space.x4) {
+                Image(systemName: "shippingbox.fill")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(ZenithDesign.Palette.brand)
+                    .frame(width: 42, height: 42)
+                    .background(ZenithDesign.Palette.brand.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.card, style: .continuous))
+                VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                    Text("Room repositories")
+                        .font(ZenithDesign.Typography.corporate(size: 22, weight: .semibold))
+                    Text(room.name)
+                        .font(.caption)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("\(repositorySet.repositories.count) / \(MatrixRoomRepositorySet.maximumAttachmentCount)")
+                        .font(ZenithDesign.Typography.technical(size: 17, weight: .semibold))
+                    Text("attached")
+                        .font(.caption)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(repositorySet.repositories.count) of \(MatrixRoomRepositorySet.maximumAttachmentCount) repositories attached")
+            }
+            .padding(.horizontal, ZenithDesign.Space.x6)
+            .padding(.vertical, ZenithDesign.Space.x5)
+
+            Divider()
+
             Form {
-                Section("Repositories \(repositorySet.repositories.count) / \(MatrixRoomRepositorySet.maximumAttachmentCount)") {
+                Section("Attached") {
                     if isLoading {
                         ProgressView("Reading room repository state…")
                     } else if repositorySet.repositories.isEmpty {
-                        Text("No repositories are attached to this room.")
+                        Label("No repositories are attached to this room.", systemImage: "shippingbox")
                             .foregroundStyle(ZenithDesign.Palette.muted)
                     } else {
                         ForEach(repositorySet.repositories) { repository in
@@ -65,12 +106,10 @@ struct HyphaRoomRepositorySheet: View {
 
                     if repositoryState.mirrorStatus == .missing
                         || repositoryState.mirrorStatus == .divergent {
-                        Label(
-                            "The legacy single-repository mirror needs repair. The repository collection remains authoritative.",
-                            systemImage: "exclamationmark.triangle"
+                        HyphaStatusMessage(
+                            message: "The compatibility mirror needs repair. The repository collection remains authoritative.",
+                            tone: .warning
                         )
-                        .font(.caption)
-                        .foregroundStyle(ZenithDesign.Palette.warning)
                     }
                 }
 
@@ -117,74 +156,18 @@ struct HyphaRoomRepositorySheet: View {
                     }
                 }
 
-                Section("Attach repository") {
-                    TextField("Repository name", text: $repositoryName)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("matrix.room.repositories.name")
-                    TextField("https://github.com/owner/repository", text: $remoteRepositoryURL)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("matrix.room.repositories.remote")
-                        .onChange(of: remoteRepositoryURL) { _, value in
-                            githubAccessMessage = nil
-                            if repositoryName.isEmpty {
-                                repositoryName = inferredRepositoryName(from: value)
-                            }
-                        }
-                    TextField("Branch, tag, or commit", text: $requestedRef)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("matrix.room.repositories.ref")
-
-                    HStack {
-                        Button(isVerifyingGitHubAccess ? "Verifying…" : "Verify GitHub access") {
-                            verifyGitHubAccess()
-                        }
-                        .disabled(
-                            isVerifyingGitHubAccess
-                                || !githubConnection.isConnected
-                                || remoteRepositoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        )
-                        .accessibilityIdentifier("matrix.room.repositories.github-verify")
-                        if let githubAccessMessage {
-                            Text(githubAccessMessage)
-                                .font(.caption)
-                                .foregroundStyle(
-                                    githubAccessIsError
-                                        ? ZenithDesign.Palette.error
-                                        : ZenithDesign.Palette.success
-                                )
-                        }
-                    }
-
-                    Text("Optional local checkout")
-                        .font(.headline)
-                    HStack {
-                        TextField("Remote-only is supported", text: $attachRepositoryPath)
-                            .textFieldStyle(.roundedBorder)
-                            .onSubmit { useTypedAttachPath() }
-                            .accessibilityIdentifier("matrix.room.repositories.attach-local.path")
-                        Button("Choose…", action: chooseAttachRepository)
-                            .accessibilityIdentifier("matrix.room.repositories.attach-local.choose")
-                    }
-                    TextEditor(text: $attachBuildCommand)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 52, maxHeight: 90)
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(ZenithDesign.Palette.border))
-                        .accessibilityIdentifier("matrix.room.repositories.attach-local.command")
-                    Text("Existing remote output is preferred. Choosing a local checkout enables fallback and the separate, explicitly confirmed Rebuild action; attaching never runs a build.")
-                        .font(.caption)
-                        .foregroundStyle(ZenithDesign.Palette.muted)
+                Section("Attach a repository") {
+                    repositorySelectionSection
                 }
 
                 if let statusMessage {
-                    Section("Status") {
-                        Text(statusMessage)
-                            .foregroundStyle(
-                                statusIsError
-                                    ? ZenithDesign.Palette.error
-                                    : ZenithDesign.Palette.muted
-                            )
-                            .textSelection(.enabled)
-                            .accessibilityIdentifier("matrix.room.repositories.status")
+                    Section {
+                        HyphaStatusMessage(
+                            message: statusMessage,
+                            tone: statusIsError ? .error : .success
+                        )
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("matrix.room.repositories.status")
                     }
                 }
             }
@@ -200,10 +183,13 @@ struct HyphaRoomRepositorySheet: View {
                     .disabled(!canAttach)
                     .accessibilityIdentifier("matrix.room.repositories.attach")
             }
-            .padding()
+            .padding(ZenithDesign.Space.x4)
         }
-        .frame(minWidth: 760, idealWidth: 940, minHeight: 640, idealHeight: 780)
-        .task { await load() }
+        .frame(minWidth: 720, idealWidth: 840, minHeight: 620, idealHeight: 760)
+        .task {
+            await load()
+            await loadGitHubRepositories()
+        }
         .confirmationDialog(
             "Remove \(pendingRemoval?.name ?? "this repository")?",
             isPresented: Binding(
@@ -218,6 +204,198 @@ struct HyphaRoomRepositorySheet: View {
             Button("Cancel", role: .cancel) { pendingRemoval = nil }
         } message: {
             Text("Its Assets will leave the room. The local checkout itself is never deleted.")
+        }
+    }
+
+    @ViewBuilder
+    private var repositorySelectionSection: some View {
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x4) {
+            if githubConnection.isConnected {
+                HStack {
+                    Label(
+                        "GitHub @\(githubConnection.accountLogin ?? "connected")",
+                        systemImage: "checkmark.circle.fill"
+                    )
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(ZenithDesign.Palette.success)
+                    Spacer()
+                    Button {
+                        Task { await loadGitHubRepositories() }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(isLoadingGitHubRepositories)
+                    .accessibilityIdentifier("matrix.room.repositories.github-refresh")
+                }
+
+                if isLoadingGitHubRepositories {
+                    ProgressView("Loading accessible repositories…")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if availableGitHubRepositories.isEmpty {
+                    HyphaStatusMessage(
+                        message: githubRepositoryLoadMessage ?? "No accessible GitHub repositories were returned. You can still attach one by URL.",
+                        tone: .warning
+                    )
+                } else {
+                    Picker("GitHub repository", selection: $selectedGitHubRepositoryID) {
+                        Text("Choose a GitHub repository…").tag(String?.none)
+                        ForEach(availableGitHubRepositories) { repository in
+                            Text(repositoryPickerLabel(repository)).tag(Optional(repository.id))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("matrix.room.repositories.github-picker")
+                    .onChange(of: selectedGitHubRepositoryID) { _, identifier in
+                        guard let identifier,
+                              let repository = availableGitHubRepositories.first(where: { $0.id == identifier }) else {
+                            return
+                        }
+                        selectGitHubRepository(repository)
+                    }
+                }
+            } else {
+                HyphaStatusMessage(
+                    message: "Connect GitHub in Settings to choose private and organization repositories from this list.",
+                    tone: .warning
+                )
+            }
+
+            if let selectedGitHubRepository {
+                HStack(spacing: ZenithDesign.Space.x3) {
+                    Image(systemName: selectedGitHubRepository.isPrivate ? "lock.fill" : "globe")
+                        .foregroundStyle(ZenithDesign.Palette.brand)
+                        .frame(width: 28)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(selectedGitHubRepository.fullName)
+                            .font(.headline)
+                        Text("Default branch: \(selectedGitHubRepository.defaultBranch)")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(ZenithDesign.Palette.muted)
+                    }
+                    Spacer()
+                    if selectedGitHubRepository.isArchived {
+                        Text("Archived")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(ZenithDesign.Palette.warning)
+                    }
+                }
+                .padding(ZenithDesign.Space.x3)
+                .background(ZenithDesign.Palette.baseSubtle)
+                .clipShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.card, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: ZenithDesign.Radius.card, style: .continuous)
+                        .stroke(ZenithDesign.Palette.borderStrong, lineWidth: 1)
+                }
+            }
+
+            DisclosureGroup("Enter a repository URL manually", isExpanded: $showsManualRepositoryEntry) {
+                manualRepositoryFields
+                    .padding(.top, ZenithDesign.Space.x3)
+            }
+            .font(.headline)
+
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+                Text("Branch, tag, or commit")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                TextField("", text: $requestedRef, prompt: Text("main"))
+                    .labelsHidden()
+                    .textFieldStyle(HyphaTextFieldStyle())
+                    .accessibilityIdentifier("matrix.room.repositories.ref")
+            }
+
+            DisclosureGroup("Local checkout and Rebuild (optional)", isExpanded: $showsAttachLocalOptions) {
+                attachLocalCheckoutFields
+                    .padding(.top, ZenithDesign.Space.x3)
+            }
+            .font(.headline)
+
+            Text("Hypha uses existing remote output first. Attaching never runs a build; a local checkout only enables fallback and the separately confirmed Rebuild action.")
+                .font(.caption)
+                .foregroundStyle(ZenithDesign.Palette.muted)
+        }
+        .padding(.vertical, ZenithDesign.Space.x1)
+    }
+
+    @ViewBuilder
+    private var manualRepositoryFields: some View {
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+                Text("Repository URL")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                TextField(
+                    "",
+                    text: $remoteRepositoryURL,
+                    prompt: Text("https://github.com/owner/repository")
+                )
+                .labelsHidden()
+                .textFieldStyle(HyphaTextFieldStyle())
+                .accessibilityIdentifier("matrix.room.repositories.remote")
+                .onChange(of: remoteRepositoryURL) { _, value in
+                    githubAccessMessage = nil
+                    if selectedGitHubRepository?.remoteURL != value {
+                        selectedGitHubRepositoryID = nil
+                    }
+                    if repositoryName.isEmpty {
+                        repositoryName = inferredRepositoryName(from: value)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x2) {
+                Text("Room label")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                TextField("", text: $repositoryName, prompt: Text("Repository name"))
+                    .labelsHidden()
+                    .textFieldStyle(HyphaTextFieldStyle())
+                    .accessibilityIdentifier("matrix.room.repositories.name")
+            }
+
+            HStack(alignment: .center, spacing: ZenithDesign.Space.x3) {
+                Button(isVerifyingGitHubAccess ? "Verifying…" : "Verify GitHub access") {
+                    verifyGitHubAccess()
+                }
+                .disabled(
+                    isVerifyingGitHubAccess
+                        || !githubConnection.isConnected
+                        || remoteRepositoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                )
+                .accessibilityIdentifier("matrix.room.repositories.github-verify")
+                if let githubAccessMessage {
+                    Text(githubAccessMessage)
+                        .font(.caption)
+                        .foregroundStyle(
+                            githubAccessIsError
+                                ? ZenithDesign.Palette.error
+                                : ZenithDesign.Palette.success
+                        )
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var attachLocalCheckoutFields: some View {
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
+            HStack {
+                TextField("Remote-only is supported", text: $attachRepositoryPath)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { useTypedAttachPath() }
+                    .accessibilityIdentifier("matrix.room.repositories.attach-local.path")
+                Button("Choose…", action: chooseAttachRepository)
+                    .accessibilityIdentifier("matrix.room.repositories.attach-local.choose")
+            }
+            Text("Build command (optional)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(ZenithDesign.Palette.muted)
+            TextEditor(text: $attachBuildCommand)
+                .font(.system(.body, design: .monospaced))
+                .frame(minHeight: 52, maxHeight: 90)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(ZenithDesign.Palette.border))
+                .accessibilityIdentifier("matrix.room.repositories.attach-local.command")
         }
     }
 
@@ -267,6 +445,55 @@ struct HyphaRoomRepositorySheet: View {
         } catch {
             status("Hypha could not read the room's repository collection from Matrix.", error: true)
         }
+    }
+
+    private func loadGitHubRepositories() async {
+        guard githubConnection.isConnected else {
+            availableGitHubRepositories = []
+            selectedGitHubRepositoryID = nil
+            githubRepositoryLoadMessage = nil
+            showsManualRepositoryEntry = true
+            return
+        }
+        isLoadingGitHubRepositories = true
+        githubRepositoryLoadMessage = nil
+        defer { isLoadingGitHubRepositories = false }
+        do {
+            availableGitHubRepositories = try await githubConnection.repositories()
+            if let selectedGitHubRepositoryID,
+               !availableGitHubRepositories.contains(where: { $0.id == selectedGitHubRepositoryID }) {
+                self.selectedGitHubRepositoryID = nil
+            }
+        } catch let error as HyphaGitHubRepositoryAccessError {
+            availableGitHubRepositories = []
+            selectedGitHubRepositoryID = nil
+            githubRepositoryLoadMessage = githubAccessErrorMessage(error)
+            showsManualRepositoryEntry = true
+        } catch {
+            availableGitHubRepositories = []
+            selectedGitHubRepositoryID = nil
+            githubRepositoryLoadMessage = "GitHub repositories could not be loaded right now."
+            showsManualRepositoryEntry = true
+        }
+    }
+
+    private func selectGitHubRepository(_ repository: HyphaGitHubRepositoryChoice) {
+        selectedGitHubRepositoryID = repository.id
+        remoteRepositoryURL = repository.remoteURL
+        repositoryName = repository.name
+        requestedRef = repository.defaultBranch
+        githubAccessMessage = nil
+        githubAccessIsError = false
+        showsManualRepositoryEntry = false
+    }
+
+    private func repositoryPickerLabel(_ repository: HyphaGitHubRepositoryChoice) -> String {
+        var details: [String] = []
+        if repository.isPrivate { details.append("Private") }
+        if repository.isArchived { details.append("Archived") }
+        return details.isEmpty
+            ? repository.fullName
+            : "\(repository.fullName)  ·  \(details.joined(separator: " · "))"
     }
 
     private func attach() {
@@ -505,6 +732,7 @@ struct HyphaRoomRepositorySheet: View {
     }
 
     private func resetAttachForm() {
+        selectedGitHubRepositoryID = nil
         remoteRepositoryURL = ""
         repositoryName = ""
         requestedRef = "main"

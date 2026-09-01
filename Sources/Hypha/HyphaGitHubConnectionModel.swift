@@ -87,6 +87,13 @@ final class HyphaGitHubConnectionModel: ObservableObject {
         statusIsError = false
     }
 
+    func repositories() async throws -> [HyphaGitHubRepositoryChoice] {
+        guard let sessionToken else {
+            throw HyphaGitHubRepositoryAccessError.invalidToken
+        }
+        return try await client.repositories(token: sessionToken)
+    }
+
     func verify(remote: String) async throws -> HyphaGitHubRepositoryAccess {
         guard let sessionToken else {
             throw HyphaGitHubRepositoryAccessError.invalidToken
@@ -112,7 +119,7 @@ final class HyphaGitHubConnectionModel: ObservableObject {
         case .serviceUnavailable:
             "GitHub could not be reached right now."
         case .invalidResponse:
-            "GitHub returned an invalid account response."
+            "GitHub returned an invalid response."
         }
     }
 }

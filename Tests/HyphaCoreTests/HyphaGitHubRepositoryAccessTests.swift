@@ -41,6 +41,50 @@ final class HyphaGitHubRepositoryAccessTests: XCTestCase {
         XCTAssertNil(request.url?.query)
     }
 
+    func testAuthenticatedRepositoryListProvidesSafePickerMetadata() async throws {
+        let transport = RecordingGitHubTransport(
+            statusCode: 200,
+            body: Data(#"[{"full_name":"ZenithResearch/Hypha","private":true,"default_branch":"main","archived":false},{"full_name":"banana/sandbox","private":false,"default_branch":"develop","archived":true}]"#.utf8)
+        )
+        let client = HyphaGitHubRepositoryAccessClient(transport: transport)
+
+        let repositories = try await client.repositories(token: "github-test-token")
+
+        XCTAssertEqual(repositories.map(\.fullName), ["ZenithResearch/Hypha", "banana/sandbox"])
+        XCTAssertEqual(repositories[0].remoteURL, "https://github.com/ZenithResearch/Hypha")
+        XCTAssertEqual(repositories[0].defaultBranch, "main")
+        XCTAssertTrue(repositories[0].isPrivate)
+        XCTAssertTrue(repositories[1].isArchived)
+
+        let capturedRequest = await transport.lastRequest()
+        let request = try XCTUnwrap(capturedRequest)
+        let components = try XCTUnwrap(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false))
+        XCTAssertEqual(components.scheme, "https")
+        XCTAssertEqual(components.host, "api.github.com")
+        XCTAssertEqual(components.path, "/user/repos")
+        let query = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(query["affiliation"], "owner,collaborator,organization_member")
+        XCTAssertEqual(query["visibility"], "all")
+        XCTAssertEqual(query["sort"], "updated")
+        XCTAssertEqual(query["direction"], "desc")
+        XCTAssertEqual(query["per_page"], "100")
+    }
+
+    func testAuthenticatedRepositoryListRejectsUnsafePickerMetadata() async {
+        let transport = RecordingGitHubTransport(
+            statusCode: 200,
+            body: Data(#"[{"full_name":"ZenithResearch/Hypha","private":true,"default_branch":"bad\nref","archived":false}]"#.utf8)
+        )
+        let client = HyphaGitHubRepositoryAccessClient(transport: transport)
+
+        do {
+            _ = try await client.repositories(token: "github-test-token")
+            XCTFail("Expected unsafe repository metadata to be rejected")
+        } catch {
+            XCTAssertEqual(error as? HyphaGitHubRepositoryAccessError, .invalidResponse)
+        }
+    }
+
     func testGitHubRepositoryAccessRejectsNonGitHubOrInsecureRemotesBeforeNetwork() async {
         let transport = RecordingGitHubTransport(statusCode: 200, body: Data())
         let client = HyphaGitHubRepositoryAccessClient(transport: transport)

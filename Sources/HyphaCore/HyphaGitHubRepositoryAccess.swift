@@ -19,6 +19,31 @@ public struct HyphaGitHubRepositoryAccess: Equatable, Sendable {
     }
 }
 
+public struct HyphaGitHubRepositoryChoice: Equatable, Identifiable, Sendable {
+    public let fullName: String
+    public let remoteURL: String
+    public let defaultBranch: String
+    public let isPrivate: Bool
+    public let isArchived: Bool
+
+    public var id: String { fullName.lowercased() }
+    public var name: String { fullName.split(separator: "/").last.map(String.init) ?? fullName }
+
+    public init(
+        fullName: String,
+        remoteURL: String,
+        defaultBranch: String,
+        isPrivate: Bool,
+        isArchived: Bool
+    ) {
+        self.fullName = fullName
+        self.remoteURL = remoteURL
+        self.defaultBranch = defaultBranch
+        self.isPrivate = isPrivate
+        self.isArchived = isArchived
+    }
+}
+
 public struct HyphaGitHubAccount: Equatable, Sendable {
     public let login: String
 
@@ -46,6 +71,20 @@ public struct HyphaGitHubRepositoryAccessClient: Sendable {
         }
     }
 
+    private struct RepositoryChoiceResponse: Decodable {
+        let fullName: String
+        let isPrivate: Bool
+        let defaultBranch: String
+        let isArchived: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case fullName = "full_name"
+            case isPrivate = "private"
+            case defaultBranch = "default_branch"
+            case isArchived = "archived"
+        }
+    }
+
     private let transport: any HyphaGitHubRepositoryAccessTransport
 
     public init(transport: any HyphaGitHubRepositoryAccessTransport = HyphaGitHubURLSessionTransport()) {
@@ -66,6 +105,59 @@ public struct HyphaGitHubRepositoryAccessClient: Sendable {
                 throw HyphaGitHubRepositoryAccessError.invalidResponse
             }
             return HyphaGitHubAccount(login: account.login)
+        case 401, 403:
+            throw HyphaGitHubRepositoryAccessError.authenticationFailed
+        default:
+            throw HyphaGitHubRepositoryAccessError.serviceUnavailable
+        }
+    }
+
+    public func repositories(token: String) async throws -> [HyphaGitHubRepositoryChoice] {
+        try Self.validateToken(token)
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "api.github.com"
+        components.path = "/user/repos"
+        components.queryItems = [
+            URLQueryItem(name: "affiliation", value: "owner,collaborator,organization_member"),
+            URLQueryItem(name: "visibility", value: "all"),
+            URLQueryItem(name: "sort", value: "updated"),
+            URLQueryItem(name: "direction", value: "desc"),
+            URLQueryItem(name: "per_page", value: "100"),
+        ]
+        guard let url = components.url else {
+            throw HyphaGitHubRepositoryAccessError.invalidResponse
+        }
+
+        let (data, response) = try await send(Self.authorizedRequest(url: url, token: token))
+        switch response.statusCode {
+        case 200:
+            guard data.count <= 2 * 1_024 * 1_024,
+                  let repositories = try? JSONDecoder().decode([RepositoryChoiceResponse].self, from: data),
+                  repositories.count <= 100 else {
+                throw HyphaGitHubRepositoryAccessError.invalidResponse
+            }
+            var identifiers = Set<String>()
+            return try repositories.map { repository in
+                let remoteURL = "https://github.com/\(repository.fullName)"
+                let reference = try Self.repositoryReference(remoteURL)
+                guard repository.fullName == "\(reference.owner)/\(reference.repository)",
+                      !repository.defaultBranch.isEmpty,
+                      repository.defaultBranch.utf8.count <= 255,
+                      !repository.defaultBranch.unicodeScalars.contains(where: {
+                          CharacterSet.controlCharacters.contains($0)
+                      }),
+                      identifiers.insert(repository.fullName.lowercased()).inserted else {
+                    throw HyphaGitHubRepositoryAccessError.invalidResponse
+                }
+                return HyphaGitHubRepositoryChoice(
+                    fullName: repository.fullName,
+                    remoteURL: remoteURL,
+                    defaultBranch: repository.defaultBranch,
+                    isPrivate: repository.isPrivate,
+                    isArchived: repository.isArchived ?? false
+                )
+            }
         case 401, 403:
             throw HyphaGitHubRepositoryAccessError.authenticationFailed
         default:
