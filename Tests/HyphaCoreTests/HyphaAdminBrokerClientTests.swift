@@ -40,6 +40,239 @@ final class HyphaAdminBrokerClientTests: XCTestCase {
         XCTAssertFalse(String(describing: client).contains(sessionToken))
     }
 
+    func testCapabilitiesAreAuthenticatedAndEnableOnlyAdvertisedSecretRotation() async throws {
+        let transport = RecordingBrokerTransport(responses: [
+            response(
+                status: 201,
+                json: [
+                    "session_token": sessionToken,
+                    "expires_in_seconds": 600,
+                    "idle_timeout_seconds": 120,
+                ]
+            ),
+            response(
+                status: 200,
+                json: [
+                    "contract_version": 1,
+                    "features": ["secret_rotation"],
+                ]
+            ),
+        ])
+        let client = try HyphaAdminBrokerClient(
+            homeserver: URL(string: "https://matrix.example.org")!,
+            transport: transport
+        )
+        _ = try await client.authenticate(secret: "dedicated-administration-secret-value")
+
+        let capabilities = try await client.negotiateCapabilities()
+
+        XCTAssertEqual(capabilities.contractVersion, 1)
+        XCTAssertEqual(capabilities.features, ["secret_rotation"])
+        XCTAssertTrue(capabilities.supportsSecretRotation)
+        let requests = await transport.requests()
+        XCTAssertEqual(requests[1].httpMethod, "GET")
+        XCTAssertEqual(requests[1].url?.path, "/_hypha/admin/v1/capabilities")
+        XCTAssertEqual(
+            requests[1].value(forHTTPHeaderField: "Authorization"),
+            "Bearer \(sessionToken)"
+        )
+    }
+
+    func testLegacyBrokerRemainsReadableButDoesNotEnableSecretRotation() async throws {
+        let transport = RecordingBrokerTransport(responses: [
+            response(
+                status: 201,
+                json: [
+                    "session_token": sessionToken,
+                    "expires_in_seconds": 600,
+                    "idle_timeout_seconds": 120,
+                ]
+            ),
+            response(status: 404),
+        ])
+        let client = try HyphaAdminBrokerClient(
+            homeserver: URL(string: "https://matrix.example.org")!,
+            transport: transport
+        )
+        _ = try await client.authenticate(secret: "dedicated-administration-secret-value")
+
+        let capabilities = try await client.negotiateCapabilities()
+
+        XCTAssertEqual(capabilities.contractVersion, 0)
+        XCTAssertTrue(capabilities.features.isEmpty)
+        XCTAssertFalse(capabilities.supportsSecretRotation)
+        let hasActiveSession = await client.hasActiveSession
+        XCTAssertTrue(hasActiveSession)
+    }
+
+    func testSecretRotationUsesExactContractAndRevokesLocalAuthority() async throws {
+        let transport = RecordingBrokerTransport(responses: [
+            response(
+                status: 201,
+                json: [
+                    "session_token": sessionToken,
+                    "expires_in_seconds": 600,
+                    "idle_timeout_seconds": 120,
+                ]
+            ),
+            response(
+                status: 200,
+                json: [
+                    "contract_version": 1,
+                    "features": ["secret_rotation"],
+                ]
+            ),
+            response(status: 204),
+        ])
+        let client = try HyphaAdminBrokerClient(
+            homeserver: URL(string: "https://matrix.example.org")!,
+            transport: transport
+        )
+        _ = try await client.authenticate(secret: "dedicated-administration-secret-value")
+        _ = try await client.negotiateCapabilities()
+
+        let replacement = "replacement-administration-secret-value"
+        try await client.rotateAdministrationSecret(to: replacement)
+
+        let hasActiveSession = await client.hasActiveSession
+        let negotiatedCapabilities = await client.negotiatedCapabilities
+        XCTAssertFalse(hasActiveSession)
+        XCTAssertNil(negotiatedCapabilities)
+        let requests = await transport.requests()
+        XCTAssertEqual(requests[2].httpMethod, "POST")
+        XCTAssertEqual(requests[2].url?.path, "/_hypha/admin/v1/secret/rotate")
+        XCTAssertEqual(
+            requests[2].value(forHTTPHeaderField: "Authorization"),
+            "Bearer \(sessionToken)"
+        )
+        let body = try XCTUnwrap(requests[2].httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+        XCTAssertEqual(json["new_secret"], replacement)
+        XCTAssertEqual(json["confirmation"], "rotate_admin_secret")
+        XCTAssertFalse(String(describing: client).contains(replacement))
+    }
+
+    func testSecretRotationRejectsMalformedNoContentResponseAndClearsAuthority() async throws {
+        let transport = RecordingBrokerTransport(responses: [
+            response(
+                status: 201,
+                json: [
+                    "session_token": sessionToken,
+                    "expires_in_seconds": 600,
+                    "idle_timeout_seconds": 120,
+                ]
+            ),
+            response(
+                status: 200,
+                json: [
+                    "contract_version": 1,
+                    "features": ["secret_rotation"],
+                ]
+            ),
+            MatrixAdminHTTPResponse(
+                statusCode: 204,
+                body: Data("unexpected".utf8),
+                responseURL: URL(string: "https://matrix.example.org/_hypha/admin/v1/secret/rotate")!,
+                headers: [:]
+            ),
+        ])
+        let client = try HyphaAdminBrokerClient(
+            homeserver: URL(string: "https://matrix.example.org")!,
+            transport: transport
+        )
+        _ = try await client.authenticate(secret: "dedicated-administration-secret-value")
+        _ = try await client.negotiateCapabilities()
+
+        do {
+            try await client.rotateAdministrationSecret(
+                to: "replacement-administration-secret-value"
+            )
+            XCTFail("Expected malformed no-content response to fail closed")
+        } catch {
+            XCTAssertEqual(error as? HyphaAdminBrokerError, .invalidResponse)
+        }
+
+        let hasActiveSession = await client.hasActiveSession
+        let negotiatedCapabilities = await client.negotiatedCapabilities
+        XCTAssertFalse(hasActiveSession)
+        XCTAssertNil(negotiatedCapabilities)
+    }
+
+    func testSecretRotationTransportFailureIsOutcomeUnknownAndClearsAuthority() async throws {
+        let transport = RecordingBrokerTransport(responses: [
+            response(
+                status: 201,
+                json: [
+                    "session_token": sessionToken,
+                    "expires_in_seconds": 600,
+                    "idle_timeout_seconds": 120,
+                ]
+            ),
+            response(
+                status: 200,
+                json: [
+                    "contract_version": 1,
+                    "features": ["secret_rotation"],
+                ]
+            ),
+        ])
+        let client = try HyphaAdminBrokerClient(
+            homeserver: URL(string: "https://matrix.example.org")!,
+            transport: transport
+        )
+        _ = try await client.authenticate(secret: "dedicated-administration-secret-value")
+        _ = try await client.negotiateCapabilities()
+
+        do {
+            try await client.rotateAdministrationSecret(
+                to: "replacement-administration-secret-value"
+            )
+            XCTFail("Expected an uncertain rotation result")
+        } catch {
+            XCTAssertEqual(error as? HyphaAdminBrokerError, .rotationOutcomeUnknown)
+        }
+
+        let hasActiveSession = await client.hasActiveSession
+        let negotiatedCapabilities = await client.negotiatedCapabilities
+        XCTAssertFalse(hasActiveSession)
+        XCTAssertNil(negotiatedCapabilities)
+    }
+
+    func testMalformedCapabilitiesFailClosed() async throws {
+        let transport = RecordingBrokerTransport(responses: [
+            response(
+                status: 201,
+                json: [
+                    "session_token": sessionToken,
+                    "expires_in_seconds": 600,
+                    "idle_timeout_seconds": 120,
+                ]
+            ),
+            response(
+                status: 200,
+                json: [
+                    "contract_version": 1,
+                    "features": ["secret_rotation", "secret_rotation"],
+                ]
+            ),
+        ])
+        let client = try HyphaAdminBrokerClient(
+            homeserver: URL(string: "https://matrix.example.org")!,
+            transport: transport
+        )
+        _ = try await client.authenticate(secret: "dedicated-administration-secret-value")
+
+        do {
+            _ = try await client.negotiateCapabilities()
+            XCTFail("Expected duplicate capability names to fail closed")
+        } catch {
+            XCTAssertEqual(error as? HyphaAdminBrokerError, .invalidResponse)
+        }
+
+        let hasActiveSession = await client.hasActiveSession
+        XCTAssertFalse(hasActiveSession)
+    }
+
     func testSnapshotUsesOnlyBrokerBearerTokenAndExactTypedPath() async throws {
         let transport = RecordingBrokerTransport(responses: [
             response(

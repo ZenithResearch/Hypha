@@ -150,6 +150,7 @@ final class MatrixAppModel: ObservableObject {
     @Published private(set) var isAuthenticationOperationInFlight = false
     @Published private(set) var adminAccessState: MatrixAppAdminAccessState = .unknown
     @Published private(set) var adminSnapshot: MatrixAdminSnapshot?
+    @Published private(set) var adminCapabilities: HyphaAdminBrokerCapabilities?
     @Published private(set) var adminPasswordResetRequests: [MatrixPasswordResetRequest] = []
     @Published private(set) var issuedPasswordResetRequestIDs: Set<String> = []
     @Published private(set) var isAdminOperationInFlight = false
@@ -1186,6 +1187,7 @@ final class MatrixAppModel: ObservableObject {
         guard let adminBrokerClient else {
             adminAccessState = .denied
             adminSnapshot = nil
+            adminCapabilities = nil
             adminMessage = "Authenticate with the dedicated homeserver administration secret to continue."
             return
         }
@@ -1193,6 +1195,7 @@ final class MatrixAppModel: ObservableObject {
         adminAccessState = await adminBrokerClient.hasActiveSession ? .authorized : .denied
         if adminAccessState != .authorized {
             adminSnapshot = nil
+            adminCapabilities = nil
             adminMessage = "The administration session expired. Authenticate again to continue."
         }
     }
@@ -1204,11 +1207,15 @@ final class MatrixAppModel: ObservableObject {
         adminAccessState = .checking
         adminMessage = nil
         adminSnapshot = nil
+        adminCapabilities = nil
         defer { isAdminOperationInFlight = false }
         do {
             let client = try HyphaAdminBrokerClient(homeserver: configuration.homeserver)
             _ = try await client.authenticate(secret: secret)
             adminBrokerClient = client
+            let capabilities = try await client.negotiateCapabilities()
+            guard client === adminBrokerClient else { return }
+            adminCapabilities = capabilities
             adminAccessState = .authorized
             let snapshot = try await client.snapshot()
             guard client === adminBrokerClient else { return }
@@ -1224,8 +1231,35 @@ final class MatrixAppModel: ObservableObject {
                 try? await client.endSession()
             }
             adminBrokerClient = nil
+            adminCapabilities = nil
             adminAccessState = .denied
             await applyAdministratorError(error)
+        }
+    }
+
+    @discardableResult
+    func rotateAdministratorSecret(to replacement: String) async -> Bool {
+        guard adminAccessState == .authorized,
+              adminCapabilities?.supportsSecretRotation == true,
+              let adminBrokerClient,
+              !isAdminOperationInFlight else { return false }
+        isAdminOperationInFlight = true
+        adminMessage = nil
+        defer { isAdminOperationInFlight = false }
+        do {
+            try await adminBrokerClient.rotateAdministrationSecret(to: replacement)
+            guard adminBrokerClient === self.adminBrokerClient else { return false }
+            self.adminBrokerClient = nil
+            adminCapabilities = nil
+            adminAccessState = .denied
+            adminSnapshot = nil
+            adminPasswordResetRequests = []
+            issuedPasswordResetRequestIDs = []
+            adminMessage = "Administration secret rotated. Every administration session was revoked. Authenticate with the new secret to continue."
+            return true
+        } catch {
+            await applyAdministratorError(error)
+            return false
         }
     }
 
@@ -1450,15 +1484,18 @@ final class MatrixAppModel: ObservableObject {
         case .authenticationRejected:
             adminAccessState = .denied
             adminSnapshot = nil
+            adminCapabilities = nil
             adminMessage = "The administration secret was not accepted."
         case .rateLimited:
             adminAccessState = .denied
             adminSnapshot = nil
+            adminCapabilities = nil
             adminMessage = "Administration authentication is temporarily limited. Wait before trying again."
         case .sessionExpired:
             adminBrokerClient = nil
             adminAccessState = .denied
             adminSnapshot = nil
+            adminCapabilities = nil
             adminPasswordResetRequests = []
             adminMessage = "The administration session expired. Authenticate again to continue."
         case .offline:
@@ -1466,6 +1503,7 @@ final class MatrixAppModel: ObservableObject {
         case .invalidConfiguration:
             adminAccessState = .denied
             adminSnapshot = nil
+            adminCapabilities = nil
             adminMessage = "This homeserver does not expose a valid Hypha administration broker."
         case .invalidInput:
             adminMessage = "Check the account or room details and try again."
@@ -1475,6 +1513,7 @@ final class MatrixAppModel: ObservableObject {
                 self.adminBrokerClient = nil
                 adminAccessState = .denied
                 adminSnapshot = nil
+                adminCapabilities = nil
                 adminPasswordResetRequests = []
                 adminMessage = "The administration session ended after an invalid broker response. Authenticate again to continue."
             } else {
@@ -1482,6 +1521,14 @@ final class MatrixAppModel: ObservableObject {
             }
         case .serverRejected:
             adminMessage = "The homeserver rejected the administrative operation. No success was assumed."
+        case .rotationOutcomeUnknown:
+            adminBrokerClient = nil
+            adminAccessState = .denied
+            adminSnapshot = nil
+            adminCapabilities = nil
+            adminPasswordResetRequests = []
+            issuedPasswordResetRequestIDs = []
+            adminMessage = "The connection ended before Hypha could confirm whether the secret rotated. Keep the proposed new secret visible and authenticate with it to confirm. Do not retry rotation automatically."
         }
     }
 
@@ -1489,6 +1536,7 @@ final class MatrixAppModel: ObservableObject {
         adminBrokerClient = nil
         adminAccessState = .unknown
         adminSnapshot = nil
+        adminCapabilities = nil
         adminPasswordResetRequests = []
         issuedPasswordResetRequestIDs = []
         isAdminOperationInFlight = false

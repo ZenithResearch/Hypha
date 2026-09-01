@@ -23,6 +23,7 @@ struct MatrixAdminSheet: View {
     @State private var userPendingDeactivation: MatrixAdminUserSummary?
     @State private var userPendingLogout: MatrixAdminUserSummary?
     @State private var passwordResetRequest: MatrixPasswordResetRequest?
+    @State private var showsSecretRotation = false
     @State private var roomPendingPurge: MatrixAdminRoomSummary?
     @State private var roomName = ""
     @State private var roomTopic = ""
@@ -104,6 +105,12 @@ struct MatrixAdminSheet: View {
         .onDisappear {
             clearSecrets()
             Task { await model.endAdministratorAccess() }
+        }
+        .sheet(isPresented: $showsSecretRotation) {
+            MatrixAdminSecretRotationSheet(
+                model: model,
+                isPresented: $showsSecretRotation
+            )
         }
         .sheet(item: $passwordResetRequest) { request in
             MatrixAdminPasswordResetSheet(
@@ -196,6 +203,7 @@ struct MatrixAdminSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: ZenithDesign.Space.x5) {
                 authorityNotice
+                secretRotationSection
                 passwordResetSection
                 createRoomSection
                 createAccountSection
@@ -227,6 +235,35 @@ struct MatrixAdminSheet: View {
         .padding(ZenithDesign.Space.x4)
         .background(ZenithDesign.Palette.baseRaised)
         .clipShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.card, style: .continuous))
+    }
+
+    private var secretRotationSection: some View {
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
+            sectionTitle("ADMINISTRATION SECRET")
+            Text("Broker authority")
+                .font(ZenithDesign.Typography.corporate(.title3, weight: .semibold))
+            if model.adminCapabilities?.supportsSecretRotation == true {
+                Text("Replace the dedicated broker secret without exposing it to Matrix. A successful rotation immediately revokes every administration session, including this one.")
+                    .font(ZenithDesign.Typography.corporate(.callout))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                Button("Rotate administration secret...", role: .destructive) {
+                    showsSecretRotation = true
+                }
+                .buttonStyle(HyphaButtonStyle(.destructive))
+                .disabled(model.isAdminOperationInFlight)
+                .accessibilityIdentifier("matrix.admin.secret.rotate")
+            } else {
+                Label(
+                    "Secret rotation is unavailable until this broker has durable verifier storage.",
+                    systemImage: "lock.trianglebadge.exclamationmark"
+                )
+                .font(ZenithDesign.Typography.corporate(.callout, weight: .medium))
+                .foregroundStyle(ZenithDesign.Palette.warning)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("matrix.admin.secret.rotation-unavailable")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var passwordResetSection: some View {
@@ -540,6 +577,137 @@ struct MatrixAdminSheet: View {
         administrationSecret = ""
         temporaryPassword = ""
         passwordConfirmation = ""
+    }
+}
+
+private struct MatrixAdminSecretRotationSheet: View {
+    @ObservedObject var model: MatrixAppModel
+    @Binding var isPresented: Bool
+
+    @State private var replacementSecret = ""
+    @State private var secretConfirmation = ""
+    @State private var validationMessage: String?
+    @State private var showsConfirmation = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Impact") {
+                    Label(
+                        "All active Hypha administration sessions will be revoked",
+                        systemImage: "person.2.slash.fill"
+                    )
+                    .foregroundStyle(ZenithDesign.Palette.warning)
+                    Text("Matrix sessions and room access are not changed. Keep the proposed replacement available until the broker confirms the rotation; Hypha never saves it.")
+                        .font(.callout)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                }
+
+                Section("New administration secret") {
+                    HyphaRevealablePasswordField(
+                        title: "New administration secret",
+                        text: $replacementSecret,
+                        accessibilityIdentifier: "matrix.admin.secret.replacement",
+                        isNewPassword: true
+                    )
+                    HyphaRevealablePasswordField(
+                        title: "Confirm new administration secret",
+                        text: $secretConfirmation,
+                        accessibilityIdentifier: "matrix.admin.secret.confirmation",
+                        isNewPassword: true
+                    )
+                    Text("Use 32 to 512 UTF-8 bytes with no control characters.")
+                        .font(.caption)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                    if !secretConfirmation.isEmpty {
+                        Label(
+                            replacementSecret == secretConfirmation ? "Secrets match" : "Secrets do not match",
+                            systemImage: replacementSecret == secretConfirmation ? "checkmark.circle.fill" : "xmark.circle.fill"
+                        )
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(replacementSecret == secretConfirmation ? ZenithDesign.Palette.success : ZenithDesign.Palette.error)
+                        .accessibilityIdentifier("matrix.admin.secret.match")
+                    }
+                    if let message = validationMessage ?? model.adminMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(ZenithDesign.Palette.error)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                            .accessibilityIdentifier("matrix.admin.secret.rotation-message")
+                    }
+                }
+
+                Section {
+                    Button("Rotate administration secret...", role: .destructive) {
+                        validationMessage = nil
+                        showsConfirmation = true
+                    }
+                    .buttonStyle(HyphaButtonStyle(.destructive))
+                    .disabled(!canSubmit)
+                    .accessibilityIdentifier("matrix.admin.secret.submit")
+                } footer: {
+                    Text("This cannot be undone from Hypha. The server's protected bootstrap verifier remains the emergency recovery path.")
+                }
+            }
+            .formStyle(.grouped)
+            .navigationTitle("Rotate administration secret")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { isPresented = false }
+                        .disabled(model.isAdminOperationInFlight)
+                }
+            }
+        }
+        .hyphaFlexibleSheetFrame(minWidth: 520, idealWidth: 600, minHeight: 430)
+        .hyphaMobileSheetPresentation()
+        .interactiveDismissDisabled(model.isAdminOperationInFlight)
+        .confirmationDialog(
+            "Rotate the administration secret?",
+            isPresented: $showsConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Rotate and revoke sessions", role: .destructive, action: submit)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Every active Hypha administration session will end immediately. Matrix user sessions are unaffected.")
+        }
+        .onDisappear(perform: clearSecrets)
+    }
+
+    private var canSubmit: Bool {
+        let byteCount = replacementSecret.utf8.count
+        return !model.isAdminOperationInFlight
+            && model.adminCapabilities?.supportsSecretRotation == true
+            && (32...512).contains(byteCount)
+            && !containsControlCharacter(replacementSecret)
+            && !secretConfirmation.isEmpty
+            && replacementSecret == secretConfirmation
+    }
+
+    private func submit() {
+        guard canSubmit else {
+            validationMessage = "Enter matching secrets between 32 and 512 UTF-8 bytes with no control characters."
+            return
+        }
+        let proposedSecret = replacementSecret
+        Task {
+            if await model.rotateAdministratorSecret(to: proposedSecret) {
+                clearSecrets()
+                isPresented = false
+            } else {
+                validationMessage = model.adminMessage ?? "The homeserver did not confirm the secret rotation. Keep the proposed secret available while you verify which credential is active."
+            }
+        }
+    }
+
+    private func containsControlCharacter(_ value: String) -> Bool {
+        value.unicodeScalars.contains { $0.value < 0x20 || $0.value == 0x7F }
+    }
+
+    private func clearSecrets() {
+        replacementSecret = ""
+        secretConfirmation = ""
     }
 }
 

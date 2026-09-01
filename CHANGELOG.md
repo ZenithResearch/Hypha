@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Added capability-gated administration-secret rotation to the homeserver admin panel — operators can replace the broker credential without exposing raw secret material to Matrix or persistent Hypha storage, while every admin session is revoked and uncertain network outcomes remain recoverable without automatic retries.
 - Added an authoritative, compatibility-mirrored repository collection with a 42-attachment limit and attachment-scoped local bindings — rooms can compose many repositories without old single-repository clients erasing the new state or leaking device-local paths.
 - Added global device-only Keychain storage for the verified GitHub credential plus remote-first immutable output materialization and same-commit cache fallback — one connection can safely serve every room without placing credentials in Matrix, caches, or logs.
 - Added path-preserving, repository-grouped Assets with byte/container classification and centralized viewer routing — every supported output opens through the correct bounded native viewer while identical paths in different repositories remain distinct.
