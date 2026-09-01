@@ -16,6 +16,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Changed
 
+- Moved the global GitHub connection CTA and live account/repository status into the room repository sheet — users can connect once, see whether discovery is ready, refresh it, or disconnect without detouring through Settings.
 - Made `out.json` version 2 support explicit `asset_discovery.mode = recognized` while retaining declared-only omission semantics — existing writers do not expose undeclared files after a client update, while opted-in repositories project every validated output into Assets.
 - Moved builds behind attachment-scoped **Rebuild** with exact confirmation, cancellation, process-group termination, and output rollback — opening, attaching, and refreshing never execute repository code or destroy the last usable output.
 

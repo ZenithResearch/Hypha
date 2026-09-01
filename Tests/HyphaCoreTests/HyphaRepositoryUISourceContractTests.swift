@@ -154,9 +154,17 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             "Room repositories",
             "matrix.room.repositories.remote",
             "matrix.room.repositories.github-picker",
+            "matrix.room.repositories.github-connect",
+            "matrix.room.repositories.github-status",
+            "matrix.room.repositories.github-disconnect",
             "Choose a GitHub repository…",
             "githubConnection.repositories()",
+            "githubConnection.connect()",
+            "githubConnection.disconnect()",
             "HyphaGitHubRepositoryChoice",
+            "GitHub connected",
+            "repositories available",
+            "GitHub personal access token",
             "Enter a repository URL manually",
             "Local checkout and Rebuild (optional)",
             "Verify GitHub access",
@@ -261,6 +269,7 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
         XCTAssertTrue(app.contains("SecureField(\"GitHub API token"))
         XCTAssertTrue(app.contains("Connect GitHub"))
         XCTAssertTrue(app.contains("HyphaGitHubConnectionModel"))
-        XCTAssertFalse(sheet.contains("SecureField(\"GitHub API token"))
+        XCTAssertFalse(sheet.contains("HyphaGitHubKeychainCredentialStore("))
+        XCTAssertFalse(sheet.contains("HyphaGitHubRepositoryAccessClient("))
     }
 }

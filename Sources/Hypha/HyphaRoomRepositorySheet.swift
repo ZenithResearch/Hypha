@@ -34,6 +34,7 @@ struct HyphaRoomRepositorySheet: View {
     @State private var showsManualRepositoryEntry = false
     @State private var showsAttachLocalOptions = false
     @State private var pendingRemoval: MatrixRoomRepositoryDescriptor?
+    @State private var confirmsGitHubDisconnect = false
 
     private let bindingStore = HyphaRoomRepositoryLocalBindingStore()
 
@@ -190,6 +191,9 @@ struct HyphaRoomRepositorySheet: View {
             await load()
             await loadGitHubRepositories()
         }
+        .onChange(of: githubConnection.isConnected) { _, _ in
+            Task { await loadGitHubRepositories() }
+        }
         .confirmationDialog(
             "Remove \(pendingRemoval?.name ?? "this repository")?",
             isPresented: Binding(
@@ -205,60 +209,27 @@ struct HyphaRoomRepositorySheet: View {
         } message: {
             Text("Its Assets will leave the room. The local checkout itself is never deleted.")
         }
+        .confirmationDialog(
+            "Disconnect GitHub from this Mac?",
+            isPresented: $confirmsGitHubDisconnect,
+            titleVisibility: .visible
+        ) {
+            Button("Disconnect GitHub", role: .destructive) {
+                githubConnection.disconnect()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Repository attachments stay in their rooms. Private repository discovery and refresh remain unavailable until GitHub is connected again.")
+        }
     }
 
     @ViewBuilder
     private var repositorySelectionSection: some View {
         VStack(alignment: .leading, spacing: ZenithDesign.Space.x4) {
-            if githubConnection.isConnected {
-                HStack {
-                    Label(
-                        "GitHub @\(githubConnection.accountLogin ?? "connected")",
-                        systemImage: "checkmark.circle.fill"
-                    )
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(ZenithDesign.Palette.success)
-                    Spacer()
-                    Button {
-                        Task { await loadGitHubRepositories() }
-                    } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(isLoadingGitHubRepositories)
-                    .accessibilityIdentifier("matrix.room.repositories.github-refresh")
-                }
+            githubConnectionCard
 
-                if isLoadingGitHubRepositories {
-                    ProgressView("Loading accessible repositories…")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else if availableGitHubRepositories.isEmpty {
-                    HyphaStatusMessage(
-                        message: githubRepositoryLoadMessage ?? "No accessible GitHub repositories were returned. You can still attach one by URL.",
-                        tone: .warning
-                    )
-                } else {
-                    Picker("GitHub repository", selection: $selectedGitHubRepositoryID) {
-                        Text("Choose a GitHub repository…").tag(String?.none)
-                        ForEach(availableGitHubRepositories) { repository in
-                            Text(repositoryPickerLabel(repository)).tag(Optional(repository.id))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .accessibilityIdentifier("matrix.room.repositories.github-picker")
-                    .onChange(of: selectedGitHubRepositoryID) { _, identifier in
-                        guard let identifier,
-                              let repository = availableGitHubRepositories.first(where: { $0.id == identifier }) else {
-                            return
-                        }
-                        selectGitHubRepository(repository)
-                    }
-                }
-            } else {
-                HyphaStatusMessage(
-                    message: "Connect GitHub in Settings to choose private and organization repositories from this list.",
-                    tone: .warning
-                )
+            if githubConnection.isConnected {
+                githubRepositoryPicker
             }
 
             if let selectedGitHubRepository {
@@ -316,6 +287,152 @@ struct HyphaRoomRepositorySheet: View {
                 .foregroundStyle(ZenithDesign.Palette.muted)
         }
         .padding(.vertical, ZenithDesign.Space.x1)
+    }
+
+    @ViewBuilder
+    private var githubConnectionCard: some View {
+        VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
+            if githubConnection.isConnected {
+                HStack(alignment: .center, spacing: ZenithDesign.Space.x3) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(ZenithDesign.Palette.success)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                        Text("GitHub connected")
+                            .font(.headline)
+                        Text("@\(githubConnection.accountLogin ?? "account")")
+                            .font(.caption.monospaced())
+                            .foregroundStyle(ZenithDesign.Palette.muted)
+                    }
+                    Spacer()
+                    HyphaButton(title: "Refresh", systemImage: "arrow.clockwise", variant: .secondary) {
+                        Task { await loadGitHubRepositories() }
+                    }
+                    .disabled(isLoadingGitHubRepositories)
+                    .accessibilityIdentifier("matrix.room.repositories.github-refresh")
+                    HyphaButton(title: "Disconnect", variant: .quiet) {
+                        confirmsGitHubDisconnect = true
+                    }
+                    .accessibilityIdentifier("matrix.room.repositories.github-disconnect")
+                }
+
+                if isLoadingGitHubRepositories {
+                    HStack(spacing: ZenithDesign.Space.x2) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Loading repositories available to this account…")
+                            .font(.caption)
+                            .foregroundStyle(ZenithDesign.Palette.muted)
+                    }
+                    .accessibilityIdentifier("matrix.room.repositories.github-status")
+                } else if let githubRepositoryLoadMessage {
+                    HyphaStatusMessage(message: githubRepositoryLoadMessage, tone: .warning)
+                        .accessibilityIdentifier("matrix.room.repositories.github-status")
+                } else {
+                    Label(
+                        "\(availableGitHubRepositories.count) repositories available",
+                        systemImage: "shippingbox"
+                    )
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                    .accessibilityIdentifier("matrix.room.repositories.github-status")
+                }
+            } else {
+                HStack(alignment: .top, spacing: ZenithDesign.Space.x3) {
+                    Image(systemName: "link.badge.plus")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(ZenithDesign.Palette.brand)
+                        .frame(width: 28)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                        Text("Connect GitHub")
+                            .font(.headline)
+                        Text("Choose private, organization, and public repositories without copying their URLs.")
+                            .font(.caption)
+                            .foregroundStyle(ZenithDesign.Palette.muted)
+                    }
+                }
+
+                SecureField(
+                    "",
+                    text: $githubConnection.tokenInput,
+                    prompt: Text("GitHub personal access token")
+                )
+                .labelsHidden()
+                .textFieldStyle(HyphaTextFieldStyle())
+                .accessibilityLabel("GitHub personal access token")
+                .accessibilityIdentifier("matrix.room.repositories.github-token")
+
+                HStack(alignment: .center, spacing: ZenithDesign.Space.x3) {
+                    Text("Saved once in this Mac's protected Keychain and reused globally by Hypha. It is never stored in the room.")
+                        .font(.caption)
+                        .foregroundStyle(ZenithDesign.Palette.muted)
+                    Spacer()
+                    HyphaButton(
+                        title: githubConnection.isConnecting ? "Connecting…" : "Connect GitHub",
+                        systemImage: githubConnection.isConnecting ? nil : "link",
+                        variant: .primary
+                    ) {
+                        githubConnection.connect()
+                    }
+                    .disabled(
+                        githubConnection.isConnecting
+                            || githubConnection.tokenInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    )
+                    .accessibilityIdentifier("matrix.room.repositories.github-connect")
+                }
+
+                if let message = githubConnection.statusMessage {
+                    HyphaStatusMessage(
+                        message: message,
+                        tone: githubConnection.statusIsError ? .error : .success
+                    )
+                    .accessibilityIdentifier("matrix.room.repositories.github-status")
+                }
+            }
+        }
+        .padding(ZenithDesign.Space.x4)
+        .background(ZenithDesign.Palette.baseSubtle)
+        .clipShape(RoundedRectangle(cornerRadius: ZenithDesign.Radius.card, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: ZenithDesign.Radius.card, style: .continuous)
+                .stroke(
+                    githubConnection.isConnected
+                        ? ZenithDesign.Palette.success.opacity(0.45)
+                        : ZenithDesign.Palette.borderStrong,
+                    lineWidth: 1
+                )
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var githubRepositoryPicker: some View {
+        if !isLoadingGitHubRepositories,
+           githubRepositoryLoadMessage == nil,
+           availableGitHubRepositories.isEmpty {
+            HyphaStatusMessage(
+                message: "No accessible GitHub repositories were returned. You can still attach one by URL.",
+                tone: .warning
+            )
+        } else if !availableGitHubRepositories.isEmpty {
+            Picker("GitHub repository", selection: $selectedGitHubRepositoryID) {
+                Text("Choose a GitHub repository…").tag(String?.none)
+                ForEach(availableGitHubRepositories) { repository in
+                    Text(repositoryPickerLabel(repository)).tag(Optional(repository.id))
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("matrix.room.repositories.github-picker")
+            .onChange(of: selectedGitHubRepositoryID) { _, identifier in
+                guard let identifier,
+                      let repository = availableGitHubRepositories.first(where: { $0.id == identifier }) else {
+                    return
+                }
+                selectGitHubRepository(repository)
+            }
+        }
     }
 
     @ViewBuilder
@@ -460,6 +577,10 @@ struct HyphaRoomRepositorySheet: View {
         defer { isLoadingGitHubRepositories = false }
         do {
             availableGitHubRepositories = try await githubConnection.repositories()
+            if !availableGitHubRepositories.isEmpty,
+               remoteRepositoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                showsManualRepositoryEntry = false
+            }
             if let selectedGitHubRepositoryID,
                !availableGitHubRepositories.contains(where: { $0.id == selectedGitHubRepositoryID }) {
                 self.selectedGitHubRepositoryID = nil
@@ -785,7 +906,7 @@ struct HyphaRoomRepositorySheet: View {
     private func githubAccessErrorMessage(_ error: HyphaGitHubRepositoryAccessError) -> String {
         switch error {
         case .invalidRemote: "Enter a valid github.com repository URL."
-        case .invalidToken: "Connect GitHub in Settings before verifying private access."
+        case .invalidToken: "Connect GitHub before verifying private access."
         case .authenticationFailed: "GitHub did not accept the saved connection."
         case .repositoryUnavailable: "The repository was not found or this account cannot read it."
         case .serviceUnavailable: "GitHub access could not be checked right now."
