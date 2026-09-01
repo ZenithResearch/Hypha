@@ -212,6 +212,18 @@ final class MatrixShellSourceContractTests: XCTestCase {
             "Authenticate for administration",
             "authenticateAdministrator(secret:",
             "does not sign in to Matrix",
+            "let capabilities = try await client.negotiateCapabilities()",
+            "adminCapabilities?.supportsSecretRotation == true",
+            "rotateAdministratorSecret(to:",
+            "rotateAdministrationSecret(to:",
+            "/_hypha/admin/v1/secret/rotate",
+            "case .rotationOutcomeUnknown:",
+            "Do not retry rotation automatically.",
+            "matrix.admin.secret.rotate",
+            "matrix.admin.secret.replacement",
+            "matrix.admin.secret.confirmation",
+            "matrix.admin.secret.submit",
+            "Secret rotation is unavailable until this broker has durable verifier storage.",
             "matrix.admin.account.create",
             "matrix.admin.account.password",
             "privacySensitive()",
@@ -231,6 +243,7 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertFalse(source.contains("Create normal"))
         XCTAssertFalse(source.contains("prefersEphemeralWebBrowserSession = true"))
         XCTAssertFalse(source.contains("Retry revocation"))
+        XCTAssertFalse(source.contains("SYNAPSE_ADMIN_ACCESS_TOKEN"))
         XCTAssertFalse(appSource.contains("authorizeAdministratorAccess"))
         XCTAssertFalse(appSource.contains("MatrixAdminWebAuthorizationSession"))
         XCTAssertFalse(appSource.contains("case upgradeRequired"))

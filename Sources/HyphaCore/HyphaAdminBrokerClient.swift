@@ -9,6 +9,7 @@ public enum HyphaAdminBrokerError: Error, Equatable, Sendable {
     case offline
     case invalidResponse
     case serverRejected
+    case rotationOutcomeUnknown
 }
 
 public struct HyphaAdminBrokerSession: Equatable, Sendable {
@@ -18,6 +19,20 @@ public struct HyphaAdminBrokerSession: Equatable, Sendable {
     public init(expiresInSeconds: Int, idleTimeoutSeconds: Int) {
         self.expiresInSeconds = expiresInSeconds
         self.idleTimeoutSeconds = idleTimeoutSeconds
+    }
+}
+
+public struct HyphaAdminBrokerCapabilities: Equatable, Sendable {
+    public let contractVersion: Int
+    public let features: Set<String>
+
+    public init(contractVersion: Int, features: Set<String>) {
+        self.contractVersion = contractVersion
+        self.features = features
+    }
+
+    public var supportsSecretRotation: Bool {
+        contractVersion == 1 && features.contains("secret_rotation")
     }
 }
 
@@ -34,6 +49,16 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
             case sessionToken = "session_token"
             case expiresInSeconds = "expires_in_seconds"
             case idleTimeoutSeconds = "idle_timeout_seconds"
+        }
+    }
+
+    private struct CapabilitiesResponse: Decodable {
+        let contractVersion: Int
+        let features: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case contractVersion = "contract_version"
+            case features
         }
     }
 
@@ -85,6 +110,7 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
     private let homeserver: URL
     private let transport: any MatrixAdminHTTPTransport
     private var sessionToken: String?
+    private var capabilities: HyphaAdminBrokerCapabilities?
 
     public nonisolated var description: String {
         "HyphaAdminBrokerClient(session: redacted)"
@@ -92,6 +118,10 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
 
     public var hasActiveSession: Bool {
         sessionToken != nil
+    }
+
+    public var negotiatedCapabilities: HyphaAdminBrokerCapabilities? {
+        capabilities
     }
 
     public init(
@@ -107,6 +137,7 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
 
     public func authenticate(secret: String) async throws -> HyphaAdminBrokerSession {
         sessionToken = nil
+        capabilities = nil
         guard Self.validSecret(secret) else {
             throw HyphaAdminBrokerError.authenticationRejected
         }
@@ -146,6 +177,40 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
             expiresInSeconds: decoded.expiresInSeconds,
             idleTimeoutSeconds: decoded.idleTimeoutSeconds
         )
+    }
+
+    @discardableResult
+    public func negotiateCapabilities() async throws -> HyphaAdminBrokerCapabilities {
+        let token = try activeToken()
+        let response = try await send(
+            method: "GET",
+            path: "/_hypha/admin/v1/capabilities",
+            body: nil,
+            authorization: token
+        )
+        if [404, 405, 501].contains(response.statusCode) {
+            let legacy = HyphaAdminBrokerCapabilities(contractVersion: 0, features: [])
+            capabilities = legacy
+            return legacy
+        }
+        guard response.statusCode == 200 else {
+            throw operationError(response.statusCode)
+        }
+        let decoded: CapabilitiesResponse = try decodeJSON(response)
+        guard (0...32).contains(decoded.contractVersion),
+              decoded.features.count <= 64,
+              Set(decoded.features).count == decoded.features.count,
+              decoded.features.allSatisfy(Self.validFeatureName) else {
+            sessionToken = nil
+            capabilities = nil
+            throw HyphaAdminBrokerError.invalidResponse
+        }
+        let negotiated = HyphaAdminBrokerCapabilities(
+            contractVersion: decoded.contractVersion,
+            features: Set(decoded.features)
+        )
+        capabilities = negotiated
+        return negotiated
     }
 
     public func snapshot() async throws -> MatrixAdminSnapshot {
@@ -344,9 +409,44 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
         try requireStatus(response, expected: 204)
     }
 
+    public func rotateAdministrationSecret(to replacement: String) async throws {
+        guard capabilities?.supportsSecretRotation == true,
+              Self.validSecret(replacement) else {
+            throw HyphaAdminBrokerError.invalidInput
+        }
+        let response: MatrixAdminHTTPResponse
+        do {
+            response = try await authorizedRequest(
+                method: "POST",
+                path: "/_hypha/admin/v1/secret/rotate",
+                json: [
+                    "new_secret": replacement,
+                    "confirmation": "rotate_admin_secret",
+                ]
+            )
+        } catch {
+            sessionToken = nil
+            capabilities = nil
+            throw HyphaAdminBrokerError.rotationOutcomeUnknown
+        }
+        guard response.statusCode == 204 else {
+            throw operationError(response.statusCode)
+        }
+        guard response.body.isEmpty else {
+            sessionToken = nil
+            capabilities = nil
+            throw HyphaAdminBrokerError.invalidResponse
+        }
+        sessionToken = nil
+        capabilities = nil
+    }
+
     public func endSession() async throws {
         let token = try activeToken()
-        defer { sessionToken = nil }
+        defer {
+            sessionToken = nil
+            capabilities = nil
+        }
         let response = try await send(
             method: "DELETE",
             path: "/_hypha/admin/v1/session",
@@ -419,6 +519,7 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
     private func operationError(_ statusCode: Int) -> HyphaAdminBrokerError {
         if statusCode == 401 || statusCode == 403 {
             sessionToken = nil
+            capabilities = nil
             return .sessionExpired
         }
         return mappedServerError(statusCode)
@@ -458,10 +559,14 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
         }
         guard Self.sameOrigin(url, response.responseURL) else {
             sessionToken = nil
+            capabilities = nil
             throw HyphaAdminBrokerError.invalidResponse
         }
         guard response.body.count <= Self.maximumResponseBytes else {
-            if authorization != nil { sessionToken = nil }
+            if authorization != nil {
+                sessionToken = nil
+                capabilities = nil
+            }
             throw HyphaAdminBrokerError.invalidResponse
         }
         return response
@@ -472,12 +577,14 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
               response.body.count <= Self.maximumResponseBytes,
               response.headers["content-type"]?.lowercased().hasPrefix("application/json") == true else {
             sessionToken = nil
+            capabilities = nil
             throw HyphaAdminBrokerError.invalidResponse
         }
         do {
             return try JSONDecoder().decode(Value.self, from: response.body)
         } catch {
             sessionToken = nil
+            capabilities = nil
             throw HyphaAdminBrokerError.invalidResponse
         }
     }
@@ -526,6 +633,14 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
                 || $0 == 0x2D
                 || $0 == 0x5F
         }
+    }
+
+    private static func validFeatureName(_ value: String) -> Bool {
+        !value.isEmpty
+            && value.utf8.count <= 64
+            && value.unicodeScalars.allSatisfy {
+                CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789_").contains($0)
+            }
     }
 
     private static func validUserID(_ value: String) -> Bool {

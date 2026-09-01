@@ -20,6 +20,24 @@ Each Mac, iPhone, or iPad is its own Matrix device. Device verification and Secu
 
 The selected room keeps its content surface in the main window. Chat opens contextually without replacing the room dashboard. Room names, membership, and encrypted messages are synchronized through Matrix.
 
+## Homeserver administration
+
+Open **Homeserver Administration** from the connected homeserver controls and authenticate with the dedicated broker secret. This is a short-lived operator session; it is separate from the Matrix account currently signed in to Hypha.
+
+When the broker advertises durable secret rotation:
+
+1. In **Administration secret**, choose **Rotate administration secret...**.
+2. Enter and confirm a replacement containing 32 to 512 UTF-8 bytes and no control characters.
+3. Keep the proposed replacement available until the broker confirms success.
+4. Confirm **Rotate and revoke sessions**.
+5. Authenticate again with the replacement secret.
+
+A successful rotation revokes every Hypha administration session, including the session that performed it. It does not sign out Matrix users or change room access. Hypha sends the replacement only to the broker, does not save it, and never receives the stored verifier.
+
+If the connection ends before confirmation, Hypha preserves the proposed value on screen, clears its old administration authority, and does not retry automatically. Authenticate with the proposed replacement to determine whether rotation completed. If neither credential works, use the homeserver's documented bootstrap-verifier recovery procedure.
+
+Older brokers and deployments without durable verifier storage remain available for read-only and existing supported administration, but Hypha hides the mutation behind an explicit **rotation unavailable** state.
+
 ## Repository content
 
 A joined non-Space room supports an authoritative set of zero to 42 repositories. Existing one-repository rooms migrate into the collection while retaining a derived singular compatibility mirror for older Hypha clients.
