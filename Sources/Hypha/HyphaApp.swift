@@ -242,9 +242,11 @@ final class MatrixAppModel: ObservableObject {
     var messageDraft: HyphaMessageDraft { messageDraftStore.activeDraft }
 
     func connectHomeserver() async {
+        guard beginAuthenticationOperation() else { return }
+        defer { finishAuthenticationOperation() }
+        homeserverState = .checking
         _ = await endAdministratorAccess()
         timelineRefreshTask?.cancel()
-        homeserverState = .checking
         password = ""
         do {
             let configuration = try await healthChecker.connect(to: homeserverInput)
