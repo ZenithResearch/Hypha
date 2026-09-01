@@ -11,10 +11,26 @@ final class HyphaGitHubConnectionModel: ObservableObject {
     @Published private(set) var isConnecting = false
 
     private let client: HyphaGitHubRepositoryAccessClient
+    private let credentialStore: any HyphaGitHubCredentialStore
     private var sessionToken: String?
 
-    init(client: HyphaGitHubRepositoryAccessClient = HyphaGitHubRepositoryAccessClient()) {
+    init(
+        client: HyphaGitHubRepositoryAccessClient = HyphaGitHubRepositoryAccessClient(),
+        credentialStore: any HyphaGitHubCredentialStore = HyphaGitHubKeychainCredentialStore()
+    ) {
         self.client = client
+        self.credentialStore = credentialStore
+        do {
+            if let credential = try credentialStore.credential() {
+                accountLogin = credential.login
+                sessionToken = credential.token
+            }
+        } catch {
+            accountLogin = nil
+            sessionToken = nil
+            statusMessage = "The saved GitHub connection could not be read. Connect again."
+            statusIsError = true
+        }
     }
 
     var isConnected: Bool {
@@ -30,14 +46,22 @@ final class HyphaGitHubConnectionModel: ObservableObject {
             defer { isConnecting = false }
             do {
                 let account = try await client.connect(token: token)
+                try credentialStore.save(
+                    HyphaGitHubCredential(login: account.login, token: token)
+                )
                 sessionToken = token
                 accountLogin = account.login
-                statusMessage = "Connected to GitHub as \(account.login) for this Hypha session."
+                statusMessage = "Connected to GitHub as \(account.login). This device will reuse the connection."
                 statusIsError = false
             } catch let error as HyphaGitHubRepositoryAccessError {
                 sessionToken = nil
                 accountLogin = nil
                 statusMessage = Self.message(for: error)
+                statusIsError = true
+            } catch is HyphaGitHubCredentialStoreError {
+                sessionToken = nil
+                accountLogin = nil
+                statusMessage = "GitHub approved the token, but Hypha could not save it securely."
                 statusIsError = true
             } catch {
                 sessionToken = nil
@@ -50,9 +74,16 @@ final class HyphaGitHubConnectionModel: ObservableObject {
 
     func disconnect() {
         tokenInput = ""
+        do {
+            try credentialStore.delete()
+        } catch {
+            statusMessage = "Hypha could not remove the saved GitHub connection."
+            statusIsError = true
+            return
+        }
         sessionToken = nil
         accountLogin = nil
-        statusMessage = "GitHub disconnected from this Hypha session."
+        statusMessage = "GitHub disconnected from this device."
         statusIsError = false
     }
 
@@ -61,6 +92,11 @@ final class HyphaGitHubConnectionModel: ObservableObject {
             throw HyphaGitHubRepositoryAccessError.invalidToken
         }
         return try await client.verify(remote: remote, token: sessionToken)
+    }
+
+    func credential() -> HyphaGitHubCredential? {
+        guard let accountLogin, let sessionToken else { return nil }
+        return HyphaGitHubCredential(login: accountLogin, token: sessionToken)
     }
 
     static func message(for error: HyphaGitHubRepositoryAccessError) -> String {

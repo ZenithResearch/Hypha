@@ -171,6 +171,16 @@ public protocol MatrixLiveClient: Sendable {
     func joinedRooms() async throws -> [MatrixRoomSummary]
     func timeline(roomID: String) async throws -> [MatrixTimelineEvent]
     func sendText(_ body: String, roomID: String) async throws
+    func roomRepositoryState(roomID: String) async throws -> MatrixRoomRepositoryState
+    func setRoomRepositorySet(
+        _ repositorySet: MatrixRoomRepositorySet,
+        roomID: String
+    ) async throws -> MatrixRoomRepositorySetWriteResult
+    func roomTemplateReference(roomID: String) async throws -> HyphaRoomTemplateReference?
+    func setRoomTemplateReference(
+        _ reference: HyphaRoomTemplateReference,
+        roomID: String
+    ) async throws
     func roomRepositoryAttachment(roomID: String) async throws -> MatrixRoomRepositoryAttachment?
     func setRoomRepositoryAttachment(
         _ attachment: MatrixRoomRepositoryAttachment,
@@ -326,7 +336,38 @@ struct MatrixRecoveryIdentityResetLifecycle {
 }
 
 public extension MatrixLiveClient {
+    func roomTemplateReference(roomID: String) async throws -> HyphaRoomTemplateReference? { nil }
+
+    func setRoomTemplateReference(
+        _ reference: HyphaRoomTemplateReference,
+        roomID: String
+    ) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Room templates are unavailable")
+    }
+
     func roomRepositoryAttachment(roomID: String) async throws -> MatrixRoomRepositoryAttachment? { nil }
+
+    func roomRepositoryState(roomID: String) async throws -> MatrixRoomRepositoryState {
+        guard let attachment = try await roomRepositoryAttachment(roomID: roomID) else {
+            return .empty
+        }
+        return MatrixRoomRepositoryState(
+            repositorySet: try MatrixRoomRepositorySet.migrating(attachment),
+            source: .legacy,
+            mirrorStatus: .current
+        )
+    }
+
+    func setRoomRepositorySet(
+        _ repositorySet: MatrixRoomRepositorySet,
+        roomID: String
+    ) async throws -> MatrixRoomRepositorySetWriteResult {
+        guard let mirror = repositorySet.legacyMirror else {
+            throw MatrixChatServiceError.unavailable(reason: "Repository collection clearing is unavailable")
+        }
+        try await setRoomRepositoryAttachment(mirror, roomID: roomID)
+        return .applied
+    }
 
     func setRoomRepositoryAttachment(
         _ attachment: MatrixRoomRepositoryAttachment,
@@ -610,6 +651,84 @@ public actor MatrixRustSDKChatService: MatrixChatService {
             try await client.sendText(body, roomID: roomID)
         } catch {
             throw mapRuntimeError(error)
+        }
+    }
+
+    public func roomRepositoryState(roomID: String) async throws -> MatrixRoomRepositoryState {
+        try beginPrimarySessionOperation()
+        defer { endPrimarySessionOperation() }
+        guard let client,
+              let room = roomsByID[roomID],
+              !room.hasInvite,
+              !room.isSpace else {
+            throw MatrixChatServiceError.unavailable(reason: "Room repository state is unavailable")
+        }
+        do {
+            return try await client.roomRepositoryState(roomID: roomID)
+        } catch let error as MatrixChatServiceError {
+            throw error
+        } catch {
+            throw mapRuntimeError(error, fallbackReason: "Room repository state could not be read")
+        }
+    }
+
+    public func setRoomRepositorySet(
+        _ repositorySet: MatrixRoomRepositorySet,
+        roomID: String
+    ) async throws -> MatrixRoomRepositorySetWriteResult {
+        try beginPrimarySessionOperation()
+        defer { endPrimarySessionOperation() }
+        guard let client,
+              let room = roomsByID[roomID],
+              !room.hasInvite,
+              !room.isSpace else {
+            throw MatrixChatServiceError.unavailable(reason: "Room repository state is unavailable")
+        }
+        do {
+            return try await client.setRoomRepositorySet(repositorySet, roomID: roomID)
+        } catch let error as MatrixChatServiceError {
+            throw error
+        } catch {
+            throw mapRuntimeError(error, fallbackReason: "Room repository state could not be saved")
+        }
+    }
+
+    public func roomTemplateReference(roomID: String) async throws -> HyphaRoomTemplateReference? {
+        try beginPrimarySessionOperation()
+        defer { endPrimarySessionOperation() }
+        guard let client,
+              let room = roomsByID[roomID],
+              !room.hasInvite,
+              !room.isSpace else {
+            throw MatrixChatServiceError.unavailable(reason: "Room template state is unavailable")
+        }
+        do {
+            return try await client.roomTemplateReference(roomID: roomID)
+        } catch let error as MatrixChatServiceError {
+            throw error
+        } catch {
+            throw mapRuntimeError(error, fallbackReason: "Room template state could not be read")
+        }
+    }
+
+    public func setRoomTemplateReference(
+        _ reference: HyphaRoomTemplateReference,
+        roomID: String
+    ) async throws {
+        try beginPrimarySessionOperation()
+        defer { endPrimarySessionOperation() }
+        guard let client,
+              let room = roomsByID[roomID],
+              !room.hasInvite,
+              !room.isSpace else {
+            throw MatrixChatServiceError.unavailable(reason: "Room template state is unavailable")
+        }
+        do {
+            try await client.setRoomTemplateReference(reference, roomID: roomID)
+        } catch let error as MatrixChatServiceError {
+            throw error
+        } catch {
+            throw mapRuntimeError(error, fallbackReason: "Room template state could not be saved")
         }
     }
 
@@ -2426,6 +2545,137 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
         }
         throw MatrixChatServiceError.unavailable(
             reason: "The homeserver did not confirm the encrypted message"
+        )
+    }
+
+    public func roomRepositoryState(roomID: String) async throws -> MatrixRoomRepositoryState {
+        guard let room = roomByID[roomID], room.membership() == .joined else {
+            throw MatrixChatServiceError.unavailable(reason: "Room is not available")
+        }
+        if let rawCollection = try await room.getStateEventRaw(
+            eventType: MatrixRoomRepositorySet.eventType,
+            stateKey: MatrixRoomRepositorySet.stateKey
+        ) {
+            guard let data = rawCollection.data(using: .utf8) else {
+                throw MatrixChatServiceError.unavailable(reason: "Room repository collection is invalid")
+            }
+            let repositorySet: MatrixRoomRepositorySet
+            do {
+                repositorySet = try MatrixRoomRepositorySet.decodeStateEvent(data)
+            } catch {
+                throw MatrixChatServiceError.unavailable(reason: "Room repository collection is invalid")
+            }
+            let rawMirror = try await room.getStateEventRaw(
+                eventType: MatrixRoomRepositoryAttachment.eventType,
+                stateKey: MatrixRoomRepositoryAttachment.stateKey
+            )
+            let mirror = rawMirror
+                .flatMap { $0.data(using: .utf8) }
+                .flatMap { try? MatrixRoomRepositoryAttachment.decodeStateEvent($0) }
+            let mirrorStatus: MatrixRoomRepositoryMirrorStatus
+            if let primary = repositorySet.primary {
+                if let mirror {
+                    mirrorStatus = mirror.matches(primary) ? .current : .divergent
+                } else {
+                    mirrorStatus = .missing
+                }
+            } else {
+                mirrorStatus = mirror == nil ? .current : .divergent
+            }
+            return MatrixRoomRepositoryState(
+                repositorySet: repositorySet,
+                source: .collection,
+                mirrorStatus: mirrorStatus
+            )
+        }
+
+        guard let legacy = try await roomRepositoryAttachment(roomID: roomID) else {
+            return .empty
+        }
+        do {
+            return MatrixRoomRepositoryState(
+                repositorySet: try MatrixRoomRepositorySet.migrating(legacy),
+                source: .legacy,
+                mirrorStatus: .current
+            )
+        } catch {
+            throw MatrixChatServiceError.unavailable(reason: "Room repository attachment is invalid")
+        }
+    }
+
+    public func setRoomRepositorySet(
+        _ repositorySet: MatrixRoomRepositorySet,
+        roomID: String
+    ) async throws -> MatrixRoomRepositorySetWriteResult {
+        guard let room = roomByID[roomID], room.membership() == .joined else {
+            throw MatrixChatServiceError.unavailable(reason: "Room is not available")
+        }
+        let collection = try repositorySet.encodedContent()
+        guard let collectionJSON = String(data: collection, encoding: .utf8) else {
+            throw MatrixChatServiceError.unavailable(reason: "Room repository collection could not be encoded")
+        }
+        _ = try await room.sendStateEventRaw(
+            eventType: MatrixRoomRepositorySet.eventType,
+            stateKey: MatrixRoomRepositorySet.stateKey,
+            content: collectionJSON
+        )
+
+        do {
+            let mirrorData = try repositorySet.legacyMirror?.encodedContent() ?? Data("{}".utf8)
+            guard let mirrorJSON = String(data: mirrorData, encoding: .utf8) else {
+                return .appliedWithStaleMirror
+            }
+            _ = try await room.sendStateEventRaw(
+                eventType: MatrixRoomRepositoryAttachment.eventType,
+                stateKey: MatrixRoomRepositoryAttachment.stateKey,
+                content: mirrorJSON
+            )
+            return .applied
+        } catch {
+            return .appliedWithStaleMirror
+        }
+    }
+
+    public func roomTemplateReference(roomID: String) async throws -> HyphaRoomTemplateReference? {
+        guard let room = roomByID[roomID], room.membership() == .joined else {
+            throw MatrixChatServiceError.unavailable(reason: "Room is not available")
+        }
+        guard let raw = try await room.getStateEventRaw(
+            eventType: HyphaRoomTemplateReference.eventType,
+            stateKey: HyphaRoomTemplateReference.stateKey
+        ) else { return nil }
+        guard let data = raw.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode(HyphaRoomTemplateReference.self, from: data),
+              let reference = try? HyphaRoomTemplateReference(
+                source: .init(
+                    repositoryID: decoded.source.repositoryID,
+                    path: decoded.source.path,
+                    resolvedCommit: decoded.source.resolvedCommit,
+                    sha256: decoded.source.sha256
+                ),
+                version: decoded.version
+              ) else {
+            throw MatrixChatServiceError.unavailable(reason: "Room template reference is invalid")
+        }
+        return reference
+    }
+
+    public func setRoomTemplateReference(
+        _ reference: HyphaRoomTemplateReference,
+        roomID: String
+    ) async throws {
+        guard let room = roomByID[roomID], room.membership() == .joined else {
+            throw MatrixChatServiceError.unavailable(reason: "Room is not available")
+        }
+        let data = try JSONEncoder().encode(reference)
+        guard data.count <= 16 * 1_024,
+              let content = String(data: data, encoding: .utf8) else {
+            throw MatrixChatServiceError.unavailable(reason: "Room template reference could not be encoded")
+        }
+        _ = try await room.sendStateEventRaw(
+            eventType: HyphaRoomTemplateReference.eventType,
+            stateKey: HyphaRoomTemplateReference.stateKey,
+            content: content
         )
     }
 

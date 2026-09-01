@@ -18,11 +18,12 @@ Current Matrix capability:
 - private, invite-only encrypted room creation;
 - encrypted text history and live messages;
 - encrypted text send with no plaintext downgrade;
-- Matrix room repository attachments with a shared remote repository URL and local-only security-scoped repository paths;
+- Matrix room repository collections with zero to 42 shared attachments, a legacy primary mirror, immutable resolved revisions, and attachment-scoped local security bookmarks;
 - content-first rooms whose draggable global left sheet contextually swaps from workspace navigation to the selected room’s thread, while roomless chat access opens a searchable global directory and the main room dashboard remains stable;
-- optional, explicitly confirmed local builds from the repository root, with commands entered in Hypha or read from local `out/out.json`;
-- every renderable existing output discovered under `out/` when no build command is provided, with an in-room asset picker when several outputs exist;
-- room-content PowerPoint (`.pptx`), PDF, HTML, image, rendered Markdown, and text output viewers, kept out of repository settings;
+- explicit attachment-scoped Rebuild with exact command confirmation, cancellation, process-group termination, and rollback of prior output;
+- remote-first, path-preserving Assets with byte/container classification, immutable same-commit cache, lower-priority local fallback, and opt-in recognized-file discovery;
+- repository-grouped gallery rows and centralized PowerPoint (`.pptx`/`.ppsx`), PDF, HTML, image, rendered Markdown, and text viewer routing;
+- a separate sandboxed room Canvas host with manifest/digest validation, CSP, declared read capabilities, opaque Asset URLs, local preview, sanitized Hermes handoff, and immutable shared references;
 - first-device cross-signing and Matrix Secure Backup setup with a one-time recovery key;
 - Matrix Secure Backup recovery-key restoration on additional devices;
 - explicit session-expiry, undecryptable, trust, verification, and recovery states;
@@ -78,9 +79,9 @@ the deployment default.
 
 ## Repository output contract
 
-The [Hypha user manual](docs/user-manual.md) describes the current repository workflow and the accepted user experience for planned multi-repository Assets and Hermes-authored room canvases. The contract-first engineering specification is [Multi-repository Rooms, Assets, and Canvas](docs/plans/2026-08-31-multi-repository-rooms-assets-and-canvas.md). Planned behavior is labeled explicitly and is not a claim about the current release.
+The [Hypha user manual](docs/user-manual.md) describes the implemented multi-repository Assets, explicit Rebuild, and sandboxed Canvas workflow. The contract-first engineering specification is [Multi-repository Rooms, Assets, and Canvas](docs/plans/2026-08-31-multi-repository-rooms-assets-and-canvas.md).
 
-An attached room shares the remote repository URL and fixed `out/` contract through Matrix room state. Each Mac separately chooses its local checkout. The local build command is optional: with no command, Hypha loads every supported file from `<repo>/out`. If the manifest selects a primary output, that output opens first while the remaining supported assets stay available in the room-content picker.
+A room shares an authoritative collection of at most 42 repository identities, requested refs, immutable resolved commits, and fixed output coordinates through Matrix state while retaining a derived primary mirror for old clients. Each device separately chooses optional attachment-scoped local checkouts. Existing verified remote output opens without building; cache and local output are explicit lower-priority fallbacks, and Rebuild is a separate confirmed local action.
 
 `out/out.json` can select one legacy output or declare a versioned, ordered artifact set with stable IDs, titles, MIME hints, constrained renderers, and a bounded HTML bundle root. The normative contract and compatibility rules are in [`docs/repository-output-contract.md`](docs/repository-output-contract.md); the machine-readable writer contract is [`docs/out.schema.json`](docs/out.schema.json), with a canonical [`docs/examples/out.v2.json`](docs/examples/out.v2.json) example.
 
@@ -109,7 +110,7 @@ Version-1 manifests with only `build`, `viewer`, `path`, and `format` remain rea
 
 Repository settings only bind the local checkout, remote identity, optional command, and output contract. Builds and output viewers run from the room's content dashboard. A global chat store independently owns the active room reference, the current leading sheet, and main-view presentation. The application shell—not room content—gives the native draggable `NavigationSplitView` sidebar three explicit states: workspace navigation, a Messages-inspired global directory, and the selected room’s timeline/composer. The contextual chat control opens the selected room’s chat in that leading sheet while keeping the room dashboard in the main surface; only a roomless workspace opens the global directory. There are no sidebar tabs and no simultaneous trailing chat column. Compact, accessible chat, repository, security, and Settings controls sit beside the native drawer icon instead of depending on focus-sensitive custom application-menu commands. Markdown uses a dedicated bounded renderer rather than the raw monospaced text viewer.
 
-GitHub is connected globally from Settings, not separately for each room. Until the Hypha Git GitHub App/device flow is available, Settings accepts a fine-grained personal access token as a temporary fallback, validates the GitHub account, clears the input before the request, and holds the token only in memory for the current app session. A room's Repository control can then verify read access to a private `github.com` remote without receiving or storing a credential. Tokens are never persisted or published to Matrix. The selected checkout remains local; Hypha does not silently clone, fetch, or pull it.
+GitHub is connected globally from Settings, not separately for each room. Until the Hypha Git GitHub App/device flow is available, Settings accepts a fine-grained personal access token, validates the GitHub account, clears the input before the request, and stores the verified credential in the device-only Keychain for reuse after relaunch. Disconnect removes it. A room receives no credential and can only request access verification for its supported `github.com` remote. Tokens are never published to Matrix, caches, logs, Canvas packages, or Hermes handoff packets. The selected checkout remains local; Hypha does not silently clone, fetch, or pull it.
 
 Generate and build the iPhone/iPad project with XcodeGen:
 

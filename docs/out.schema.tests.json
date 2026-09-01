@@ -69,12 +69,47 @@
         "viewer": "text",
         "artifacts": [{ "id": "notes", "path": "notes.md", "viewer": "markdown" }]
       }
+    },
+    {
+      "label": "recognized-file discovery without declarations",
+      "instance": {
+        "version": 2,
+        "asset_discovery": { "mode": "recognized" }
+      }
+    },
+    {
+      "label": "recognized-file discovery with declared metadata overlay",
+      "instance": {
+        "version": 2,
+        "primary": "deck",
+        "path": "slides/deck.pptx",
+        "viewer": "quickLook",
+        "asset_discovery": { "mode": "recognized" },
+        "artifacts": [
+          { "id": "deck", "title": "Investor deck", "path": "slides/deck.pptx", "viewer": "slideshow" }
+        ]
+      }
     }
   ],
   "invalid": [
     {
       "label": "slideshow in v1",
       "instance": { "viewer": "slideshow", "path": "deck.pptx", "format": "pptx" }
+    },
+    {
+      "label": "asset discovery on version 1",
+      "instance": {
+        "version": 1,
+        "path": "deck.pptx",
+        "asset_discovery": { "mode": "recognized" }
+      }
+    },
+    {
+      "label": "unknown asset discovery mode",
+      "instance": {
+        "version": 2,
+        "asset_discovery": { "mode": "everything" }
+      }
     },
     {
       "label": "slideshow at the v2 top level",

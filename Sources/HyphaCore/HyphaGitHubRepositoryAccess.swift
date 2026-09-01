@@ -122,7 +122,7 @@ public struct HyphaGitHubRepositoryAccessClient: Sendable {
         }
     }
 
-    private static func authorizedRequest(url: URL, token: String) -> URLRequest {
+    static func authorizedRequest(url: URL, token: String) -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 20
@@ -132,7 +132,7 @@ public struct HyphaGitHubRepositoryAccessClient: Sendable {
         return request
     }
 
-    private static func repositoryReference(_ remote: String) throws -> (owner: String, repository: String) {
+    static func repositoryReference(_ remote: String) throws -> (owner: String, repository: String) {
         let value = remote.trimmingCharacters(in: .whitespacesAndNewlines)
         let path: String
 

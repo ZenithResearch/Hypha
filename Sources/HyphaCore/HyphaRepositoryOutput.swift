@@ -144,6 +144,7 @@ public enum HyphaArtifactOutputError: Error, Equatable, Sendable {
     case legacyPrimaryMismatch
     case bundleRootUnavailable
     case bundleRootDoesNotContainArtifact
+    case unsupportedAssetDiscoveryMode(String)
 }
 
 private struct HyphaArtifactOutputManifestEntry: Decodable {
@@ -166,6 +167,10 @@ private struct HyphaArtifactOutputManifestEntry: Decodable {
     }
 }
 
+private struct HyphaArtifactDiscoveryManifest: Decodable {
+    let mode: String
+}
+
 private struct HyphaArtifactOutputManifest: Decodable {
     let version: Int?
     let primary: String?
@@ -174,6 +179,12 @@ private struct HyphaArtifactOutputManifest: Decodable {
     let path: String?
     let format: String?
     let build: String?
+    let assetDiscovery: HyphaArtifactDiscoveryManifest?
+
+    enum CodingKeys: String, CodingKey {
+        case version, primary, artifacts, viewer, path, format, build
+        case assetDiscovery = "asset_discovery"
+    }
 }
 
 public struct HyphaArtifactOutputResolver: Sendable {
@@ -199,12 +210,18 @@ public struct HyphaArtifactOutputResolver: Sendable {
         if let version = manifest.version, version != 1, version != 2 {
             throw HyphaArtifactOutputError.unsupportedManifestVersion(version)
         }
-        if manifest.version == 2 || manifest.artifacts != nil {
+        if manifest.version == 2 || manifest.artifacts != nil || manifest.assetDiscovery != nil {
             guard manifest.version == 2 else {
                 throw HyphaArtifactOutputError.invalidArtifactDefinition
             }
             if let viewer = manifest.viewer, !viewer.isOldClientSafeMirrorValue {
                 throw HyphaArtifactOutputError.viewerValueNotAllowed(viewer)
+            }
+            if let discovery = manifest.assetDiscovery {
+                guard discovery.mode == "recognized" else {
+                    throw HyphaArtifactOutputError.unsupportedAssetDiscoveryMode(discovery.mode)
+                }
+                return try resolveRecognizedArtifacts(manifest, root: root)
             }
             return try resolveDeclaredArtifacts(manifest, root: root)
         }
@@ -377,6 +394,58 @@ public struct HyphaArtifactOutputResolver: Sendable {
         try validateLegacyPrimaryMirror(manifest, primary: primary, root: root)
         selections.remove(at: primaryIndex)
         return [primary] + selections
+    }
+
+    private func resolveRecognizedArtifacts(
+        _ manifest: HyphaArtifactOutputManifest,
+        root: URL
+    ) throws -> [HyphaArtifactSelection] {
+        let entries = manifest.artifacts ?? []
+        guard entries.count <= 64 else {
+            throw HyphaArtifactOutputError.invalidArtifactDefinition
+        }
+
+        var declaredIDs = Set<String>()
+        var declaredPaths = Set<String>()
+        var merged: [HyphaArtifactSelection] = []
+        for entry in entries {
+            let selection = try resolveDeclaredArtifact(entry, root: root)
+            guard declaredIDs.insert(selection.id).inserted else {
+                throw HyphaArtifactOutputError.duplicateArtifactID(selection.id)
+            }
+            declaredPaths.insert(relativePath(for: selection.url, root: root))
+            merged.append(selection)
+        }
+        merged.append(contentsOf: try discoveredSelections(in: root).filter {
+            !declaredPaths.contains(relativePath(for: $0.url, root: root))
+        })
+
+        var allIDs = Set<String>()
+        for selection in merged {
+            guard allIDs.insert(selection.id).inserted else {
+                throw HyphaArtifactOutputError.duplicateArtifactID(selection.id)
+            }
+        }
+        guard !merged.isEmpty else { throw HyphaArtifactOutputError.emptyManifest }
+
+        let primaryID: String
+        if let rawPrimary = manifest.primary {
+            let cleanPrimary = rawPrimary.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard cleanPrimary == rawPrimary, isValidArtifactID(cleanPrimary) else {
+                throw HyphaArtifactOutputError.primaryArtifactUnavailable
+            }
+            primaryID = cleanPrimary
+        } else if merged.count == 1 {
+            primaryID = merged[0].id
+        } else {
+            throw HyphaArtifactOutputError.primaryArtifactUnavailable
+        }
+        guard let primaryIndex = merged.firstIndex(where: { $0.id == primaryID }) else {
+            throw HyphaArtifactOutputError.primaryArtifactUnavailable
+        }
+        let primary = merged.remove(at: primaryIndex)
+        try validateLegacyPrimaryMirror(manifest, primary: primary, root: root)
+        return [primary] + merged
     }
 
     private func resolveDeclaredArtifact(
@@ -682,7 +751,8 @@ public final class HyphaRoomRepositoryLocalBindingStore {
         let buildCommand: String
     }
 
-    private static let defaultsKey = "ca.zenithresearch.hypha.room-repository-bindings.v1"
+    private static let legacyDefaultsKey = "ca.zenithresearch.hypha.room-repository-bindings.v1"
+    private static let defaultsKey = "ca.zenithresearch.hypha.room-repository-bindings.v2"
     private let defaults: UserDefaults
 
     public init(defaults: UserDefaults = .standard) {
@@ -690,10 +760,27 @@ public final class HyphaRoomRepositoryLocalBindingStore {
     }
 
     public func save(roomID: String, repositoryRoot: URL, buildCommand: String) throws {
+        try save(
+            roomID: roomID,
+            attachmentID: MatrixRoomRepositoryAttachment.stateKey,
+            repositoryRoot: repositoryRoot,
+            buildCommand: buildCommand
+        )
+    }
+
+    public func save(
+        roomID: String,
+        attachmentID: String,
+        repositoryRoot: URL,
+        buildCommand: String
+    ) throws {
 #if os(macOS)
         let cleanRoomID = roomID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanAttachmentID = attachmentID.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanCommand = buildCommand.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanRoomID.isEmpty else { throw HyphaRoomRepositoryLocalBindingError.emptyRoomID }
+        guard !cleanRoomID.isEmpty, !cleanAttachmentID.isEmpty else {
+            throw HyphaRoomRepositoryLocalBindingError.emptyRoomID
+        }
         let bookmark: Data
         do {
             bookmark = try repositoryRoot.bookmarkData(
@@ -704,23 +791,83 @@ public final class HyphaRoomRepositoryLocalBindingStore {
         } catch {
             throw HyphaRoomRepositoryLocalBindingError.bookmarkCreationFailed
         }
-        var records = try loadRecords()
-        records[cleanRoomID] = Record(bookmark: bookmark, buildCommand: cleanCommand)
-        do {
-            defaults.set(try JSONEncoder().encode(records), forKey: Self.defaultsKey)
-        } catch {
-            throw HyphaRoomRepositoryLocalBindingError.persistenceFailed
-        }
+        var records = try loadVersionTwoRecords()
+        var roomRecords = records[cleanRoomID] ?? [:]
+        roomRecords[cleanAttachmentID] = Record(bookmark: bookmark, buildCommand: cleanCommand)
+        records[cleanRoomID] = roomRecords
+        try persistVersionTwoRecords(records)
 #else
         throw HyphaRoomRepositoryLocalBindingError.unavailableOnPlatform
 #endif
     }
 
     public func load(roomID: String) throws -> HyphaRoomRepositoryLocalBinding? {
+        if let primary = try load(
+            roomID: roomID,
+            attachmentID: MatrixRoomRepositoryAttachment.stateKey
+        ) {
+            return primary
+        }
+        let records = try loadVersionTwoRecords()[roomID] ?? [:]
+        guard records.count == 1, let attachmentID = records.keys.first else { return nil }
+        return try load(roomID: roomID, attachmentID: attachmentID)
+    }
+
+    public func load(
+        roomID: String,
+        attachmentID: String
+    ) throws -> HyphaRoomRepositoryLocalBinding? {
+#if os(macOS)
+        let cleanRoomID = roomID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanAttachmentID = attachmentID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanRoomID.isEmpty, !cleanAttachmentID.isEmpty else {
+            throw HyphaRoomRepositoryLocalBindingError.emptyRoomID
+        }
+        let versionTwoRecords = try loadVersionTwoRecords()
+        if let record = versionTwoRecords[cleanRoomID]?[cleanAttachmentID] {
+            return try resolve(
+                record: record,
+                roomID: cleanRoomID,
+                attachmentID: cleanAttachmentID
+            )
+        }
+        guard let legacyRecord = try loadLegacyRecords()[cleanRoomID] else { return nil }
+        let binding = try resolveLegacy(record: legacyRecord)
+        try save(
+            roomID: cleanRoomID,
+            attachmentID: cleanAttachmentID,
+            repositoryRoot: binding.repositoryRoot,
+            buildCommand: binding.buildCommand
+        )
+        return binding
+#else
+        throw HyphaRoomRepositoryLocalBindingError.unavailableOnPlatform
+#endif
+    }
+
+    public func loadAll(roomID: String) throws -> [String: HyphaRoomRepositoryLocalBinding] {
 #if os(macOS)
         let cleanRoomID = roomID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanRoomID.isEmpty else { throw HyphaRoomRepositoryLocalBindingError.emptyRoomID }
-        guard let record = try loadRecords()[cleanRoomID] else { return nil }
+        let records = try loadVersionTwoRecords()[cleanRoomID] ?? [:]
+        var bindings: [String: HyphaRoomRepositoryLocalBinding] = [:]
+        for attachmentID in records.keys.sorted() {
+            if let binding = try load(roomID: cleanRoomID, attachmentID: attachmentID) {
+                bindings[attachmentID] = binding
+            }
+        }
+        return bindings
+#else
+        throw HyphaRoomRepositoryLocalBindingError.unavailableOnPlatform
+#endif
+    }
+
+#if os(macOS)
+    private func resolve(
+        record: Record,
+        roomID: String,
+        attachmentID: String
+    ) throws -> HyphaRoomRepositoryLocalBinding {
         var isStale = false
         let url: URL
         do {
@@ -734,24 +881,81 @@ public final class HyphaRoomRepositoryLocalBindingStore {
             throw HyphaRoomRepositoryLocalBindingError.bookmarkResolutionFailed
         }
         if isStale {
-            try save(roomID: cleanRoomID, repositoryRoot: url, buildCommand: record.buildCommand)
+            try save(
+                roomID: roomID,
+                attachmentID: attachmentID,
+                repositoryRoot: url,
+                buildCommand: record.buildCommand
+            )
         }
         return HyphaRoomRepositoryLocalBinding(repositoryRoot: url, buildCommand: record.buildCommand)
-#else
-        throw HyphaRoomRepositoryLocalBindingError.unavailableOnPlatform
-#endif
     }
+
+    private func resolveLegacy(record: Record) throws -> HyphaRoomRepositoryLocalBinding {
+        var isStale = false
+        do {
+            let url = try URL(
+                resolvingBookmarkData: record.bookmark,
+                options: .withSecurityScope,
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )
+            return HyphaRoomRepositoryLocalBinding(
+                repositoryRoot: url,
+                buildCommand: record.buildCommand
+            )
+        } catch {
+            throw HyphaRoomRepositoryLocalBindingError.bookmarkResolutionFailed
+        }
+    }
+#endif
 
     public func remove(roomID: String) throws {
-        var records = try loadRecords()
-        records.removeValue(forKey: roomID)
-        defaults.set(try JSONEncoder().encode(records), forKey: Self.defaultsKey)
+        var versionTwo = try loadVersionTwoRecords()
+        versionTwo.removeValue(forKey: roomID)
+        try persistVersionTwoRecords(versionTwo)
+        var legacy = try loadLegacyRecords()
+        legacy.removeValue(forKey: roomID)
+        do {
+            defaults.set(try JSONEncoder().encode(legacy), forKey: Self.legacyDefaultsKey)
+        } catch {
+            throw HyphaRoomRepositoryLocalBindingError.persistenceFailed
+        }
     }
 
-    private func loadRecords() throws -> [String: Record] {
+    public func remove(roomID: String, attachmentID: String) throws {
+        var records = try loadVersionTwoRecords()
+        guard var roomRecords = records[roomID] else { return }
+        roomRecords.removeValue(forKey: attachmentID)
+        if roomRecords.isEmpty {
+            records.removeValue(forKey: roomID)
+        } else {
+            records[roomID] = roomRecords
+        }
+        try persistVersionTwoRecords(records)
+    }
+
+    private func loadVersionTwoRecords() throws -> [String: [String: Record]] {
         guard let data = defaults.data(forKey: Self.defaultsKey) else { return [:] }
         do {
+            return try JSONDecoder().decode([String: [String: Record]].self, from: data)
+        } catch {
+            throw HyphaRoomRepositoryLocalBindingError.persistenceFailed
+        }
+    }
+
+    private func loadLegacyRecords() throws -> [String: Record] {
+        guard let data = defaults.data(forKey: Self.legacyDefaultsKey) else { return [:] }
+        do {
             return try JSONDecoder().decode([String: Record].self, from: data)
+        } catch {
+            throw HyphaRoomRepositoryLocalBindingError.persistenceFailed
+        }
+    }
+
+    private func persistVersionTwoRecords(_ records: [String: [String: Record]]) throws {
+        do {
+            defaults.set(try JSONEncoder().encode(records), forKey: Self.defaultsKey)
         } catch {
             throw HyphaRoomRepositoryLocalBindingError.persistenceFailed
         }
@@ -768,6 +972,7 @@ public struct HyphaRepositoryBuilder: Sendable {
     public func build(
         repositoryRoot: URL,
         command: String,
+        outputDirectory: String = "out",
         timeout: Duration = .seconds(900)
     ) async throws -> HyphaRepositoryBuildResult {
 #if os(macOS)
@@ -779,7 +984,14 @@ public struct HyphaRepositoryBuilder: Sendable {
             throw HyphaRepositoryBuildError.invalidRepository
         }
         let cleanCommand = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        let out = root.appendingPathComponent("out", isDirectory: true)
+        let outputComponents = outputDirectory.split(separator: "/", omittingEmptySubsequences: false)
+        guard !outputDirectory.isEmpty,
+              !outputDirectory.hasPrefix("/"),
+              !outputDirectory.contains("\\"),
+              outputComponents.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
+            throw HyphaRepositoryBuildError.invalidRepository
+        }
+        let out = root.appendingPathComponent(outputDirectory, isDirectory: true)
         if cleanCommand.isEmpty {
             let artifacts = FileManager.default.fileExists(atPath: out.path)
                 ? try resolver.resolveAll(outDirectory: out)
@@ -904,7 +1116,7 @@ public struct HyphaRepositoryBuilder: Sendable {
             standardOutputFileDescriptor,
             STDERR_FILENO
         ) == 0,
-        posix_spawn_file_actions_addchdir(&fileActions, currentDirectoryURL.path) == 0 else {
+        posix_spawn_file_actions_addchdir_np(&fileActions, currentDirectoryURL.path) == 0 else {
             throw HyphaRepositoryBuildError.launchFailed
         }
 

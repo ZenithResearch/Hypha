@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenith-research.ca/hypha/canvas/template-reference.v1.schema.json",
+  "title": "Hypha shared room Canvas reference",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "source"],
+  "properties": {
+    "v": { "const": 1 },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "repository_id", "path", "resolved_commit", "sha256"],
+      "properties": {
+        "kind": { "const": "repository_asset" },
+        "repository_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))[^\\u0000-\\u001F\\u007F-\\u009F]+$"
+        },
+        "resolved_commit": { "type": "string", "pattern": "^(?:[A-Fa-f0-9]{40}|[A-Fa-f0-9]{64})$" },
+        "sha256": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }
+      }
+    }
+  }
+}

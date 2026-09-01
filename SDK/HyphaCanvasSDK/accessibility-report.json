@@ -1,0 +1,119 @@
+{
+  "scope": "Initial WCAG 2.1-oriented scan of the Hypha Canvas SDK v1 preview, components, and token CSS; not a certification audit.",
+  "contrast_pairs": [
+    {
+      "foreground": "#d8fff5",
+      "background": "#10211d",
+      "context": "primary content on Canvas base",
+      "contrast_ratio": "15.54:1",
+      "wcag_aa_normal": "pass",
+      "wcag_aa_large": "pass",
+      "wcag_aaa": "pass",
+      "note": "Unrestricted text use."
+    },
+    {
+      "foreground": "#d8fff5",
+      "background": "#193830",
+      "context": "primary content on raised Asset cards",
+      "contrast_ratio": "11.85:1",
+      "wcag_aa_normal": "pass",
+      "wcag_aa_large": "pass",
+      "wcag_aaa": "pass",
+      "note": "Unrestricted text use."
+    },
+    {
+      "foreground": "#66bda5",
+      "background": "#10211d",
+      "context": "muted room topic and labels on Canvas base",
+      "contrast_ratio": "7.47:1",
+      "wcag_aa_normal": "pass",
+      "wcag_aa_large": "pass",
+      "wcag_aaa": "pass",
+      "note": "Passes at the smallest shipped 12px label size."
+    },
+    {
+      "foreground": "#66bda5",
+      "background": "#193830",
+      "context": "muted path and source labels on raised Asset cards",
+      "contrast_ratio": "5.69:1",
+      "wcag_aa_normal": "pass",
+      "wcag_aa_large": "pass",
+      "wcag_aaa": "fail",
+      "note": "Passes AA at the smallest shipped 12px label size."
+    },
+    {
+      "foreground": "#58efc9",
+      "background": "#193830",
+      "context": "viewer links, hover boundaries, and focus rings on raised cards",
+      "contrast_ratio": "8.85:1",
+      "wcag_aa_normal": "pass",
+      "wcag_aa_large": "pass",
+      "wcag_aaa": "pass",
+      "note": "Explicitly assigned to viewer links and the visible focus indicator."
+    },
+    {
+      "foreground": "#478878",
+      "background": "#10211d",
+      "context": "non-text Asset card boundary on Canvas base",
+      "contrast_ratio": "4.03:1",
+      "wcag_aa_normal": "fail",
+      "wcag_aa_large": "pass",
+      "wcag_aaa": "fail",
+      "note": "Not used as text; exceeds the WCAG 1.4.11 non-text 3:1 threshold."
+    },
+    {
+      "foreground": "#478878",
+      "background": "#193830",
+      "context": "non-text Asset card boundary against its raised surface",
+      "contrast_ratio": "3.07:1",
+      "wcag_aa_normal": "fail",
+      "wcag_aa_large": "pass",
+      "wcag_aaa": "fail",
+      "note": "Not used as text; raised from #315d52 so the component boundary reaches 3:1."
+    }
+  ],
+  "font_size_flags": [
+    {
+      "size": "12px",
+      "context": "monospace Asset format and source label",
+      "flag": "pass"
+    }
+  ],
+  "reduced_motion": "present",
+  "reduced_motion_note": "The reduce-motion query disables animations and transitions and removes smooth scrolling for elements and pseudo-elements.",
+  "interactive_element_flags": [
+    {
+      "element": "Asset card link",
+      "text_label": "present",
+      "keyboard_activation": "native anchor",
+      "visible_focus": "3px brand outline with 3px offset"
+    },
+    {
+      "element": "Viewer link",
+      "text_label": "present with Open Asset fallback",
+      "keyboard_activation": "native anchor",
+      "visible_focus": "3px brand outline with 3px offset"
+    }
+  ],
+  "colour_only_information": [
+    {
+      "context": "Repository and Asset source state",
+      "result": "pass",
+      "note": "State is emitted as text; colour is not the only indicator."
+    }
+  ],
+  "product_build_notes": [
+    "Hermes-authored templates require their own heading-order, accessible-name, landmark, keyboard-flow, and zoom/reflow review.",
+    "Dynamic template failures and empty galleries should continue to expose readable status text.",
+    "The native WKWebView host still requires manual VoiceOver and full-keyboard-access acceptance testing."
+  ],
+  "summary": {
+    "critical": [],
+    "recommended": [],
+    "monitor": [
+      "Keep custom template text at 12px or larger.",
+      "Do not repurpose the border token for text.",
+      "Run semantic and keyboard checks for every published Canvas package."
+    ]
+  }
+}

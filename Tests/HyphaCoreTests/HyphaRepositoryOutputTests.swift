@@ -820,4 +820,232 @@ final class HyphaRepositoryOutputTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
         return url
     }
+
+    func testRepositorySetDecodesCollectionAndProducesFrozenLegacyMirror() throws {
+        let data = Data(#"{"content":{"v":2,"primary":"investor-deck","repositories":[{"id":"investor-deck","repository":"https://github.com/ZenithResearch/InvestorDeck","name":"InvestorDeck","output_directory":"out","manifest":"out.json","requested_ref":"main","resolved_commit":"0123456789abcdef0123456789abcdef01234567"}]}}"#.utf8)
+
+        let repositorySet = try MatrixRoomRepositorySet.decodeStateEvent(data)
+        let mirror = try XCTUnwrap(repositorySet.legacyMirror)
+
+        XCTAssertEqual(repositorySet.primaryID, "investor-deck")
+        XCTAssertEqual(repositorySet.repositories.count, 1)
+        XCTAssertEqual(mirror.version, 1)
+        XCTAssertEqual(mirror.repository, "https://github.com/ZenithResearch/InvestorDeck")
+        XCTAssertEqual(mirror.name, "InvestorDeck")
+        XCTAssertEqual(mirror.outputDirectory, "out")
+        XCTAssertEqual(mirror.manifestPath, "out.json")
+        let encodedMirror = try XCTUnwrap(String(data: mirror.encodedContent(), encoding: .utf8))
+        XCTAssertFalse(encodedMirror.contains("requested_ref"))
+        XCTAssertFalse(encodedMirror.contains("resolved_commit"))
+        XCTAssertFalse(encodedMirror.contains("repositories"))
+    }
+
+    func testRepositorySetMigratesFrozenSingularStateWithoutPrivateFields() throws {
+        let legacy = try MatrixRoomRepositoryAttachment.decodeStateEvent(
+            Data(#"{"content":{"v":1,"repository":"git@github.com:ZenithResearch/Hypha.git","name":"Hypha","output_directory":"out","manifest":"out.json"}}"#.utf8)
+        )
+
+        let repositorySet = try MatrixRoomRepositorySet.migrating(legacy)
+        let encoded = try XCTUnwrap(String(data: repositorySet.encodedContent(), encoding: .utf8))
+
+        XCTAssertEqual(repositorySet.repositories.map(\.id), ["hypha"])
+        XCTAssertEqual(repositorySet.primaryID, "hypha")
+        XCTAssertFalse(encoded.contains("bookmark"))
+        XCTAssertFalse(encoded.contains("build_command"))
+        XCTAssertFalse(encoded.contains("local_path"))
+    }
+
+    func testRepositorySetAcceptsFortyTwoAndRejectsFortyThirdBeforeEncoding() throws {
+        let descriptors = try (0..<42).map { index in
+            try MatrixRoomRepositoryDescriptor(
+                id: "repository-\(index)",
+                repository: "https://github.com/ZenithResearch/repository-\(index)",
+                name: "Repository \(index)"
+            )
+        }
+        let repositorySet = try MatrixRoomRepositorySet(
+            repositories: descriptors,
+            primaryID: descriptors[0].id
+        )
+
+        XCTAssertEqual(repositorySet.repositories.count, 42)
+        XCTAssertNoThrow(try repositorySet.encodedContent())
+        let fortyThird = try MatrixRoomRepositoryDescriptor(
+            id: "repository-42",
+            repository: "https://github.com/ZenithResearch/repository-42",
+            name: "Repository 42"
+        )
+        XCTAssertThrowsError(
+            try MatrixRoomRepositorySet(
+                repositories: descriptors + [fortyThird],
+                primaryID: descriptors[0].id
+            )
+        ) { error in
+            XCTAssertEqual(error as? MatrixRoomRepositorySetError, .attachmentLimitExceeded(43))
+        }
+    }
+
+    func testRepositorySetRejectsDuplicateIDsMissingPrimaryAndUnsafeCoordinates() throws {
+        let descriptor = try MatrixRoomRepositoryDescriptor(
+            id: "hypha",
+            repository: "https://github.com/ZenithResearch/Hypha",
+            name: "Hypha"
+        )
+        XCTAssertThrowsError(
+            try MatrixRoomRepositorySet(repositories: [descriptor, descriptor], primaryID: "hypha")
+        ) { error in
+            XCTAssertEqual(error as? MatrixRoomRepositorySetError, .duplicateAttachmentID("hypha"))
+        }
+        XCTAssertThrowsError(try MatrixRoomRepositorySet(repositories: [descriptor])) { error in
+            XCTAssertEqual(error as? MatrixRoomRepositorySetError, .missingPrimary)
+        }
+        XCTAssertThrowsError(
+            try MatrixRoomRepositoryDescriptor(
+                id: "unsafe",
+                repository: "https://github.com/ZenithResearch/Unsafe",
+                name: "Unsafe",
+                outputDirectory: "../out"
+            )
+        ) { error in
+            XCTAssertEqual(error as? MatrixRoomRepositorySetError, .invalidOutputCoordinates)
+        }
+    }
+
+    func testEmptyRepositorySetIsExplicitTombstone() throws {
+        let repositorySet = try MatrixRoomRepositorySet(repositories: [])
+        let encoded = try XCTUnwrap(String(data: repositorySet.encodedContent(), encoding: .utf8))
+
+        XCTAssertTrue(repositorySet.repositories.isEmpty)
+        XCTAssertNil(repositorySet.primaryID)
+        XCTAssertNil(repositorySet.legacyMirror)
+        XCTAssertTrue(encoded.contains(#""repositories":[]"#))
+        XCTAssertFalse(encoded.contains(#""primary""#))
+    }
+
+    func testVersionTwoRecognizedDiscoveryAddsSupportedUndeclaredFilesAndOverlaysMetadata() throws {
+        let output = try temporaryDirectory()
+        let slides = output.appendingPathComponent("slides", isDirectory: true)
+        try FileManager.default.createDirectory(at: slides, withIntermediateDirectories: true)
+        try Data("deck".utf8).write(to: slides.appendingPathComponent("deck.pptx"))
+        try Data("notes".utf8).write(to: output.appendingPathComponent("notes.md"))
+        try Data("ignored".utf8).write(to: output.appendingPathComponent("source.swift"))
+        try Data(#"{"version":2,"asset_discovery":{"mode":"recognized"},"primary":"deck","artifacts":[{"id":"deck","title":"Investor presentation","path":"slides/deck.pptx","format":"pptx","viewer":"slideshow"}],"path":"slides/deck.pptx","format":"pptx","viewer":"quickLook"}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        let selections = try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)
+
+        XCTAssertEqual(selections.map(\.id), ["deck", "notes.md"])
+        XCTAssertEqual(selections.map(\.source), [.manifest, .discovery])
+        XCTAssertEqual(selections.first?.title, "Investor presentation")
+        XCTAssertEqual(selections.map(\.url.lastPathComponent), ["deck.pptx", "notes.md"])
+    }
+
+    func testVersionTwoRejectsUnknownRecognizedDiscoveryMode() throws {
+        let output = try temporaryDirectory()
+        try Data("notes".utf8).write(to: output.appendingPathComponent("notes.md"))
+        try Data(#"{"version":2,"asset_discovery":{"mode":"everything"},"primary":"notes.md","path":"notes.md","format":"md","viewer":"text"}"#.utf8)
+            .write(to: output.appendingPathComponent("out.json"))
+
+        XCTAssertThrowsError(try HyphaArtifactOutputResolver().resolveAll(outDirectory: output)) { error in
+            XCTAssertEqual(
+                error as? HyphaArtifactOutputError,
+                .unsupportedAssetDiscoveryMode("everything")
+            )
+        }
+    }
+
+    func testRoomAssetGraphPreservesRepositoryAndRelativePathIdentity() throws {
+        let firstOutput = try temporaryDirectory()
+        let secondOutput = try temporaryDirectory()
+        for output in [firstOutput, secondOutput] {
+            let reports = output.appendingPathComponent("reports", isDirectory: true)
+            try FileManager.default.createDirectory(at: reports, withIntermediateDirectories: true)
+            try Data(output.path.utf8).write(to: reports.appendingPathComponent("summary.pdf"))
+        }
+        let first = try MatrixRoomRepositoryDescriptor(
+            id: "first",
+            repository: "https://github.com/ZenithResearch/First",
+            name: "First"
+        )
+        let second = try MatrixRoomRepositoryDescriptor(
+            id: "second",
+            repository: "https://github.com/ZenithResearch/Second",
+            name: "Second"
+        )
+        let repositorySet = try MatrixRoomRepositorySet(
+            repositories: [first, second],
+            primaryID: first.id
+        )
+        let resolver = HyphaArtifactOutputResolver()
+        let indexer = HyphaRoomAssetIndexer()
+        let firstSnapshot = try indexer.snapshot(
+            roomID: "!room:example.org",
+            attachment: first,
+            outputRoot: firstOutput,
+            selections: resolver.resolveAll(outDirectory: firstOutput),
+            source: HyphaRoomAssetSource(kind: .localFallback)
+        )
+        let secondSnapshot = try indexer.snapshot(
+            roomID: "!room:example.org",
+            attachment: second,
+            outputRoot: secondOutput,
+            selections: resolver.resolveAll(outDirectory: secondOutput),
+            source: HyphaRoomAssetSource(kind: .cached, isStale: true)
+        )
+
+        let graph = HyphaRoomAssetGraph(
+            repositorySet: repositorySet,
+            snapshots: [secondSnapshot, firstSnapshot]
+        )
+
+        XCTAssertEqual(graph.assets.map(\.path), ["reports/summary.pdf", "reports/summary.pdf"])
+        XCTAssertEqual(graph.assets.map(\.roomID), ["!room:example.org", "!room:example.org"])
+        XCTAssertEqual(Set(graph.assets.map(\.id)).count, 2)
+        XCTAssertTrue(graph.assets.allSatisfy { $0.id.hasPrefix("asset:") })
+        XCTAssertNotEqual(graph.assets[0].contentDigest, graph.assets[1].contentDigest)
+
+        let originalID = graph.assets[0].id
+        try Data("changed content".utf8).write(
+            to: firstOutput.appendingPathComponent("reports/summary.pdf")
+        )
+        let changedSnapshot = try indexer.snapshot(
+            roomID: "!room:example.org",
+            attachment: first,
+            outputRoot: firstOutput,
+            selections: resolver.resolveAll(outDirectory: firstOutput),
+            source: HyphaRoomAssetSource(kind: .localFallback)
+        )
+        XCTAssertNotEqual(changedSnapshot.assets.first?.id, originalID)
+        XCTAssertEqual(graph.snapshots.map(\.attachment.id), ["first", "second"])
+    }
+
+    func testAttachmentScopedBindingStorePreservesUnrelatedRepositories() throws {
+        let first = try temporaryDirectory()
+        let second = try temporaryDirectory()
+        let suiteName = "hypha-repository-binding-v2-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = HyphaRoomRepositoryLocalBindingStore(defaults: defaults)
+
+        try store.save(
+            roomID: "!room:example.org",
+            attachmentID: "first",
+            repositoryRoot: first,
+            buildCommand: "swift build"
+        )
+        try store.save(
+            roomID: "!room:example.org",
+            attachmentID: "second",
+            repositoryRoot: second,
+            buildCommand: "npm run build"
+        )
+        try store.remove(roomID: "!room:example.org", attachmentID: "first")
+
+        XCTAssertNil(try store.load(roomID: "!room:example.org", attachmentID: "first"))
+        let remaining = try XCTUnwrap(
+            store.load(roomID: "!room:example.org", attachmentID: "second")
+        )
+        XCTAssertEqual(remaining.repositoryRoot.standardizedFileURL, second.standardizedFileURL)
+        XCTAssertEqual(remaining.buildCommand, "npm run build")
+    }
 }

@@ -482,6 +482,16 @@ public protocol MatrixChatService: Sendable {
     func refreshRooms() async throws -> [MatrixRoomSummary]
     func timeline(for roomID: String) async throws -> [MatrixTimelineEvent]
     func sendText(_ body: String, to roomID: String) async throws
+    func roomRepositoryState(roomID: String) async throws -> MatrixRoomRepositoryState
+    func setRoomRepositorySet(
+        _ repositorySet: MatrixRoomRepositorySet,
+        roomID: String
+    ) async throws -> MatrixRoomRepositorySetWriteResult
+    func roomTemplateReference(roomID: String) async throws -> HyphaRoomTemplateReference?
+    func setRoomTemplateReference(
+        _ reference: HyphaRoomTemplateReference,
+        roomID: String
+    ) async throws
     func roomRepositoryAttachment(roomID: String) async throws -> MatrixRoomRepositoryAttachment?
     func setRoomRepositoryAttachment(
         _ attachment: MatrixRoomRepositoryAttachment,
@@ -516,7 +526,40 @@ public protocol MatrixChatService: Sendable {
 }
 
 public extension MatrixChatService {
+    func roomTemplateReference(roomID: String) async throws -> HyphaRoomTemplateReference? { nil }
+
+    func setRoomTemplateReference(
+        _ reference: HyphaRoomTemplateReference,
+        roomID: String
+    ) async throws {
+        throw MatrixChatServiceError.unavailable(reason: "Room templates are unavailable")
+    }
+
     func roomRepositoryAttachment(roomID: String) async throws -> MatrixRoomRepositoryAttachment? { nil }
+
+    func roomRepositoryState(roomID: String) async throws -> MatrixRoomRepositoryState {
+        guard let attachment = try await roomRepositoryAttachment(roomID: roomID) else {
+            return .empty
+        }
+        return MatrixRoomRepositoryState(
+            repositorySet: try MatrixRoomRepositorySet.migrating(attachment),
+            source: .legacy,
+            mirrorStatus: .current
+        )
+    }
+
+    func setRoomRepositorySet(
+        _ repositorySet: MatrixRoomRepositorySet,
+        roomID: String
+    ) async throws -> MatrixRoomRepositorySetWriteResult {
+        guard let mirror = repositorySet.legacyMirror else {
+            throw MatrixChatServiceError.unavailable(
+                reason: "This Matrix adapter cannot clear repository collections"
+            )
+        }
+        try await setRoomRepositoryAttachment(mirror, roomID: roomID)
+        return .applied
+    }
 
     func setRoomRepositoryAttachment(
         _ attachment: MatrixRoomRepositoryAttachment,
@@ -946,6 +989,49 @@ public final class MatrixChatCoordinator {
         } catch {
             return false
         }
+    }
+
+    public func repositoryState(
+        for room: MatrixRoomSummary
+    ) async throws -> MatrixRoomRepositoryState {
+        guard !room.hasInvite, !room.isSpace else {
+            throw MatrixChatServiceError.unavailable(reason: "Repository attachments require a joined room")
+        }
+        return try await service.roomRepositoryState(roomID: room.id)
+    }
+
+    @discardableResult
+    public func setRepositorySet(
+        _ repositorySet: MatrixRoomRepositorySet,
+        for room: MatrixRoomSummary
+    ) async throws -> MatrixRoomRepositorySetWriteResult {
+        guard !room.hasInvite,
+              !room.isSpace,
+              chatAuthority == .available else {
+            throw MatrixChatServiceError.unavailable(reason: "Repository attachments require a joined room")
+        }
+        return try await service.setRoomRepositorySet(repositorySet, roomID: room.id)
+    }
+
+    public func templateReference(
+        for room: MatrixRoomSummary
+    ) async throws -> HyphaRoomTemplateReference? {
+        guard !room.hasInvite, !room.isSpace else {
+            throw MatrixChatServiceError.unavailable(reason: "Room templates require a joined room")
+        }
+        return try await service.roomTemplateReference(roomID: room.id)
+    }
+
+    public func setTemplateReference(
+        _ reference: HyphaRoomTemplateReference,
+        for room: MatrixRoomSummary
+    ) async throws {
+        guard !room.hasInvite,
+              !room.isSpace,
+              chatAuthority == .available else {
+            throw MatrixChatServiceError.unavailable(reason: "Room templates require a joined room")
+        }
+        try await service.setRoomTemplateReference(reference, roomID: room.id)
     }
 
     public func repositoryAttachment(

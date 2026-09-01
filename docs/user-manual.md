@@ -1,6 +1,6 @@
 # Hypha User Manual
 
-This manual describes the user-visible Hypha experience. Features marked **planned** define the accepted product behavior for the next implementation and are not claims about the currently released build.
+This manual describes the user-visible Hypha experience on the current source branch. Release notes remain authoritative for packaged builds.
 
 ## Connect to a homeserver
 
@@ -20,22 +20,22 @@ Each Mac, iPhone, or iPad is its own Matrix device. Device verification and Secu
 
 The selected room keeps its content surface in the main window. Chat opens contextually without replacing the room dashboard. Room names, membership, and encrypted messages are synchronized through Matrix.
 
-## Repository content today
+## Repository content
 
-The current release supports one repository attachment per joined room.
+A joined non-Space room supports an authoritative set of zero to 42 repositories. Existing one-repository rooms migrate into the collection while retaining a derived singular compatibility mirror for older Hypha clients.
 
-- The remote repository identity is shared through Matrix room state.
-- Each device chooses its own local checkout.
-- The local path, security-scoped bookmark, build command, and GitHub credential remain local.
-- Existing supported files under `out/` open from the room's content surface.
-- A build runs only after explicit confirmation.
-- `out/out.json` can select a primary artifact and provide display and viewer metadata.
+- Remote repository identity, requested ref, resolved immutable commit, and output coordinates are shared through Matrix room state.
+- Each device may add its own attachment-scoped local checkout.
+- Local paths, security-scoped bookmarks, build commands, build logs, caches, and the global GitHub credential remain device-local.
+- Existing verified output opens from the room without running a build.
+- **Rebuild** is separate, local, explicitly confirmed, cancellable, and rollback-safe.
+- `out/out.json` can declare ordered artifacts or opt into additive recognized-file discovery.
 
-See [the repository output contract](repository-output-contract.md) for the current writer format.
+See [the repository output contract](repository-output-contract.md) for the writer format.
 
-## Planned: attach up to 42 repositories
+## Attach up to 42 repositories
 
-A room will support a repository set containing from zero to 42 attachments. A room with one repository will continue to look and behave like today's single-repository room.
+A room supports a repository set containing from zero to 42 attachments. A room with one repository keeps the familiar compact presentation and legacy compatibility.
 
 ### Attach a repository
 
@@ -47,7 +47,7 @@ A room will support a repository set containing from zero to 42 attachments. A r
 
 The repository counter shows the current capacity, such as **3 / 42 repositories**. Hypha prevents a forty-third attachment before sending room state.
 
-The global GitHub connection is configured once in Settings. Hypha never writes that credential, a local path, or a build command into Matrix.
+The global GitHub connection is configured once in Settings. After GitHub verifies a fine-grained token, Hypha stores it in the device-only Keychain so every room can reuse it after relaunch; Disconnect removes it. Hypha never writes that credential, a local path, or a build command into Matrix.
 
 ### How repository content is resolved
 
@@ -64,7 +64,7 @@ Every repository card shows where its current content came from:
 
 ### Assets
 
-Every renderer-recognized output allowed by the repository's output contract appears in the room's **Assets** view. Assets are gallery cards arranged in rows, with folder navigation and filtering available when the output is large.
+Every renderer-recognized output allowed by the repository’s output contract appears in the room’s **Assets** view. Assets are gallery cards arranged in one horizontal row per repository; every card displays its preserved path so nested outputs remain understandable without flattening identity.
 
 The path below each repository's `out/` directory is preserved exactly:
 
@@ -109,19 +109,20 @@ Expected states include:
 
 The last successful asset snapshot remains visible and is marked stale when a refresh fails.
 
-## Planned: design the room canvas with Hermes
+## Design the room Canvas with Hermes
 
-The standard native room remains available for every room. A user may also ask a Hermes agent with the Hypha room-designer profile and skills to create a custom room canvas.
+The standard native room remains available for every room. Hypha includes the sandboxed Canvas host, capability bridge, framework-neutral SDK, local preview, credential-free Hermes handoff, and shared content-addressed reference. Hermes remains the authoring agent rather than receiving app authority.
 
-The intended workflow is:
+The authoring workflow is:
 
-1. Choose **Design room**.
-2. Describe the desired layout and interaction to Hermes.
-3. Let Hermes use the room asset metadata, Hypha canvas API documentation, and approved component SDK.
-4. Preview the generated template locally.
-5. Review validation results and requested capabilities.
-6. Publish a content-addressed template through an attached repository, or keep it as a local personal override.
-7. Return to **Open standard room** at any time.
+1. In **Canvas actions**, choose **Copy Hermes design brief**.
+2. Give that sanitized room/repository/Asset packet plus the `hypha-room-designer` profile and Canvas SDK to Hermes, then describe the desired layout and interaction.
+3. Hermes builds in an isolated workspace using local HTML, CSS, ECMAScript modules, and optional Rust compiled to WebAssembly.
+4. Choose **Preview local template…** and select the package directory. Hypha validates its manifest, digest, entry point, paths, file types, capabilities, and offline policy before loading it.
+5. Review the source label, SDK version, capability count, and preview. Keeping this preview is a device-local personal layout.
+6. To share it, publish the package inside an attached repository’s `out/` tree and enable recognized-file discovery so `hypha-room-template.json` is a verified remote Asset.
+7. Select that manifest card in **Assets**, return to Canvas, then choose **Publish selected Canvas Asset**. Hypha writes only the immutable repository ID, path, commit, and package digest to Matrix.
+8. Choose **Open standard room** at any time to bypass the custom Canvas immediately.
 
 Templates may contain local HTML, CSS, ECMAScript modules, and WebAssembly. Rust is an authoring language and must be compiled to WebAssembly before Hypha loads it. A template cannot load arbitrary native Rust into Hypha.
 

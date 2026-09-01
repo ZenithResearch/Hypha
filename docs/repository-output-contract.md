@@ -6,14 +6,14 @@
 
 - The manifest lives at `<repository>/<output_directory>/<manifest>`; current room attachments default to `out/out.json`.
 - Every path is relative to the output directory. Hypha rejects absolute paths, traversal, symlink escapes, missing files, and bundle roots outside that directory.
-- `format`, `media_type`, and `viewer` are declarations, not file-type proof. The current local compatibility reader normalizes declared format and extension hints; it is not a remote trust boundary. HYPHA-ART-001B adds byte/container classification before remote or cached content can be promoted or displayed.
+- `format`, `media_type`, and `viewer` are declarations, not file-type proof. Remote and cached files pass byte/container classification before promotion or display; local files still pass strict path, symlink, format, and renderer checks.
 - Git commit, source provenance, fetch time, immutable cache URL, digest, and render revision are runtime facts and do not belong in `out.json`.
 - `build` is a local authoring convenience. Hypha may offer it for exact review and confirmation only from a user-selected local checkout. Remote, cached, or Matrix-loaded content must ignore it and must never execute it.
 - Slideshow state such as current slide, autoplay, loop, zoom, or fullscreen preference is UI state and must not be written to the repository contract.
 
 ## Version 2
 
-Version 2 adds `version`, `primary`, and an authoritative ordered `artifacts` list. Writers should use the canonical example:
+Version 2 supports a declared-only artifact list and an opt-in additive recognized-file mode. Omission of `asset_discovery` remains declared-only for compatibility. Writers should use the canonical example:
 
 ```json
 {
@@ -65,9 +65,10 @@ Version 2 adds `version`, `primary`, and an authoritative ordered `artifacts` li
 | Field | Writer requirement | Meaning |
 |---|---:|---|
 | `version` | Required | Integer contract version. The declared-artifact contract is version 2. |
-| `primary` | Required | Stable `id` that opens first. Readers tolerate omission only when exactly one artifact exists. |
-| `artifacts` | Required | Ordered, authoritative artifact list; undeclared files are not added. One to 64 entries. |
-| `path` | Required | Old-reader mirror of the primary path; it must resolve to the same file. |
+| `primary` | Required with declared artifacts | Stable `id` that opens first. It may be omitted only for discovery-only manifests with no declared artifacts. |
+| `artifacts` | Required unless recognized discovery is enabled | Ordered metadata declarations. Without discovery they are authoritative and contain one to 64 entries; with discovery they may be empty and overlay matching paths. |
+| `asset_discovery` | Optional, v2 only | `{"mode":"recognized"}` adds every supported validated entry point under the output root. Unknown modes fail closed. |
+| `path` | Required with declared artifacts | Old-reader mirror of the declared primary path; it must resolve to the same file. |
 | `format` | Recommended | Old-reader mirror of the primary normalized format. |
 | `viewer` | Recommended | Old-reader-safe mirror computed from the primary format. |
 | `build` | Optional, local only | Command that may be shown for explicit local confirmation; never a remote instruction. |
@@ -87,6 +88,10 @@ The mirror deliberately uses a smaller vocabulary than artifact entries. PPTX/PP
 | `bundle_root` | HTML only | Relative directory containing the HTML entry point and local CSS/image/font dependencies. The effective format (an explicit `format` or the `path` extension) must be `html`/`htm`; if `viewer` is present it must be `web`. |
 
 Artifact order is stable. Hypha returns the primary first, followed by all remaining declarations in their original relative order, and keys user selection by artifact `id` rather than a device-local file URL.
+
+### Opt-in recognized-file discovery
+
+A version-two writer opts in with `"asset_discovery": {"mode": "recognized"}`. Hypha walks the output root within its file, byte, depth, and path budgets; ignores `out.json`; and adds only formats present in the renderer registry. Declared entries overlay the discovered entry at the same relative path, preserving their stable ID, title, media hint, bundle root, and compatible viewer. The declared primary still opens first. A discovery-only manifest may omit `primary`, `path`, and `artifacts`. Without `asset_discovery`, version two remains declared-only and no undeclared file becomes an Asset.
 
 ## Three viewer vocabularies
 
@@ -112,7 +117,7 @@ Viewer placement is intentional and is enforced by both the schema and semantic 
 | `md`, `markdown` | `markdown` | `text` |
 | `txt`, `json`, `log` | `text` | `text` |
 
-The manifest cannot enable scripting, network access, or executable content. The current local reader rejects renderer preferences incompatible with the declared format, but declarations are not file-type proof. HYPHA-ART-001B adds byte/container classification before remote promotion; the HTML content blocker, bundle read boundary, and later renderer hardening add stronger process boundaries.
+The manifest cannot enable scripting, network access, or executable content. Renderer preferences must match the normalized format, and remote/cached bytes must pass the authoritative classifier before staging is promoted. HTML artifacts retain their separate non-scriptable viewer and bounded bundle root; custom room canvases use a different manifest, WKWebView, CSP, and capability boundary.
 
 ## Version 1 compatibility
 
@@ -127,14 +132,14 @@ Unversioned manifests and explicit `"version": 1` remain readable:
 }
 ```
 
-With no manifest, Hypha discovers supported files. With version 1, the selected file opens first and discovered supported files remain available. With version 2, only declared artifacts appear. Unknown future versions fail closed instead of being guessed.
+With no manifest, Hypha discovers supported files. With version 1, the selected file opens first and discovered supported files remain available. Version 2 is declared-only by default and becomes additive only with `asset_discovery.mode = recognized`. Unknown versions and discovery modes fail closed instead of being guessed.
 
 ## Semantic resolution order
 
 1. Decode the JSON and reject an unsupported version or a viewer used in the wrong vocabulary.
-2. For version 2, validate the artifact count, IDs, duplicate IDs, primary, titles, paths, formats, renderer compatibility, media types, file existence, symlink containment, and bundle containment.
+2. For version 2, validate discovery mode plus artifact count, IDs, duplicate IDs, primary, titles, paths, formats, renderer compatibility, media types, file existence, symlink containment, and bundle containment.
 3. Validate that the top-level path and any top-level format/viewer mirror the declared primary, including PPTX/PPSX/PDF → `quickLook` and Markdown → `text`.
-4. Return the primary first, then the remaining declarations in manifest order. Do not discover undeclared version-2 files.
+4. Without discovery, return only declarations. With recognized discovery, merge supported validated files by relative path, apply declared metadata overlays, keep the declared primary first, then return the remaining entries deterministically.
 5. Never execute `build` while opening remote, cached, or Matrix-provided room content.
 
 ## Validate the writer contract

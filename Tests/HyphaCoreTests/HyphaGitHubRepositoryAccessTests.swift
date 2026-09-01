@@ -97,6 +97,40 @@ final class HyphaGitHubRepositoryAccessTests: XCTestCase {
             XCTAssertEqual(error as? HyphaGitHubRepositoryAccessError, .repositoryUnavailable)
         }
     }
+
+    func testGlobalGitHubCredentialRoundTripsWithSecretSeparatedFromMetadata() throws {
+        let storage = RecordingGitHubPasswordStorage()
+        let store = HyphaGitHubKeychainCredentialStore(storage: storage)
+        let credential = HyphaGitHubCredential(login: "banana", token: "github-test-token")
+
+        try store.save(credential)
+
+        XCTAssertEqual(try store.credential(), credential)
+        let metadata = try XCTUnwrap(storage.savedMetadata())
+        let metadataText = try XCTUnwrap(String(data: metadata, encoding: .utf8))
+        XCTAssertTrue(metadataText.contains("banana"))
+        XCTAssertFalse(metadataText.contains("github-test-token"))
+        XCTAssertEqual(storage.savedLabel(), "Hypha — GitHub")
+
+        try store.delete()
+        XCTAssertNil(try store.credential())
+    }
+
+    func testGlobalGitHubCredentialRejectsUnsafeValuesBeforeKeychainWrite() throws {
+        let storage = RecordingGitHubPasswordStorage()
+        let store = HyphaGitHubKeychainCredentialStore(storage: storage)
+
+        for credential in [
+            HyphaGitHubCredential(login: "", token: "token"),
+            HyphaGitHubCredential(login: "banana", token: " token"),
+            HyphaGitHubCredential(login: "banana", token: "token\nvalue"),
+        ] {
+            XCTAssertThrowsError(try store.save(credential)) { error in
+                XCTAssertEqual(error as? HyphaGitHubCredentialStoreError, .invalidCredential)
+            }
+        }
+        XCTAssertNil(storage.savedMetadata())
+    }
 }
 
 private actor RecordingGitHubTransport: HyphaGitHubRepositoryAccessTransport {
@@ -121,4 +155,58 @@ private actor RecordingGitHubTransport: HyphaGitHubRepositoryAccessTransport {
     }
 
     func lastRequest() -> URLRequest? { request }
+}
+
+private final class RecordingGitHubPasswordStorage: HyphaPasswordStorage, @unchecked Sendable {
+    private let lock = NSLock()
+    private var secret: Data?
+    private var metadata: Data?
+    private var label: String?
+
+    func readSecret(service: String, account: String) throws -> Data? {
+        lock.withLock { secret }
+    }
+
+    func writeSecret(
+        _ secret: Data,
+        service: String,
+        account: String,
+        label: String,
+        description: String,
+        metadata: Data
+    ) throws {
+        lock.withLock {
+            self.secret = secret
+            self.metadata = metadata
+            self.label = label
+        }
+    }
+
+    func delete(service: String, account: String) throws {
+        lock.withLock {
+            secret = nil
+            metadata = nil
+            label = nil
+        }
+    }
+
+    func itemMetadata(service: String, accountPrefix: String) throws -> [Data] {
+        lock.withLock { metadata.map { [$0] } ?? [] }
+    }
+
+    func savedMetadata() -> Data? {
+        lock.withLock { metadata }
+    }
+
+    func savedLabel() -> String? {
+        lock.withLock { label }
+    }
+}
+
+private extension NSLock {
+    func withLock<T>(_ operation: () -> T) -> T {
+        lock()
+        defer { unlock() }
+        return operation()
+    }
 }

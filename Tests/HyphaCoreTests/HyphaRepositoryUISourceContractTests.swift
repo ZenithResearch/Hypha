@@ -151,17 +151,21 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             "canChooseDirectories = true",
             "startAccessingSecurityScopedResource()",
             "HyphaRoomRepositoryLocalBindingStore",
-            "Remote repository URL",
-            "Verify private access",
+            #"Repositories \(repositorySet.repositories.count) /"#,
+            "matrix.room.repositories.remote",
+            "Verify GitHub access",
             "githubConnection.verify(remote:",
-            "out.json",
-            "matrix.room.repository.attach",
+            "requestedRef",
+            "matrix.room.repositories.attach",
+            "Remote-only is supported",
         ] {
             XCTAssertTrue(sheet.contains(marker), "Missing repository-sheet contract: \(marker)")
         }
         for forbidden in [
             "HyphaArtifactViewerView",
             "HyphaRepositoryBuilder",
+            "HyphaGitHubRepositoryMaterializer",
+            "HyphaRoomAssetGraph",
             "Run this local build command?",
             "matrix.room.repository.build",
         ] {
@@ -172,18 +176,29 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             "HyphaRepositoryBuilder",
             "Run this local build command?",
             "Rebuild",
+            "Cancel Rebuild",
             "matrix.room.content.rebuild",
-            "@State private var artifacts: [HyphaArtifactSelection]",
-            "@State private var selectedArtifactID: String?",
-            "loadAvailableOutputs()",
+            "matrix.room.content.cancel-rebuild",
+            "copyHermesDesignBrief",
+            "\"secrets_included\": false",
+            "Publish selected Canvas Asset",
+            "asset.source.kind == .remote",
+            "HyphaRoomTemplateReference",
+            "Canvas actions",
+            "@State private var snapshots: [HyphaRoomAssetSnapshot]",
+            "@State private var selectedAssetID: String?",
+            "loadAssets(refreshReferences:",
+            "loadSnapshot(",
+            "kind: .localFallback",
             "ScrollView(.horizontal",
             "LazyHStack",
             "HyphaArtifactGalleryCard",
             "matrix.room.content.output-gallery",
             "matrix.room.content.output-card",
             "result.artifacts",
-            "ForEach(artifacts)",
-            "selectedArtifactID = selection.id",
+            "ForEach(snapshot.assets)",
+            "selectedAssetID = asset.id",
+            "contentModePicker",
         ] {
             XCTAssertTrue(roomContent.contains(marker), "Missing room-content output contract: \(marker)")
         }
@@ -192,21 +207,23 @@ final class HyphaRepositoryUISourceContractTests: XCTestCase {
             "Available output assets must open from the gallery without starting a build"
         )
         XCTAssertFalse(
-            roomContent.contains("artifacts = []\n        selectedArtifactID = nil\n        buildLog = \"\""),
+            roomContent.contains("snapshots = []\n        selectedAssetID = nil\n        buildLog = \"\""),
             "Starting a rebuild must not clear the last usable output gallery"
         )
         let loadBody = try XCTUnwrap(
-            roomContent.components(separatedBy: "private func load() async").last?
-                .components(separatedBy: "private func loadAvailableOutputs()").first
+            roomContent.components(separatedBy: "private func loadAssets(refreshReferences: Bool) async").last?
+                .components(separatedBy: "private func loadSnapshot(").first
         )
         XCTAssertFalse(loadBody.contains("builder.build"), "Loading available assets must never start a build")
 
         let rebuildBody = try XCTUnwrap(
-            roomContent.components(separatedBy: "private func runRebuild(command: String)").last?
-                .components(separatedBy: "private func beginSecurityScope").first
+            roomContent.components(separatedBy: "private func runRebuild(repository:").last?
+                .components(separatedBy: "private func replaceSnapshot").first
         )
         XCTAssertTrue(rebuildBody.contains("builder.build"))
-        XCTAssertFalse(rebuildBody.contains("artifacts = []"), "A rebuild must preserve usable output on failure")
+        XCTAssertTrue(rebuildBody.contains("rebuildTask = Task"))
+        XCTAssertTrue(rebuildBody.contains("catch is CancellationError"))
+        XCTAssertFalse(rebuildBody.contains("snapshots = []"), "A rebuild must preserve usable output on failure")
         for marker in [
             "import PDFKit",
             "import QuickLookUI",

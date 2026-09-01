@@ -68,7 +68,7 @@ CRITICAL_POLICY_HASHES = {
     "scripts/generate_zenith_icon.py": "f91f71cdf8309fe9217e06cafd0477c32faa380c66b4f31feedc8d0944250b18",
     "Resources/ZenithOSIcon.svg": "b553714e443d6ab856295676f92ee363d9b9ccfb8a0a6711e73ce9780fe2ac78",
 }
-TEXT_SUFFIXES = {"", ".command", ".entitlements", ".hbs", ".html", ".json", ".md", ".pbxproj", ".plist", ".py", ".sh", ".svg", ".swift", ".toml", ".txt", ".xcworkspacedata", ".xcscheme", ".yml", ".yaml"}
+TEXT_SUFFIXES = {"", ".command", ".css", ".entitlements", ".hbs", ".html", ".js", ".json", ".lock", ".md", ".mjs", ".pbxproj", ".plist", ".py", ".rs", ".sh", ".svg", ".swift", ".toml", ".ts", ".txt", ".xcworkspacedata", ".xcscheme", ".yml", ".yaml"}
 BINARY_MAGIC_PREFIXES = (b"PK\x03\x04", b"\x89PNG\r\n\x1a\n", b"icns", b"\x7fELF", b"%PDF", b"\x1f\x8b")
 
 

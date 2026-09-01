@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenith-research.ca/hypha/canvas/template-manifest.v1.schema.json",
+  "title": "Hypha room Canvas package manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "entry", "sdk_version", "capabilities", "integrity"],
+  "properties": {
+    "schema": { "const": "hypha.room-template.v1" },
+    "entry": { "$ref": "#/$defs/relativeHTMLPath" },
+    "sdk_version": { "const": "1" },
+    "capabilities": {
+      "type": "array",
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": { "$ref": "https://zenith-research.ca/hypha/canvas/capability.v1.schema.json" }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "digest"],
+      "properties": {
+        "algorithm": { "const": "sha256" },
+        "digest": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" }
+      }
+    }
+  },
+  "$defs": {
+    "relativeHTMLPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*//)(?!.*(?:^|/)\\.{1,2}(?:/|$))[^\\u0000-\\u001F\\u007F-\\u009F]+\\.[Hh][Tt][Mm][Ll]$"
+    }
+  }
+}

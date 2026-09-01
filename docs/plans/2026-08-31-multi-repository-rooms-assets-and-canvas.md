@@ -1,6 +1,6 @@
 # Multi-repository Rooms, Assets, and Canvas Implementation Plan
 
-> **Status:** Draft specification and implementation plan. This document does not claim that the described feature is implemented.
+> **Status:** Implemented in source on `codex/room-repository-set-spec`; not yet merged or released.
 >
 > **For Hermes:** Implement one task at a time. Run contract review before code review for every task that changes Matrix state, `out.json`, template manifests, or the canvas bridge.
 
@@ -41,7 +41,7 @@
 25. Hermes receives room/asset metadata and SDK documentation, never Matrix or GitHub secrets.
 26. Template validation and preview complete before a room administrator publishes a shared template reference.
 
-## Current baseline
+## Baseline before this implementation
 
 The current `origin/main` implementation has the following relevant behavior:
 
@@ -193,7 +193,7 @@ The JSON Schema, Swift decoder, semantic resolver, canonical example, fixtures, 
 
 ~~~json
 {
-  "id": "investor-deck:slides/deck.pptx",
+  "id": "asset:1111111111111111111111111111111111111111111111111111111111111111",
   "attachment_id": "investor-deck",
   "path": "slides/deck.pptx",
   "title": "Quarterly deck",
@@ -211,6 +211,7 @@ The JSON Schema, Swift decoder, semantic resolver, canonical example, fixtures, 
 
 Rules:
 
+- `id` is an opaque SHA-256 representation of the `(room_id, attachment_id, path, content_digest)` identity tuple.
 - `path` is relative to that attachment's output root.
 - Display trees group by attachment and preserve every path segment below `out/`.
 - `id` is stable within an attachment/ref snapshot; `content_digest` distinguishes revisions.

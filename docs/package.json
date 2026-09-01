@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --input-type=module --eval \"import assert from 'node:assert/strict'; import {readFileSync} from 'node:fs'; import Ajv2020 from 'ajv/dist/2020.js'; const read = path => JSON.parse(readFileSync(path, 'utf8')); const validate = new Ajv2020({allErrors:true,strict:true,strictRequired:false}).compile(read('./out.schema.json')); const fixtures = read('./out.schema.tests.json'); fixtures.valid.unshift({label:'canonical v2 example',instance:read('./examples/out.v2.json')}); for (const fixture of fixtures.valid) assert.equal(validate(fixture.instance), true, fixture.label + ' should be schema-valid: ' + JSON.stringify(validate.errors)); for (const fixture of fixtures.invalid) assert.equal(validate(fixture.instance), false, fixture.label + ' should be schema-invalid'); console.log('out.schema.json: all conformance fixtures passed');\""
+    "test": "node test-contracts.mjs"
   },
   "devDependencies": {
     "ajv": "8.17.1"

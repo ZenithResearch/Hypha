@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zenith-research.ca/hypha/canvas/capability.v1.schema.json",
+  "title": "Hypha Canvas v1 capability",
+  "type": "string",
+  "enum": ["room.read", "repositories.list", "assets.list", "assets.read", "viewer.open", "layout_state.read", "layout_state.write"]
+}
