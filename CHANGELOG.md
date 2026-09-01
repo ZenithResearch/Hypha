@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Added
 
+- Documented the accepted multi-repository room, path-preserving Assets, explicit rebuild, Hermes-authored canvas, capability API, and component SDK design — gives implementation one compatibility- and security-reviewed product contract without claiming the feature is already shipped.
 - Added broker-backed, short-lived homeserver administration sessions — keeps Synapse service authority and operator secrets out of the native client while preserving explicit typed administration actions.
 - Added a first-class Tailscale homeserver connection card with native app launch, official install fallback, and actionable tailnet errors — makes private self-hosted deployments understandable and connectable without exposing Tailscale credentials to Hypha.
 

@@ -78,6 +78,8 @@ the deployment default.
 
 ## Repository output contract
 
+The [Hypha user manual](docs/user-manual.md) describes the current repository workflow and the accepted user experience for planned multi-repository Assets and Hermes-authored room canvases. The contract-first engineering specification is [Multi-repository Rooms, Assets, and Canvas](docs/plans/2026-08-31-multi-repository-rooms-assets-and-canvas.md). Planned behavior is labeled explicitly and is not a claim about the current release.
+
 An attached room shares the remote repository URL and fixed `out/` contract through Matrix room state. Each Mac separately chooses its local checkout. The local build command is optional: with no command, Hypha loads every supported file from `<repo>/out`. If the manifest selects a primary output, that output opens first while the remaining supported assets stay available in the room-content picker.
 
 `out/out.json` can select one legacy output or declare a versioned, ordered artifact set with stable IDs, titles, MIME hints, constrained renderers, and a bounded HTML bundle root. The normative contract and compatibility rules are in [`docs/repository-output-contract.md`](docs/repository-output-contract.md); the machine-readable writer contract is [`docs/out.schema.json`](docs/out.schema.json), with a canonical [`docs/examples/out.v2.json`](docs/examples/out.v2.json) example.
@@ -139,6 +141,7 @@ Downloadable builds are published on [GitHub Releases](https://github.com/Zenith
 
 ## Security and interoperability
 
+- [User manual](docs/user-manual.md)
 - [Security model](docs/security-model.md)
 - [Cross-signing and device-verification diagnosis](docs/cross-signing-diagnosis.md)
 - [FAQ](docs/faq.md)
