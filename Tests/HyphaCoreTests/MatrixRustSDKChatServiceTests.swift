@@ -8,6 +8,35 @@ final class MatrixRustSDKChatServiceTests: XCTestCase {
         homeserver: URL(string: "https://synapse.zenith-research.ca")!
     )
 
+    func testRoomDirectoryCollectorAppliesPaginatedListUpdates() {
+        let first = RoomDescription(
+            roomId: "!one:example.org",
+            name: "One",
+            topic: nil,
+            alias: nil,
+            avatarUrl: nil,
+            joinRule: .public,
+            isWorldReadable: false,
+            joinedMembers: 2
+        )
+        let second = RoomDescription(
+            roomId: "!two:example.org",
+            name: "Two",
+            topic: nil,
+            alias: nil,
+            avatarUrl: nil,
+            joinRule: .knock,
+            isWorldReadable: true,
+            joinedMembers: 3
+        )
+        let collector = MatrixRoomDirectoryEntriesCollector()
+
+        collector.onUpdate(roomEntriesUpdate: [.reset(values: [first])])
+        collector.onUpdate(roomEntriesUpdate: [.append(values: [second])])
+
+        XCTAssertEqual(collector.snapshot(), [first, second])
+    }
+
     func testRoomNameResolutionPrefersPersistedStateNameOverComputedFallbacks() {
         XCTAssertEqual(
             MatrixRoomNameResolution.resolve(

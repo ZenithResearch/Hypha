@@ -72,6 +72,55 @@ public enum MatrixUserLookupResult: Equatable, Sendable {
     case unavailable
 }
 
+public struct MatrixHomeserverUser: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let displayName: String?
+    public let avatarURL: String?
+
+    public init(id: String, displayName: String? = nil, avatarURL: String? = nil) {
+        self.id = id
+        self.displayName = displayName
+        self.avatarURL = avatarURL
+    }
+}
+
+public enum MatrixRoomDirectoryJoinRule: String, Equatable, Sendable {
+    case `public`
+    case knock
+    case restricted
+    case knockRestricted
+    case invite
+    case unknown
+}
+
+public struct MatrixHomeserverRoom: Identifiable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let topic: String?
+    public let canonicalAlias: String?
+    public let joinedMemberCount: UInt64
+    public let joinRule: MatrixRoomDirectoryJoinRule
+    public let isWorldReadable: Bool
+
+    public init(
+        id: String,
+        name: String,
+        topic: String? = nil,
+        canonicalAlias: String? = nil,
+        joinedMemberCount: UInt64 = 0,
+        joinRule: MatrixRoomDirectoryJoinRule = .unknown,
+        isWorldReadable: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.topic = topic
+        self.canonicalAlias = canonicalAlias
+        self.joinedMemberCount = joinedMemberCount
+        self.joinRule = joinRule
+        self.isWorldReadable = isWorldReadable
+    }
+}
+
 public struct MatrixTimelineEvent: Identifiable, Equatable, Sendable {
     public enum Content: Equatable, Sendable {
         case text(String)
@@ -480,6 +529,8 @@ public protocol MatrixChatService: Sendable {
     func deactivateAdministratorManagedAccount(userID: String) async throws
     func purgeAdministratorManagedRoom(roomID: String) async throws
     func refreshRooms() async throws -> [MatrixRoomSummary]
+    func homeserverUsers() async throws -> [MatrixHomeserverUser]
+    func homeserverRooms() async throws -> [MatrixHomeserverRoom]
     func timeline(for roomID: String) async throws -> [MatrixTimelineEvent]
     func sendText(_ body: String, to roomID: String) async throws
     func roomRepositoryState(roomID: String) async throws -> MatrixRoomRepositoryState
@@ -526,6 +577,13 @@ public protocol MatrixChatService: Sendable {
 }
 
 public extension MatrixChatService {
+    func homeserverUsers() async throws -> [MatrixHomeserverUser] {
+        throw MatrixChatServiceError.unavailable(reason: "The homeserver user directory is unavailable")
+    }
+
+    func homeserverRooms() async throws -> [MatrixHomeserverRoom] {
+        throw MatrixChatServiceError.unavailable(reason: "The homeserver room directory is unavailable")
+    }
     func roomTemplateReference(roomID: String) async throws -> HyphaRoomTemplateReference? { nil }
 
     func setRoomTemplateReference(
@@ -961,6 +1019,14 @@ public final class MatrixChatCoordinator {
             state = .rooms(rooms)
         }
         return rooms
+    }
+
+    public func homeserverUsers() async throws -> [MatrixHomeserverUser] {
+        try await service.homeserverUsers()
+    }
+
+    public func homeserverRooms() async throws -> [MatrixHomeserverRoom] {
+        try await service.homeserverRooms()
     }
 
     public func lookupInviteUser(
