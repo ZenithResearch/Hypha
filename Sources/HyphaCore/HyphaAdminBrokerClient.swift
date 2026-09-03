@@ -62,11 +62,15 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
         let roomID: String
         let name: String
         let joinedMemberCount: Int
+        let ownerUserID: String?
+        let visibility: String?
 
         enum CodingKeys: String, CodingKey {
             case roomID = "room_id"
             case name
             case joinedMemberCount = "joined_member_count"
+            case ownerUserID = "owner_user_id"
+            case visibility
         }
     }
 
@@ -163,7 +167,12 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
         guard decoded.users.count <= Self.maximumCollectionCount,
               decoded.rooms.count <= Self.maximumCollectionCount,
               decoded.users.allSatisfy({ Self.validUserID($0.userID) }),
-              decoded.rooms.allSatisfy({ Self.validRoomID($0.roomID) && $0.joinedMemberCount >= 0 }) else {
+              decoded.rooms.allSatisfy({
+                  Self.validRoomID($0.roomID)
+                      && $0.joinedMemberCount >= 0
+                      && ($0.ownerUserID.map(Self.validUserID) ?? true)
+                      && ($0.visibility.map { ["public", "private"].contains($0) } ?? true)
+              }) else {
             sessionToken = nil
             throw HyphaAdminBrokerError.invalidResponse
         }
@@ -181,7 +190,9 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
                 MatrixAdminRoomSummary(
                     roomID: $0.roomID,
                     name: $0.name.isEmpty ? $0.roomID : $0.name,
-                    joinedMemberCount: $0.joinedMemberCount
+                    joinedMemberCount: $0.joinedMemberCount,
+                    ownerUserID: $0.ownerUserID,
+                    visibility: $0.visibility.map { $0 == "public" ? .public : .inviteOnly }
                 )
             }
         )
@@ -320,7 +331,9 @@ public actor HyphaAdminBrokerClient: CustomStringConvertible {
         return MatrixAdminRoomSummary(
             roomID: room.roomID,
             name: room.name.isEmpty ? room.roomID : room.name,
-            joinedMemberCount: room.joinedMemberCount
+            joinedMemberCount: room.joinedMemberCount,
+            ownerUserID: room.ownerUserID,
+            visibility: room.visibility.map { $0 == "public" ? .public : .inviteOnly }
         )
     }
 

@@ -82,13 +82,23 @@ public struct MatrixAdminRoomSummary: Identifiable, Equatable, Sendable {
     public let roomID: String
     public let name: String
     public let joinedMemberCount: Int
+    public let ownerUserID: String?
+    public let visibility: MatrixRoomVisibility?
 
     public var id: String { roomID }
 
-    public init(roomID: String, name: String, joinedMemberCount: Int) {
+    public init(
+        roomID: String,
+        name: String,
+        joinedMemberCount: Int,
+        ownerUserID: String? = nil,
+        visibility: MatrixRoomVisibility? = nil
+    ) {
         self.roomID = roomID
         self.name = name
         self.joinedMemberCount = joinedMemberCount
+        self.ownerUserID = ownerUserID
+        self.visibility = visibility
     }
 }
 
@@ -607,7 +617,13 @@ public struct MatrixSynapseAdminClient: MatrixAdminClient, Sendable {
                 guard let roomID = room["room_id"] as? String else { return nil }
                 let name = (room["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? roomID
                 let members = room["joined_members"] as? Int ?? 0
-                return MatrixAdminRoomSummary(roomID: roomID, name: name, joinedMemberCount: members)
+                return MatrixAdminRoomSummary(
+                    roomID: roomID,
+                    name: name,
+                    joinedMemberCount: members,
+                    ownerUserID: room["creator"] as? String,
+                    visibility: (room["public"] as? Bool).map { $0 ? .public : .inviteOnly }
+                )
             })
             guard let next = object["next_batch"] else { break }
             offset = String(describing: next)

@@ -9,6 +9,14 @@ enum MatrixAdminAccountRole: String, CaseIterable, Identifiable {
     var label: String { self == .administrator ? "Administrator" : "User" }
 }
 
+private enum MatrixAdminRoomScope: String, CaseIterable, Identifiable {
+    case publicRooms
+    case allRooms
+
+    var id: String { rawValue }
+    var label: String { self == .publicRooms ? "Public" : "All" }
+}
+
 struct MatrixAdminSheet: View {
     @ObservedObject var model: MatrixAppModel
     @Binding var isPresented: Bool
@@ -28,6 +36,9 @@ struct MatrixAdminSheet: View {
     @State private var roomTopic = ""
     @State private var createsSpace = false
     @State private var roomVisibility: MatrixRoomVisibility = .inviteOnly
+    @State private var accountSearchQuery = ""
+    @State private var roomSearchQuery = ""
+    @State private var roomScope: MatrixAdminRoomScope = .publicRooms
     @State private var validationMessage: String?
 
     var body: some View {
@@ -378,15 +389,19 @@ struct MatrixAdminSheet: View {
             HStack {
                 VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
                     sectionTitle("ACCOUNTS")
-                    Text("Active local accounts")
+                    Text("All local accounts")
                         .font(ZenithDesign.Typography.corporate(.title3, weight: .semibold))
                 }
                 Spacer()
                 refreshButton
             }
 
-            if let users = model.adminSnapshot?.users, !users.isEmpty {
-                ForEach(users) { user in
+            TextField("Search all users by Matrix ID", text: $accountSearchQuery)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("matrix.admin.accounts.search")
+
+            if !filteredAdminUsers.isEmpty {
+                ForEach(filteredAdminUsers) { user in
                     HStack(spacing: ZenithDesign.Space.x3) {
                         Image(systemName: user.isAdministrator ? "person.badge.shield.checkmark" : "person.crop.circle")
                             .font(.system(size: 14, weight: .medium))
@@ -395,7 +410,7 @@ struct MatrixAdminSheet: View {
                             Text(user.userID)
                                 .font(ZenithDesign.Typography.corporate(.callout, weight: .medium))
                                 .textSelection(.enabled)
-                            Text(user.isAdministrator ? "Administrator" : "User")
+                            Text(user.isDeactivated ? "Deactivated" : (user.isAdministrator ? "Administrator" : "User"))
                                 .font(ZenithDesign.Typography.technical(.caption2, weight: .medium))
                                 .foregroundStyle(ZenithDesign.Palette.muted)
                         }
@@ -429,8 +444,11 @@ struct MatrixAdminSheet: View {
                 }
             } else if model.isAdminOperationInFlight {
                 ProgressView("Loading accounts…")
+            } else if !(model.adminSnapshot?.users.isEmpty ?? true) {
+                Text("No accounts match this search.")
+                    .foregroundStyle(ZenithDesign.Palette.muted)
             } else {
-                Text("No active accounts returned by the homeserver.")
+                Text("No accounts returned by the homeserver.")
                     .foregroundStyle(ZenithDesign.Palette.muted)
             }
         }
@@ -440,11 +458,23 @@ struct MatrixAdminSheet: View {
     private var roomSection: some View {
         VStack(alignment: .leading, spacing: ZenithDesign.Space.x3) {
             sectionTitle("ROOMS")
-            Text("Homeserver rooms")
+            Text(roomScope == .publicRooms ? "All public rooms and their owners" : "All homeserver rooms")
                 .font(ZenithDesign.Typography.corporate(.title3, weight: .semibold))
 
-            if let rooms = model.adminSnapshot?.rooms, !rooms.isEmpty {
-                ForEach(rooms) { room in
+            Picker("Room scope", selection: $roomScope) {
+                ForEach(MatrixAdminRoomScope.allCases) { scope in
+                    Text(scope.label).tag(scope)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("matrix.admin.rooms.scope")
+
+            TextField("Search rooms by name, ID, or owner", text: $roomSearchQuery)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("matrix.admin.rooms.search")
+
+            if !filteredAdminRooms.isEmpty {
+                ForEach(filteredAdminRooms) { room in
                     HStack(spacing: ZenithDesign.Space.x3) {
                         Image(systemName: "bubble.left.and.bubble.right")
                             .font(.system(size: 14, weight: .medium))
@@ -452,7 +482,7 @@ struct MatrixAdminSheet: View {
                         VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
                             Text(room.name)
                                 .font(ZenithDesign.Typography.corporate(.callout, weight: .medium))
-                            Text("\(room.joinedMemberCount) joined · \(room.roomID)")
+                            Text(roomMetadata(room))
                                 .font(ZenithDesign.Typography.technical(.caption2))
                                 .foregroundStyle(ZenithDesign.Palette.muted)
                                 .textSelection(.enabled)
@@ -469,12 +499,42 @@ struct MatrixAdminSheet: View {
                 }
             } else if model.isAdminOperationInFlight {
                 ProgressView("Loading rooms…")
+            } else if !(model.adminSnapshot?.rooms.isEmpty ?? true) {
+                Text(roomScope == .publicRooms ? "No public rooms match this search." : "No rooms match this search.")
+                    .foregroundStyle(ZenithDesign.Palette.muted)
             } else {
                 Text("No rooms remain on this homeserver.")
                     .foregroundStyle(ZenithDesign.Palette.muted)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var filteredAdminUsers: [MatrixAdminUserSummary] {
+        let query = accountSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let users = model.adminSnapshot?.users ?? []
+        guard !query.isEmpty else { return users }
+        return users.filter { $0.userID.localizedCaseInsensitiveContains(query) }
+    }
+
+    private var filteredAdminRooms: [MatrixAdminRoomSummary] {
+        let query = roomSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (model.adminSnapshot?.rooms ?? []).filter { room in
+            // Unknown is retained during an app-first mixed-version rollout so
+            // rooms do not disappear before the broker starts sending metadata.
+            let isInScope = roomScope == .allRooms || room.visibility != .inviteOnly
+            let matchesQuery = query.isEmpty
+                || room.name.localizedCaseInsensitiveContains(query)
+                || room.roomID.localizedCaseInsensitiveContains(query)
+                || room.ownerUserID?.localizedCaseInsensitiveContains(query) == true
+            return isInScope && matchesQuery
+        }
+    }
+
+    private func roomMetadata(_ room: MatrixAdminRoomSummary) -> String {
+        let visibility = room.visibility == .public ? "Public" : (room.visibility == .inviteOnly ? "Private" : "Visibility unknown")
+        let owner = room.ownerUserID.map { "Owner \($0)" } ?? "Owner unavailable"
+        return "\(visibility) · \(owner) · \(room.joinedMemberCount) joined · \(room.roomID)"
     }
 
     private var refreshButton: some View {

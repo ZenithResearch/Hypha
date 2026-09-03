@@ -64,6 +64,8 @@ final class HyphaAdminBrokerClientTests: XCTestCase {
                         "room_id": "!room:example.org",
                         "name": "Room",
                         "joined_member_count": 1,
+                        "owner_user_id": "@alice:example.org",
+                        "visibility": "public",
                     ]],
                 ]
             ),
@@ -79,6 +81,8 @@ final class HyphaAdminBrokerClientTests: XCTestCase {
         XCTAssertEqual(snapshot.currentUserID, "")
         XCTAssertEqual(snapshot.users.map(\.userID), ["@alice:example.org"])
         XCTAssertEqual(snapshot.rooms.map(\.roomID), ["!room:example.org"])
+        XCTAssertEqual(snapshot.rooms.first?.ownerUserID, "@alice:example.org")
+        XCTAssertEqual(snapshot.rooms.first?.visibility, .public)
         let requests = await transport.requests()
         XCTAssertEqual(requests[1].httpMethod, "GET")
         XCTAssertEqual(requests[1].url?.path, "/_hypha/admin/v1/snapshot")
