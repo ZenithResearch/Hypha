@@ -128,6 +128,12 @@ final class MatrixAppModel: ObservableObject {
     @Published var savePasswordToApplePasswords = false
     @Published var messageDraftStore = HyphaMessageDraftStore()
     @Published var rooms: [MatrixRoomSummary] = []
+    @Published private(set) var homeserverUsers: [MatrixHomeserverUser] = []
+    @Published private(set) var homeserverRooms: [MatrixHomeserverRoom] = []
+    @Published private(set) var isLoadingHomeserverUsers = false
+    @Published private(set) var isLoadingHomeserverRooms = false
+    @Published private(set) var homeserverUserDirectoryError: String?
+    @Published private(set) var homeserverRoomDirectoryError: String?
     @Published var trustState: MatrixDeviceTrustState = .unknown
     @Published var verificationFlowState: MatrixVerificationFlowState = .idle
     @Published var recoveryState: MatrixRecoveryState = .unknown
@@ -347,6 +353,11 @@ final class MatrixAppModel: ObservableObject {
         showsFirstRunGuidance = false
         savedSessions = []
         savedCredentials = []
+        rooms = []
+        homeserverUsers = []
+        homeserverRooms = []
+        homeserverUserDirectoryError = nil
+        homeserverRoomDirectoryError = nil
         activeSessionAccountKey = nil
         requiresInitialPasswordReset = false
         hasPendingHomeserverPasswordResetRequest = false
@@ -862,6 +873,32 @@ final class MatrixAppModel: ObservableObject {
         } catch {
             roomSyncMessage = "Room sync failed. Check your connection and try again."
             roomSyncMessageTone = .error
+        }
+    }
+
+    func refreshHomeserverUsers() async {
+        guard let coordinator, !isLoadingHomeserverUsers else { return }
+        isLoadingHomeserverUsers = true
+        homeserverUserDirectoryError = nil
+        defer { isLoadingHomeserverUsers = false }
+        do {
+            homeserverUsers = try await coordinator.homeserverUsers()
+        } catch {
+            homeserverUserDirectoryError = (error as? LocalizedError)?.errorDescription
+                ?? "The homeserver user directory could not be loaded."
+        }
+    }
+
+    func refreshHomeserverRooms() async {
+        guard let coordinator, !isLoadingHomeserverRooms else { return }
+        isLoadingHomeserverRooms = true
+        homeserverRoomDirectoryError = nil
+        defer { isLoadingHomeserverRooms = false }
+        do {
+            homeserverRooms = try await coordinator.homeserverRooms()
+        } catch {
+            homeserverRoomDirectoryError = (error as? LocalizedError)?.errorDescription
+                ?? "The homeserver room directory could not be loaded."
         }
     }
 
@@ -1802,6 +1839,8 @@ private struct MatrixCompanionShell: View {
     @State private var showsRecoverySetup = false
     @State private var showsNewRoom = false
     @State private var showsRoomInvite = false
+    @State private var showsPeopleDirectory = false
+    @State private var showsRoomDirectory = false
     @State private var repositoryRoom: MatrixRoomSummary?
 #if os(macOS)
     @State private var roomContentRefreshID = UUID()
@@ -1868,6 +1907,12 @@ private struct MatrixCompanionShell: View {
         }
         .sheet(isPresented: $showsRoomInvite) {
             MatrixRoomInviteSheet(model: model, isPresented: $showsRoomInvite)
+        }
+        .sheet(isPresented: $showsPeopleDirectory) {
+            MatrixPeopleDirectorySheet(model: model, isPresented: $showsPeopleDirectory)
+        }
+        .sheet(isPresented: $showsRoomDirectory) {
+            MatrixRoomDirectorySheet(model: model, isPresented: $showsRoomDirectory)
         }
 #if os(macOS)
         .sheet(item: $repositoryRoom, onDismiss: {
@@ -2434,6 +2479,29 @@ private struct MatrixCompanionShell: View {
                 }
 
                 let groups = MatrixSidebarRoomGroups(rooms: rooms)
+
+                sidebarSectionTitle("Directory")
+                HStack(spacing: ZenithDesign.Space.x2) {
+                    Button {
+                        showsPeopleDirectory = true
+                    } label: {
+                        Label("People", systemImage: "person.2")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("matrix.directory.people.open")
+
+                    Button {
+                        showsRoomDirectory = true
+                    } label: {
+                        Label("Rooms", systemImage: "rectangle.3.group")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("matrix.directory.rooms.open")
+                }
+                .padding(.horizontal, ZenithDesign.Space.x2)
+                .padding(.bottom, ZenithDesign.Space.x2)
 
                 sidebarSectionTitle("DMs")
                 if groups.directMessages.isEmpty {
@@ -4532,6 +4600,203 @@ private struct MatrixLostRecoveryResetSheet: View {
             ProgressView().controlSize(.small)
             Text(message).foregroundStyle(ZenithDesign.Palette.muted)
         }
+    }
+}
+
+private struct MatrixPeopleDirectorySheet: View {
+    @ObservedObject var model: MatrixAppModel
+    @Binding var isPresented: Bool
+    @State private var searchText = ""
+
+    private var filteredUsers: [MatrixHomeserverUser] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return model.homeserverUsers }
+        return model.homeserverUsers.filter {
+            $0.id.localizedCaseInsensitiveContains(query)
+                || $0.displayName?.localizedCaseInsensitiveContains(query) == true
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if model.isLoadingHomeserverUsers && model.homeserverUsers.isEmpty {
+                    ProgressView("Loading people…")
+                } else if let error = model.homeserverUserDirectoryError,
+                          model.homeserverUsers.isEmpty {
+                    ContentUnavailableView {
+                        Label("People unavailable", systemImage: "person.2.slash")
+                    } description: {
+                        Text(error)
+                    } actions: {
+                        Button("Try again") { Task { await model.refreshHomeserverUsers() } }
+                    }
+                } else if filteredUsers.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    List(filteredUsers) { user in
+                        HStack(spacing: ZenithDesign.Space.x3) {
+                            Image(systemName: "person.crop.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(ZenithDesign.Palette.brand)
+                            VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                                Text(user.displayName?.isEmpty == false ? user.displayName! : user.id)
+                                if user.displayName?.isEmpty == false {
+                                    Text(user.id)
+                                        .font(.caption)
+                                        .foregroundStyle(ZenithDesign.Palette.muted)
+                                }
+                            }
+                        }
+                        .accessibilityIdentifier("matrix.directory.people.user")
+                    }
+                }
+            }
+            .navigationTitle("People on this homeserver")
+            .searchable(text: $searchText, prompt: "Name or Matrix ID")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        Task { await model.refreshHomeserverUsers() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .disabled(model.isLoadingHomeserverUsers)
+                    .accessibilityLabel("Refresh people")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { isPresented = false }
+                }
+            }
+        }
+        .hyphaFlexibleSheetFrame(minWidth: 520, idealWidth: 620, minHeight: 480)
+        .hyphaMobileSheetPresentation()
+        .task {
+            await model.refreshHomeserverUsers()
+        }
+    }
+}
+
+private struct MatrixRoomDirectorySheet: View {
+    @ObservedObject var model: MatrixAppModel
+    @Binding var isPresented: Bool
+    @State private var searchText = ""
+
+    private var filteredJoinedRooms: [MatrixRoomSummary] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return model.rooms }
+        return model.rooms.filter {
+            $0.name.localizedCaseInsensitiveContains(query)
+                || $0.id.localizedCaseInsensitiveContains(query)
+                || $0.topic?.localizedCaseInsensitiveContains(query) == true
+        }
+    }
+
+    private var filteredDirectoryRooms: [MatrixHomeserverRoom] {
+        let knownRoomIDs = Set(model.rooms.map(\.id))
+        let available = model.homeserverRooms.filter { !knownRoomIDs.contains($0.id) }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return available }
+        return available.filter {
+            $0.name.localizedCaseInsensitiveContains(query)
+                || $0.id.localizedCaseInsensitiveContains(query)
+                || $0.canonicalAlias?.localizedCaseInsensitiveContains(query) == true
+                || $0.topic?.localizedCaseInsensitiveContains(query) == true
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if model.isLoadingHomeserverRooms && model.homeserverRooms.isEmpty {
+                    ProgressView("Loading rooms…")
+                } else if let error = model.homeserverRoomDirectoryError,
+                          model.homeserverRooms.isEmpty {
+                    ContentUnavailableView {
+                        Label("Room directory unavailable", systemImage: "rectangle.3.group.slash")
+                    } description: {
+                        Text(error)
+                    } actions: {
+                        Button("Try again") { Task { await model.refreshHomeserverRooms() } }
+                    }
+                } else {
+                    List {
+                        if !filteredJoinedRooms.isEmpty {
+                            Section("Joined and invited") {
+                                ForEach(filteredJoinedRooms) { room in
+                                    roomRow(name: room.name, detail: room.topic ?? room.id) {
+                                        if room.hasInvite { Label("Invited", systemImage: "envelope") }
+                                        else { Label("Joined", systemImage: "checkmark.circle") }
+                                    }
+                                }
+                            }
+                        }
+                        if !filteredDirectoryRooms.isEmpty {
+                            Section("Discoverable on this homeserver") {
+                                ForEach(filteredDirectoryRooms) { room in
+                                    roomRow(
+                                        name: room.name,
+                                        detail: room.topic ?? room.canonicalAlias ?? room.id
+                                    ) {
+                                        Label(
+                                            "\(room.joinedMemberCount) members",
+                                            systemImage: "person.2"
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        if filteredJoinedRooms.isEmpty && filteredDirectoryRooms.isEmpty {
+                            ContentUnavailableView.search(text: searchText)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Accessible rooms")
+            .searchable(text: $searchText, prompt: "Room name, topic, alias, or ID")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        Task { await model.refreshHomeserverRooms() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .disabled(model.isLoadingHomeserverRooms)
+                    .accessibilityLabel("Refresh accessible rooms")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { isPresented = false }
+                }
+            }
+        }
+        .hyphaFlexibleSheetFrame(minWidth: 560, idealWidth: 680, minHeight: 500)
+        .hyphaMobileSheetPresentation()
+        .task {
+            await model.refreshHomeserverRooms()
+        }
+    }
+
+    private func roomRow<Accessory: View>(
+        name: String,
+        detail: String,
+        @ViewBuilder accessory: () -> Accessory
+    ) -> some View {
+        HStack(spacing: ZenithDesign.Space.x3) {
+            Image(systemName: "rectangle.3.group.fill")
+                .foregroundStyle(ZenithDesign.Palette.brand)
+            VStack(alignment: .leading, spacing: ZenithDesign.Space.x1) {
+                Text(name)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(ZenithDesign.Palette.muted)
+                    .lineLimit(2)
+            }
+            Spacer()
+            accessory()
+                .font(.caption)
+                .foregroundStyle(ZenithDesign.Palette.muted)
+        }
+        .accessibilityIdentifier("matrix.directory.rooms.room")
     }
 }
 

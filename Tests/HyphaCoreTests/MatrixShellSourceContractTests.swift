@@ -1484,12 +1484,49 @@ final class MatrixShellSourceContractTests: XCTestCase {
         let permissionCheck = try XCTUnwrap(sdk.range(of: "powerLevels.canUserInvite(userId: room.ownUserId())"))
         let inviteCall = try XCTUnwrap(sdk.range(of: "room.inviteUserById(userId: userID)"))
         XCTAssertLessThan(permissionCheck.lowerBound, inviteCall.lowerBound)
-        XCTAssertFalse(sdk.contains("searchUsers("))
         let dmSection = try XCTUnwrap(app.range(of: "sidebarSectionTitle(\"DMs\")"))
         let inviteSection = try XCTUnwrap(app.range(of: "sidebarSectionTitle(\"Invites\")"))
         let spacesSection = try XCTUnwrap(app.range(of: "sidebarCreationHeader(\"Spaces\""))
         XCTAssertLessThan(dmSection.lowerBound, inviteSection.lowerBound)
         XCTAssertLessThan(inviteSection.lowerBound, spacesSection.lowerBound)
+    }
+
+    func testSignedInUsersCanBrowseLocalPeopleAndAccessibleRooms() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let app = try String(
+            contentsOf: root.appendingPathComponent("Sources/Hypha/HyphaApp.swift"),
+            encoding: .utf8
+        )
+        let sdk = try String(
+            contentsOf: root.appendingPathComponent("Sources/HyphaCore/MatrixRustSDKChatService.swift"),
+            encoding: .utf8
+        )
+
+        for marker in [
+            "MatrixPeopleDirectorySheet",
+            "MatrixRoomDirectorySheet",
+            "People on this homeserver",
+            "Accessible rooms",
+            "Joined and invited",
+            "Discoverable on this homeserver",
+            "matrix.directory.people.open",
+            "matrix.directory.rooms.open",
+        ] {
+            XCTAssertTrue(app.contains(marker), "Missing homeserver directory UI: \(marker)")
+        }
+        for marker in [
+            "client.searchUsers(searchTerm: \"\", limit: 1_000)",
+            "Self.serverName(in: profile.userId)",
+            "client.roomDirectorySearch()",
+            "directory.nextPage()",
+            "viaServerName: nil",
+        ] {
+            XCTAssertTrue(sdk.contains(marker), "Missing authenticated homeserver directory behavior: \(marker)")
+        }
     }
 
     func testSidebarSuccessMessagesUseSuccessColor() throws {

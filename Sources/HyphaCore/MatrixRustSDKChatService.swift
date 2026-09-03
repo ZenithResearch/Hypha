@@ -169,6 +169,8 @@ public protocol MatrixLiveClient: Sendable {
     func startContinuousSync() async
     func stopContinuousSync() async
     func joinedRooms() async throws -> [MatrixRoomSummary]
+    func homeserverUsers() async throws -> [MatrixHomeserverUser]
+    func homeserverRooms() async throws -> [MatrixHomeserverRoom]
     func timeline(roomID: String) async throws -> [MatrixTimelineEvent]
     func sendText(_ body: String, roomID: String) async throws
     func roomRepositoryState(roomID: String) async throws -> MatrixRoomRepositoryState
@@ -336,6 +338,13 @@ struct MatrixRecoveryIdentityResetLifecycle {
 }
 
 public extension MatrixLiveClient {
+    func homeserverUsers() async throws -> [MatrixHomeserverUser] {
+        throw MatrixChatServiceError.unavailable(reason: "The homeserver user directory is unavailable")
+    }
+
+    func homeserverRooms() async throws -> [MatrixHomeserverRoom] {
+        throw MatrixChatServiceError.unavailable(reason: "The homeserver room directory is unavailable")
+    }
     func roomTemplateReference(roomID: String) async throws -> HyphaRoomTemplateReference? { nil }
 
     func setRoomTemplateReference(
@@ -630,6 +639,28 @@ public actor MatrixRustSDKChatService: MatrixChatService {
         } catch {
             await client.startContinuousSync()
             throw mapRuntimeError(error, fallbackReason: "Matrix room sync failed")
+        }
+    }
+
+    public func homeserverUsers() async throws -> [MatrixHomeserverUser] {
+        try beginPrimarySessionOperation()
+        defer { endPrimarySessionOperation() }
+        guard let client else { throw MatrixChatServiceError.sessionExpired }
+        do {
+            return try await client.homeserverUsers()
+        } catch {
+            throw mapRuntimeError(error, fallbackReason: "The homeserver user directory could not be loaded")
+        }
+    }
+
+    public func homeserverRooms() async throws -> [MatrixHomeserverRoom] {
+        try beginPrimarySessionOperation()
+        defer { endPrimarySessionOperation() }
+        guard let client else { throw MatrixChatServiceError.sessionExpired }
+        do {
+            return try await client.homeserverRooms()
+        } catch {
+            throw mapRuntimeError(error, fallbackReason: "The homeserver room directory could not be loaded")
         }
     }
 
@@ -2227,6 +2258,52 @@ enum MatrixRoomNameResolution {
     }
 }
 
+final class MatrixRoomDirectoryEntriesCollector: RoomDirectorySearchEntriesListener, @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [RoomDescription] = []
+
+    func onUpdate(roomEntriesUpdate updates: [RoomDirectorySearchEntryUpdate]) {
+        lock.lock()
+        defer { lock.unlock() }
+        for update in updates {
+            switch update {
+            case let .append(values):
+                entries.append(contentsOf: values)
+            case .clear:
+                entries.removeAll()
+            case let .pushFront(value):
+                entries.insert(value, at: 0)
+            case let .pushBack(value):
+                entries.append(value)
+            case .popFront:
+                if !entries.isEmpty { entries.removeFirst() }
+            case .popBack:
+                if !entries.isEmpty { entries.removeLast() }
+            case let .insert(index, value):
+                entries.insert(value, at: min(Int(index), entries.count))
+            case let .set(index, value):
+                guard Int(index) < entries.count else { continue }
+                entries[Int(index)] = value
+            case let .remove(index):
+                guard Int(index) < entries.count else { continue }
+                entries.remove(at: Int(index))
+            case let .truncate(length):
+                if entries.count > Int(length) {
+                    entries.removeLast(entries.count - Int(length))
+                }
+            case let .reset(values):
+                entries = values
+            }
+        }
+    }
+
+    func snapshot() -> [RoomDescription] {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries
+    }
+}
+
 public actor MatrixRustLiveClient: MatrixLiveClient {
     private let client: Client
     private var roomByID: [String: Room] = [:]
@@ -2370,6 +2447,86 @@ public actor MatrixRustLiveClient: MatrixLiveClient {
         }
         roomByID = retained
         return summaries.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    public func homeserverUsers() async throws -> [MatrixHomeserverUser] {
+        let ownUserID = try client.userId()
+        guard let ownServerName = Self.serverName(in: ownUserID) else {
+            throw MatrixChatServiceError.unavailable(reason: "The signed-in Matrix user ID is invalid")
+        }
+        let search = try await client.searchUsers(searchTerm: "", limit: 1_000)
+        var users: [String: MatrixHomeserverUser] = [:]
+        for profile in search.results {
+            guard Self.serverName(in: profile.userId)?.caseInsensitiveCompare(ownServerName) == .orderedSame else {
+                continue
+            }
+            users[profile.userId] = MatrixHomeserverUser(
+                id: profile.userId,
+                displayName: profile.displayName,
+                avatarURL: profile.avatarUrl
+            )
+        }
+        if users[ownUserID] == nil, let profile = try? await client.getProfile(userId: ownUserID) {
+            users[ownUserID] = MatrixHomeserverUser(
+                id: ownUserID,
+                displayName: profile.displayName,
+                avatarURL: profile.avatarUrl
+            )
+        }
+        return users.values.sorted {
+            let left = $0.displayName?.isEmpty == false ? $0.displayName! : $0.id
+            let right = $1.displayName?.isEmpty == false ? $1.displayName! : $1.id
+            return left.localizedCaseInsensitiveCompare(right) == .orderedAscending
+        }
+    }
+
+    public func homeserverRooms() async throws -> [MatrixHomeserverRoom] {
+        let directory = client.roomDirectorySearch()
+        let collector = MatrixRoomDirectoryEntriesCollector()
+        let listenerHandle = await directory.results(listener: collector)
+        defer { listenerHandle.cancel() }
+
+        try await directory.search(filter: nil, batchSize: 100, viaServerName: nil)
+        while try await !directory.isAtLastPage() {
+            let loadedPages = try await directory.loadedPages()
+            try await directory.nextPage()
+            guard try await directory.loadedPages() > loadedPages else {
+                throw MatrixChatServiceError.unavailable(reason: "The homeserver room directory stopped paginating")
+            }
+        }
+
+        return collector.snapshot().map { room in
+            MatrixHomeserverRoom(
+                id: room.roomId,
+                name: room.name?.isEmpty == false ? room.name! : (room.alias ?? room.roomId),
+                topic: room.topic,
+                canonicalAlias: room.alias,
+                joinedMemberCount: room.joinedMembers,
+                joinRule: Self.mapRoomDirectoryJoinRule(room.joinRule),
+                isWorldReadable: room.isWorldReadable
+            )
+        }.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    private static func serverName(in userID: String) -> String? {
+        guard userID.hasPrefix("@"), let separator = userID.lastIndex(of: ":") else { return nil }
+        let serverName = userID[userID.index(after: separator)...]
+        return serverName.isEmpty ? nil : String(serverName)
+    }
+
+    private static func mapRoomDirectoryJoinRule(
+        _ joinRule: PublicRoomJoinRule?
+    ) -> MatrixRoomDirectoryJoinRule {
+        switch joinRule {
+        case .public: .public
+        case .knock: .knock
+        case .restricted: .restricted
+        case .knockRestricted: .knockRestricted
+        case .invite: .invite
+        case nil: .unknown
+        }
     }
 
     public func lookupInviteUser(
