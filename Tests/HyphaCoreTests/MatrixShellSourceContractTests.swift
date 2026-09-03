@@ -1431,6 +1431,35 @@ final class MatrixShellSourceContractTests: XCTestCase {
         XCTAssertTrue(build.contains("ZenithOSIcon.icns"))
     }
 
+    func testStagingBuildUsesInvertedIconWithoutChangingProductionIdentity() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let root = testFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let build = try String(
+            contentsOf: root.appendingPathComponent("build-app.sh"),
+            encoding: .utf8
+        )
+        let generator = try String(
+            contentsOf: root.appendingPathComponent("scripts/generate-staging-icon.swift"),
+            encoding: .utf8
+        )
+
+        for marker in [
+            "HYPHA_BUILD_CHANNEL",
+            "CURRENT_BRANCH",
+            "StagingZenithOSIcon.icns",
+            "generate-staging-icon.swift",
+        ] {
+            XCTAssertTrue(build.contains(marker), "Missing staging build identity: \(marker)")
+        }
+        XCTAssertTrue(generator.contains("brandTop"))
+        XCTAssertTrue(generator.contains("nearBlack"))
+        XCTAssertTrue(generator.contains("setFillColor(nearBlack.cgColor)"))
+        XCTAssertFalse(build.contains("CFBundleIdentifier=ca.zenithresearch.macos.client.staging"))
+    }
+
     func testInlineRoomInvitesArePermissionFilteredAndRevalidatedAtSubmit() throws {
         let testFile = URL(fileURLWithPath: #filePath)
         let root = testFile

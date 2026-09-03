@@ -7,6 +7,24 @@ EXECUTABLE="$APP/Contents/MacOS/Hypha"
 HYPHA_SIGNING_MODE="${HYPHA_SIGNING_MODE:-development}"
 HYPHA_DEFAULT_HOMESERVER="${HYPHA_DEFAULT_HOMESERVER:-}"
 HYPHA_DEVELOPMENT_TEAM="${HYPHA_DEVELOPMENT_TEAM:-KR4YTNKK3Y}"
+HYPHA_BUILD_CHANNEL="${HYPHA_BUILD_CHANNEL:-auto}"
+
+if [[ "$HYPHA_BUILD_CHANNEL" == "auto" ]]; then
+  CURRENT_BRANCH="$(git -C "$ROOT" branch --show-current)"
+  if [[ "$CURRENT_BRANCH" == "staging" ]]; then
+    HYPHA_BUILD_CHANNEL="staging"
+  else
+    HYPHA_BUILD_CHANNEL="production"
+  fi
+fi
+
+case "$HYPHA_BUILD_CHANNEL" in
+  production|staging) ;;
+  *)
+    echo "Unsupported HYPHA_BUILD_CHANNEL=$HYPHA_BUILD_CHANNEL (expected production, staging, or auto)." >&2
+    exit 1
+    ;;
+esac
 
 case "$HYPHA_SIGNING_MODE" in
   development)
@@ -83,7 +101,12 @@ if [[ -n "$HYPHA_DEFAULT_HOMESERVER" ]]; then
     -string "$HYPHA_DEFAULT_HOMESERVER" \
     "$APP/Contents/Info.plist"
 fi
-cp "$ROOT/Resources/ZenithOSIcon.icns" "$APP/Contents/Resources/ZenithOSIcon.icns"
+APP_ICON_SOURCE="$ROOT/Resources/ZenithOSIcon.icns"
+if [[ "$HYPHA_BUILD_CHANNEL" == "staging" ]]; then
+  APP_ICON_SOURCE="$ROOT/.build/StagingZenithOSIcon.icns"
+  xcrun swift "$ROOT/scripts/generate-staging-icon.swift" "$APP_ICON_SOURCE"
+fi
+cp "$APP_ICON_SOURCE" "$APP/Contents/Resources/ZenithOSIcon.icns"
 cp "$ROOT/scripts/update-from-main.sh" "$APP/Contents/Resources/update-from-main.sh"
 cp "$ROOT/scripts/launch-update-from-main.command" "$APP/Contents/Resources/launch-update-from-main.command"
 chmod 755 \
@@ -116,4 +139,4 @@ if [[ "$HYPHA_SIGNING_MODE" == "developer-id" ]] && ! codesign -dv --verbose=4 "
   echo "Developer ID signature is missing the hardened runtime flag." >&2
   exit 1
 fi
-printf 'Built %s (signing=%s)\n' "$APP" "$HYPHA_SIGNING_MODE"
+printf 'Built %s (signing=%s, channel=%s)\n' "$APP" "$HYPHA_SIGNING_MODE" "$HYPHA_BUILD_CHANNEL"
